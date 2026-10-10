@@ -32,6 +32,9 @@ app.use('/api', accountRoutes.router);
 // ── Marketing landing page (public/) ───────────────────────────────────
 app.get('/', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'landing.html')));
 
+// ── NIFTY 50 live 3D page ──────────────────────────────────────────────
+app.get('/nifty', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'nifty.html')));
+
 // ── Pine Script download (the TradingView deliverable) ─────────────────
 app.get('/smc-strategy.pine', (_req, res) => {
   res.type('text/plain; charset=utf-8');

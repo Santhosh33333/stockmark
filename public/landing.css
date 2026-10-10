@@ -198,15 +198,6 @@ footer a{color:#9dc0ff}
 .foot-brand{display:flex;align-items:center;gap:9px;justify-content:center;margin-bottom:12px;font-weight:800;font-size:16px;color:var(--txt)}
 .foot-brand img{width:26px;height:26px}
 
-/* ── trust / integrations strip ── */
-.trustbar{padding:6px 0 4px}
-.trustbar-in{display:flex;align-items:center;gap:10px 20px;flex-wrap:wrap;justify-content:center;
-  border:1px solid var(--line);border-radius:var(--radius-sm);padding:14px 20px;background:rgba(15,22,40,.5)}
-.tb-lbl{font-size:12px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#9dc0ff;
-  padding-right:16px;border-right:1px solid var(--line)}
-.tb-item{color:var(--dim);font-size:13.5px}
-.tb-item b{color:var(--txt);font-weight:700}
-
 /* ── start in 3 steps ── */
 .how{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
 .how-step{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:26px 24px;position:relative;
@@ -274,7 +265,6 @@ footer a{color:#9dc0ff}
   .term-body{height:230px}
   .hero-cta .btn{flex:1;justify-content:center}
   .nav-cta .btn:first-child{display:none}
-  .tb-lbl{border-right:none;padding-right:0;width:100%;text-align:center}
   footer{padding-bottom:86px}
 }
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}

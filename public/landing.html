@@ -57,6 +57,7 @@
       <a href="#start">Get started</a>
       <a href="#engine">The engine</a>
       <a href="#signals">Live</a>
+      <a href="/nifty">NIFTY 3D</a>
       <a href="#pricing">Pricing</a>
       <a href="#faq">FAQ</a>
     </nav>
@@ -76,7 +77,7 @@
       <p class="lead">StockArtha 2.0 scans the full NSE &amp; BSE universe for a wick rejection at an unmitigated order block, an inducement sweep, and a 4H RSI under 50 — then scores, charts and paper-trades it for you.</p>
       <div class="hero-cta">
         <a class="btn btn-grad btn-lg" href="/app/">Launch StockArtha →</a>
-        <a class="btn btn-lg" href="#engine">See the exact rules</a>
+        <a class="btn btn-lg" href="/nifty">Live NIFTY 3D →</a>
       </div>
       <div class="trust">
         <span><b id="trust-nse">—</b> NSE stocks</span>
@@ -90,7 +91,7 @@
     <div class="terminal rv">
       <div class="term-head">
         <span class="dots"><i></i><i></i><i></i></span>
-        <span class="term-sym" id="term-sym">RELIANCE</span>
+        <span class="term-sym" id="term-sym">NIFTY 50</span>
         <span class="term-badge" id="term-mkt">live</span>
         <span class="term-price" id="term-price">₹—<div class="chg">—</div></span>
       </div>
@@ -116,19 +117,6 @@
     <div class="stat"><div class="k">Fresh BUY signals</div><div class="v u" id="st-signals">—</div><div class="s">last confirmed setups</div></div>
     <div class="stat"><div class="k">NIFTY 50</div><div class="v" id="st-nifty">—</div><div class="s" id="st-nifty-s">loading…</div></div>
     <div class="stat"><div class="k">Market</div><div class="v" id="st-market">—</div><div class="s" id="st-market-s">IST</div></div>
-  </div>
-</section>
-
-<!-- ══════════ TRUST / INTEGRATIONS ══════════ -->
-<section class="trustbar">
-  <div class="wrap trustbar-in">
-    <span class="tb-lbl">Free &amp; honest by design</span>
-    <span class="tb-item"><b>₹0</b> no data subscription</span>
-    <span class="tb-item"><b>No card</b> to start</span>
-    <span class="tb-item"><b>Never faked</b> real prices only</span>
-    <span class="tb-item">Data · <b>Yahoo</b> · <b>NSE</b> · <b>BSE</b></span>
-    <span class="tb-item">Optional live · <b>Dhan</b></span>
-    <span class="tb-item">Alerts · <b>Telegram</b> · <b>TradingView</b></span>
   </div>
 </section>
 
@@ -453,7 +441,7 @@ function drawHero() {
 }
 
 function loadHero(sym) {
-  $('#term-sym').textContent = sym;
+  $('#term-sym').textContent = sym === '^NSEI' ? 'NIFTY 50' : sym;
   $('#term-empty').classList.remove('hidden');
   $('#term-empty').textContent = 'Fetching live market data…';
   fetch('/api/analysis/' + encodeURIComponent(sym)).then((r) => r.json()).then((j) => {
@@ -472,7 +460,7 @@ function loadHero(sym) {
     $('#term-price').innerHTML = '₹—<div class="chg">unavailable</div>';
   });
 }
-loadHero('RELIANCE');
+loadHero('^NSEI');
 
 /* market-state badge in the terminal header */
 fetch('/api/market/status').then((r) => r.json()).then((j) => {
