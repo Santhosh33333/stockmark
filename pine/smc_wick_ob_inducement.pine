@@ -1,0 +1,299 @@
+// ═══════════════════════════════════════════════════════════════════════════
+//  StockArtha — SMC Wick Rejection + Order Block + Inducement (4H RSI < 50)
+//  Pine Script v5 · Strategy Tester ready
+//  ─────────────────────────────────────────────────────────────────────────
+//  Entry confluence (all must be true on the same confirmed bar):
+//    1. Strong bullish wick-rejection candle
+//    2. An unmitigated bullish order block exists
+//    3. Price revisits the block and sweeps its low by <= 0.3 x ATR,
+//       then closes back above (strong inducement / liquidity sweep)
+//    4. Higher-timeframe (4H) RSI(14) < 50
+//
+//  Drop this on any NSE/BSE chart (Daily recommended for swing trading).
+//  Strategy Tester -> review Net Profit, Win Rate, Profit Factor, Max DD.
+// ═══════════════════════════════════════════════════════════════════════════
+//@version=5
+strategy("StockArtha SMC — Wick Rejection + OB + Inducement [4H RSI<50]",
+     overlay=true,
+     initial_capital=100000,
+     default_qty_type=strategy.percent_of_equity,
+     default_qty_value=20,
+     commission_type=strategy.commission.percent,
+     commission_value=0.10,
+     slippage=1,
+     max_lines_count=500,
+     max_boxes_count=500,
+     max_labels_count=500,
+     calc_on_every_tick=false,
+     process_orders_on_close=true)
+
+// ───────────────────────────── INPUTS ─────────────────────────────
+grpW = "1. Strong wick rejection candle"
+wickMult     = input.float(2.0,  "Lower wick ÷ body (>=)", minval=0.5, step=0.25, group=grpW)
+closeTopPct  = input.float(0.70, "Close in top X% of range (0.70 = top 30%)", minval=0.3, maxval=1.0, step=0.05, group=grpW)
+reqBull      = input.bool(true,   "Require bullish candle", group=grpW)
+useVol       = input.bool(true,   "Volume > 20 SMA", group=grpW)
+volLen       = input.int(20,      "Volume SMA length", minval=2, group=grpW)
+
+grpO = "2. Order block"
+impLkbk      = input.int(3,        "Impulse lookback (bars after OB)", minval=1, maxval=10, group=grpO)
+impAtrMult   = input.float(2.0,    "Impulse size (x ATR)", minval=0.5, step=0.25, group=grpO)
+atrLen       = input.int(14,       "ATR length", group=grpO)
+maxZoneAge   = input.int(50,       "Deactivate OB after N bars", minval=5, group=grpO)
+
+grpI = "3. Inducement (liquidity sweep)"
+sweepAtrMult = input.float(0.3,    "Max sweep depth below OB low (x ATR)", minval=0.05, step=0.05, group=grpI)
+reqWickSweep = input.bool(true,    "Require wick rejection on the sweep bar", group=grpI)
+deepBreak    = input.bool(true,    "Mark OB mitigated if swept too deep", group=grpI)
+
+grpR = "4. RSI filter"
+rsiLen       = input.int(14,       "RSI length", group=grpR)
+htfTf        = input.timeframe("240", "Higher timeframe for RSI", group=grpR)
+rsiMax       = input.float(50,     "Buy only if HTF RSI <", minval=10, maxval=95, group=grpR)
+useHtfRsi    = input.bool(true,    "Enable HTF RSI filter", group=grpR)
+
+grpT = "5. Trade management"
+dirMode      = input.string("Long only", "Direction", options=["Long only", "Long & Short"], group=grpT)
+slPct        = input.float(3.0,    "Stop loss %", step=0.5, group=grpT)
+tpPct        = input.float(10.0,   "Target %", step=0.5, group=grpT)
+maxBarsHold  = input.int(25,       "Exit after N bars (0 = off)", minval=0, group=grpT)
+showZones    = input.bool(true,    "Draw order-block boxes", group=grpT)
+showWick     = input.bool(true,    "Mark wick-rejection candles", group=grpT)
+
+// ───────────────────────── CANDLE MATHS ─────────────────────────
+body    = math.abs(close - open)
+rng     = high - low
+bodyOk  = body > 0 and rng > 0
+lowerWk = math.min(open, close) - low
+upperWk = high - math.max(open, close)
+clsPos  = rng > 0 ? (close - low) / rng : 0.0
+clsPosB = rng > 0 ? (high - close) / rng : 0.0
+isBull  = close > open
+isBear  = close < open
+
+volMa   = ta.sma(volume, volLen)
+volOk   = not useVol or volume > volMa
+atrV    = ta.atr(atrLen)
+
+// 1. Strong wick rejection candles
+bullWick = isBull and bodyOk and lowerWk >= wickMult * body and clsPos >= closeTopPct and volOk
+bearWick = isBear and bodyOk and upperWk >= wickMult * body and clsPosB >= closeTopPct and volOk
+
+// 4. Higher-timeframe RSI (last CLOSED HTF bar → non-repainting)
+htfRsi = request.security(syminfo.tickerid, htfTf, ta.rsi(close, rsiLen)[1],
+     lookahead=barmerge.lookahead_off)
+
+// ───────────────────── ORDER BLOCK STATE ─────────────────────
+var int   lastBearBar = na        // most recent bearish candle (bullish OB candidate)
+var float lastBearH   = na
+var float lastBearL   = na
+var int   lastBullBar = na        // most recent bullish candle (bearish OB candidate)
+var float lastBullH   = na
+var float lastBullL   = na
+
+var zTop   = array.new_float(0)   // active bullish OB zones
+var zBot   = array.new_float(0)
+var zBar   = array.new_int(0)
+var zSwept = array.new_bool(0)
+
+var sTop   = array.new_float(0)   // active bearish OB zones
+var sBot   = array.new_float(0)
+var sBar   = array.new_int(0)
+
+// 2. Impulse: strong bullish/bearish expansion vs previous close
+impulseUp = (close - close[1]) >= impAtrMult * atrV and close > close[1]
+impulseDn = (close[1] - close) >= impAtrMult * atrV and close < close[1]
+
+newZone  = false
+newZoneTop = 0.0
+newZoneBot = 0.0
+
+if isBear
+    lastBearBar := bar_index
+    lastBearH   := high
+    lastBearL   := low
+if isBull
+    lastBullBar := bar_index
+    lastBullH   := high
+    lastBullL   := low
+
+// create bullish OB: last bearish candle followed by impulse within impLkbk bars
+if impulseUp and not na(lastBearBar) and (bar_index - lastBearBar) >= 1 and (bar_index - lastBearBar) <= impLkbk
+    already = array.size(zBar) > 0 and array.get(zBar, array.size(zBar) - 1) == lastBearBar
+    if not already
+        array.push(zTop, lastBearH)
+        array.push(zBot, lastBearL)
+        array.push(zBar, lastBearBar)
+        array.push(zSwept, false)
+        newZone    := true
+        newZoneTop := lastBearH
+        newZoneBot := lastBearL
+
+// create bearish OB (only used in "Long & Short" mode for exits)
+if dirMode == "Long & Short" and impulseDn and not na(lastBullBar) and (bar_index - lastBullBar) >= 1 and (bar_index - lastBullBar) <= impLkbk
+    alreadyB = array.size(sBar) > 0 and array.get(sBar, array.size(sBar) - 1) == lastBullBar
+    if not alreadyB
+        array.push(sTop, lastBullH)
+        array.push(sBot, lastBullL)
+        array.push(sBar, lastBullBar)
+
+// ───────────── 3. INDUCEMENT + MITIGATION (per active zone) ─────────────
+buySignal  = false
+sellSignal = false
+sigZoneTop = 0.0
+sigZoneBot = 0.0
+inducement = false
+
+if barstate.isconfirmed
+    // ---- bullish zones ----
+    i = array.size(zTop) - 1
+    while i >= 0
+        top = array.get(zTop, i)
+        bot = array.get(zBot, i)
+        age = bar_index - array.get(zBar, i)
+        depth = bot - low
+        // mitigation: decisive close below the OB low, or a too-deep sweep
+        broken = close < bot or (deepBreak and depth > sweepAtrMult * atrV and depth > 0)
+        if broken or age > maxZoneAge
+            array.remove(zTop, i)
+            array.remove(zBot, i)
+            array.remove(zBar, i)
+            array.remove(zSwept, i)
+        else
+            swept = low <= top and depth > 0 and depth <= sweepAtrMult * atrV and close > bot
+            if swept and not array.get(zSwept, i)
+                array.set(zSwept, i, true)
+                inducement := true
+                if (not useHtfRsi or htfRsi < rsiMax) and (not reqWickSweep or bullWick)
+                    buySignal  := true
+                    sigZoneTop := top
+                    sigZoneBot := bot
+        i -= 1
+
+    // ---- bearish zones (short mode) ----
+    if dirMode == "Long & Short"
+        j = array.size(sTop) - 1
+        while j >= 0
+            top = array.get(sTop, j)
+            bot = array.get(sBot, j)
+            age = bar_index - array.get(sBar, j)
+            depthB = high - top
+            brokenB = close > top or (deepBreak and depthB > sweepAtrMult * atrV and depthB > 0)
+            if brokenB or age > maxZoneAge
+                array.remove(sTop, j)
+                array.remove(sBot, j)
+                array.remove(sBar, j)
+            else
+                sweptB = high >= bot and depthB > 0 and depthB <= sweepAtrMult * atrV and close < top
+                if sweptB and (not useHtfRsi or htfRsi > 100 - rsiMax) and bearWick
+                    sellSignal := true
+                    sigZoneTop := top
+                    sigZoneBot := bot
+        j -= 1
+
+// ───────────────────────── TRADE MANAGEMENT ─────────────────────────
+var float entryPx  = na
+var int   barsHold = 0
+
+if strategy.position_size > 0
+    if na(entryPx)
+        entryPx := strategy.position_avg_price
+    strategy.exit("Long exit", "Long",
+         stop  = entryPx * (1 - slPct / 100),
+         limit = entryPx * (1 + tpPct / 100),
+         comment_loss="SL", comment_profit="TP")
+    barsHold += 1
+    if maxBarsHold > 0 and barsHold >= maxBarsHold
+        strategy.close("Long", comment="Time exit")
+else
+    entryPx  := na
+    barsHold := 0
+
+if buySignal and strategy.position_size == 0
+    strategy.entry("Long", strategy.long, comment="Wick+OB+Inducement")
+    barsHold := 0
+
+if sellSignal and strategy.position_size == 0 and dirMode == "Long & Short"
+    strategy.entry("Short", strategy.short, comment="Wick+OB+Inducement")
+    barsHold := 0
+
+// ───────────────────────── PLOTTING ─────────────────────────
+plotshape(showWick and bullWick, "Bull wick rejection", shape.triangleup,
+     location.belowbar, color.new(#a855f7, 0), size=size.small, text="wick")
+plotshape(showWick and bearWick, "Bear wick rejection", shape.triangledown,
+     location.abovebar, color.new(#a855f7, 0), size=size.small, text="wick")
+
+plotshape(buySignal, "BUY", shape.arrowup, location.belowbar,
+     color.new(#22c55e, 0), size=size.normal, text="BUY")
+plotshape(sellSignal, "SELL", shape.arrowdown, location.abovebar,
+     color.new(#ef4444, 0), size=size.normal, text="SELL")
+
+// order block boxes (deleted when the zone is removed)
+if barstate.isconfirmed and showZones and newZone
+    box.new(bar_index - (bar_index - lastBearBar), newZoneTop,
+         bar_index + impLkbk + 8, newZoneBot,
+         border_color=color.new(#3b82f6, 45),
+         bgcolor=color.new(#3b82f6, 82),
+         text="OB", text_color=color.new(#bfdbfe, 0), text_size=size.tiny)
+
+// inducement label
+if barstate.isconfirmed and inducement
+    label.new(bar_index, low, "inducement sweep",
+         style=label.style_label_up,
+         color=color.new(#fbbf24, 55),
+         textcolor=color.new(#422006, 0), size=size.tiny)
+
+// live signal marker with zone details
+if barstate.isconfirmed and buySignal
+    label.new(bar_index, low,
+         "BUY\nOB " + str.tostring(sigZoneBot, format.mintick) + "–" + str.tostring(sigZoneTop, format.mintick) +
+         "\n4H RSI " + str.tostring(htfRsi, "#.#"),
+         style=label.style_label_up,
+         color=color.new(#16a34a, 20),
+         textcolor=color.white, size=size.small)
+
+// ───────────────────────── INFO TABLE ─────────────────────────
+var tbl = table.new(position.top_right, 2, 6,
+     bgcolor=color.new(#0b1b33, 12), border_color=color.new(#38bdf8, 80),
+     border_width=1, frame_width=1, frame_color=color.new(#38bdf8, 60))
+
+f_cell(r, c, txt, col) =>
+    table.cell(tbl, c, r, txt, text_color=col, text_size=size.small)
+
+if barstate.islast
+    f_cell(0, 0, "StockArtha SMC", color.new(#7dd3fc, 0))
+    f_cell(0, 1, "", color.white)
+    f_cell(1, 0, "4H RSI", color.new(#94a3b8, 0))
+    f_cell(1, 1, str.tostring(htfRsi, "#.#"), htfRsi < rsiMax ? color.new(#22c55e, 0) : color.new(#ef4444, 0))
+    f_cell(2, 0, "ATR(14)", color.new(#94a3b8, 0))
+    f_cell(2, 1, str.tostring(atrV, format.mintick), color.white)
+    f_cell(3, 0, "Active OBs", color.new(#94a3b8, 0))
+    f_cell(3, 1, str.tostring(array.size(zTop)), color.white)
+    f_cell(4, 0, "Wick now", color.new(#94a3b8, 0))
+    f_cell(4, 1, bullWick ? "yes" : "no", bullWick ? color.new(#22c55e, 0) : color.new(#64748b, 0))
+    f_cell(5, 0, "Float P&L", color.new(#94a3b8, 0))
+    f_cell(5, 1, str.tostring(strategy.openprofit, format.mintick) + " ₹",
+         strategy.openprofit >= 0 ? color.new(#22c55e, 0) : color.new(#ef4444, 0))
+
+// ───────────────────────── ALERTS ─────────────────────────
+alertcondition(buySignal,  "StockArtha BUY",
+     'StockArtha SMC BUY — {{ticker}} @ {{close}} | 4H RSI ' + str.tostring(htfRsi, "#.#") + ' < ' + str.tostring(rsiMax))
+alertcondition(sellSignal, "StockArtha SELL",
+     'StockArtha SMC SELL — {{ticker}} @ {{close}}')
+alertcondition(bullWick,   "Wick rejection",
+     'Wick rejection candle — {{ticker}} (bullish, vol > 20 SMA)')
+
+if buySignal
+    alert('StockArtha SMC BUY — {{ticker}}\nPrice: {{close}}\n4H RSI: ' + str.tostring(htfRsi, "#.#") +
+          '\nOB zone: ' + str.tostring(sigZoneBot, format.mintick) + ' - ' + str.tostring(sigZoneTop, format.mintick) +
+          '\nSL: ' + str.tostring(close * (1 - slPct / 100), format.mintick) +
+          '\nTP: ' + str.tostring(close * (1 + tpPct / 100), format.mintick), alert.freq_once_per_bar_close)
+if sellSignal
+    alert('StockArtha SMC SELL — {{ticker}}\nPrice: {{close}}', alert.freq_once_per_bar_close)
+
+// ───────────────────────── STRATEGY TESTER NOTES ─────────────────────────
+// Pine has no lookahead, so the order block is confirmed on the impulse bar
+// (close-to-close >= 2 x ATR) and the inducement is detected when the sweep
+// bar closes back above the block low. Nothing in this script reads future bars.
+// Recommended: Daily timeframe, 3-10 years of data, then create an alert on
+// "StockArtha BUY" and point the webhook at your StockArtha app for automation.

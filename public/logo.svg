@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bgG" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0a2547"/>
+      <stop offset=".5" stop-color="#0b1230"/>
+      <stop offset="1" stop-color="#1c0a3e"/>
+    </linearGradient>
+    <linearGradient id="ringG" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#38bdf8"/>
+      <stop offset=".5" stop-color="#818cf8"/>
+      <stop offset="1" stop-color="#fbbf24"/>
+    </linearGradient>
+    <linearGradient id="greenG" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#4ade80"/>
+      <stop offset="1" stop-color="#15803d"/>
+    </linearGradient>
+    <linearGradient id="redG" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fb7185"/>
+      <stop offset="1" stop-color="#be123c"/>
+    </linearGradient>
+    <linearGradient id="arrG" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#22c55e"/>
+      <stop offset="1" stop-color="#bef264"/>
+    </linearGradient>
+    <radialGradient id="glowG" cx=".5" cy=".45" r=".55">
+      <stop offset="0" stop-color="#38bdf8" stop-opacity=".35"/>
+      <stop offset="1" stop-color="#38bdf8" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="softGlow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="7" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <rect x="20" y="20" width="472" height="472" rx="110" fill="url(#bgG)"/>
+  <rect x="20" y="20" width="472" height="472" rx="110" fill="url(#glowG)"/>
+  <rect x="20" y="20" width="472" height="472" rx="110" fill="none" stroke="url(#ringG)" stroke-width="7"/>
+
+  <g opacity=".16" stroke="#7dd3fc" stroke-width="2">
+    <path d="M92 190h328M92 258h328M92 326h328"/>
+    <path d="M170 120v272M262 120v272M354 120v272"/>
+  </g>
+
+  <g filter="url(#softGlow)">
+    <path d="M118 250 h30 v84 h-30 z" rx="8" fill="url(#redG)"/>
+    <path d="M133 196 v168" stroke="#fb7185" stroke-width="7" stroke-linecap="round"/>
+    <path d="M190 208 h30 v122 h-30 z" rx="8" fill="url(#redG)"/>
+    <path d="M205 150 v96" stroke="#fb7185" stroke-width="7" stroke-linecap="round"/>
+    <path d="M262 262 h30 v72 h-30 z" rx="8" fill="url(#greenG)"/>
+    <path d="M277 178 v188" stroke="#4ade80" stroke-width="7" stroke-linecap="round"/>
+    <path d="M334 208 h30 v122 h-30 z" rx="8" fill="url(#greenG)"/>
+    <path d="M349 146 v100" stroke="#4ade80" stroke-width="7" stroke-linecap="round"/>
+  </g>
+
+  <path d="M150 380 L268 268 L318 320 L418 214" fill="none" stroke="url(#arrG)" stroke-width="17" stroke-linecap="round" stroke-linejoin="round" filter="url(#softGlow)"/>
+  <path d="M372 212 h46 v46" fill="none" stroke="#bef264" stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <g>
+    <rect x="176" y="398" width="160" height="34" rx="17" fill="#0ea5e9" opacity=".9"/>
+    <text x="256" y="422" font-family="Segoe UI, system-ui, sans-serif" font-size="22" font-weight="800"
+          text-anchor="middle" fill="#fff" letter-spacing="1">StockArtha</text>
+  </g>
+</svg>

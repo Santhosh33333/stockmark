@@ -1,0 +1,146 @@
+// SQLite storage via Node's built-in node:sqlite (zero dependencies, free).
+const { DatabaseSync } = require('node:sqlite');
+const fs = require('fs');
+const path = require('path');
+const config = require('../config');
+
+fs.mkdirSync(config.dataDir, { recursive: true });
+
+const db = new DatabaseSync(config.dbFile);
+
+db.exec(`
+PRAGMA journal_mode = WAL;
+
+CREATE TABLE IF NOT EXISTS users (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  username      TEXT UNIQUE NOT NULL,           -- email or handle
+  display_name  TEXT,
+  pass_hash     TEXT NOT NULL,
+  salt          TEXT NOT NULL,
+  is_admin      INTEGER NOT NULL DEFAULT 0,
+  created_at    INTEGER NOT NULL,
+  last_login    INTEGER,
+  settings      TEXT NOT NULL DEFAULT '{}'
+);
+
+CREATE TABLE IF NOT EXISTS sessions (
+  token       TEXT PRIMARY KEY,
+  user_id     INTEGER NOT NULL,
+  created_at  INTEGER NOT NULL,
+  expires_at  INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS watchlist (
+  user_id   INTEGER NOT NULL,
+  symbol    TEXT NOT NULL,
+  added_at  INTEGER NOT NULL,
+  PRIMARY KEY (user_id, symbol)
+);
+
+CREATE TABLE IF NOT EXISTS signal_history (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id    INTEGER,
+  symbol     TEXT NOT NULL,
+  name       TEXT,
+  exchange   TEXT,
+  price      REAL,
+  direction  TEXT,
+  reason     TEXT,
+  indicators TEXT,
+  ts         INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_sig_ts   ON signal_history(ts);
+CREATE INDEX IF NOT EXISTS idx_sig_sym  ON signal_history(symbol);
+
+CREATE TABLE IF NOT EXISTS paper_trades (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id     INTEGER NOT NULL,
+  symbol      TEXT NOT NULL,
+  name        TEXT,
+  qty         INTEGER NOT NULL,
+  entry_price REAL NOT NULL,
+  entry_ts    INTEGER NOT NULL,
+  exit_price  REAL,
+  exit_ts     INTEGER,
+  sl          REAL,
+  tp          REAL,
+  status      TEXT NOT NULL DEFAULT 'OPEN',     -- OPEN | CLOSED
+  exit_reason TEXT,
+  pnl         REAL,
+  mode        TEXT NOT NULL DEFAULT 'PAPER'     -- PAPER | LIVE
+);
+CREATE INDEX IF NOT EXISTS idx_pt_user ON paper_trades(user_id, status);
+
+CREATE TABLE IF NOT EXISTS scan_cache (
+  symbol      TEXT PRIMARY KEY,
+  payload     TEXT NOT NULL,
+  updated_at  INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS audit_log (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id    INTEGER,
+  action     TEXT,
+  detail     TEXT,
+  ts         INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS email_otps (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  email       TEXT NOT NULL,
+  code        TEXT NOT NULL,
+  purpose     TEXT NOT NULL DEFAULT 'signup',   -- signup | login | reset
+  attempts    INTEGER NOT NULL DEFAULT 0,
+  consumed    INTEGER NOT NULL DEFAULT 0,
+  expires_at  INTEGER NOT NULL,
+  created_at  INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_otp_email ON email_otps(email, purpose, created_at);
+`);
+
+// email verification column (added on existing databases too)
+try { db.exec(`ALTER TABLE users ADD COLUMN email_verified INTEGER NOT NULL DEFAULT 0`); } catch { /* already present */ }
+
+const stmt = {
+  insertUser: db.prepare(`INSERT INTO users (username, display_name, pass_hash, salt, is_admin, created_at) VALUES (?,?,?,?,?,?)`),
+  userByUsername: db.prepare(`SELECT * FROM users WHERE username = ?`),
+  userById: db.prepare(`SELECT * FROM users WHERE id = ?`),
+  allUsers: db.prepare(`SELECT id, username, display_name, is_admin, created_at, last_login FROM users ORDER BY id`),
+  touchLogin: db.prepare(`UPDATE users SET last_login = ? WHERE id = ?`),
+  updateSettings: db.prepare(`UPDATE users SET settings = ? WHERE id = ?`),
+  deleteUser: db.prepare(`DELETE FROM users WHERE id = ?`),
+  insertSession: db.prepare(`INSERT INTO sessions (token, user_id, created_at, expires_at) VALUES (?,?,?,?)`),
+  session: db.prepare(`SELECT * FROM sessions WHERE token = ?`),
+  deleteSession: db.prepare(`DELETE FROM sessions WHERE token = ?`),
+  deleteUserSessions: db.prepare(`DELETE FROM sessions WHERE user_id = ?`),
+  cleanSessions: db.prepare(`DELETE FROM sessions WHERE expires_at < ?`),
+  addWatch: db.prepare(`INSERT OR IGNORE INTO watchlist (user_id, symbol, added_at) VALUES (?,?,?)`),
+  delWatch: db.prepare(`DELETE FROM watchlist WHERE user_id = ? AND symbol = ?`),
+  watchlist: db.prepare(`SELECT symbol, added_at FROM watchlist WHERE user_id = ? ORDER BY added_at`),
+  addSignal: db.prepare(`INSERT INTO signal_history (user_id, symbol, name, exchange, price, direction, reason, indicators, ts) VALUES (?,?,?,?,?,?,?,?,?)`),
+  signals: db.prepare(`SELECT * FROM signal_history WHERE user_id = ? ORDER BY ts DESC LIMIT ?`),
+  signalsAll: db.prepare(`SELECT * FROM signal_history ORDER BY ts DESC LIMIT ?`),
+  addTrade: db.prepare(`INSERT INTO paper_trades (user_id, symbol, name, qty, entry_price, entry_ts, sl, tp, mode) VALUES (?,?,?,?,?,?,?,?,?)`),
+  openTrades: db.prepare(`SELECT * FROM paper_trades WHERE status='OPEN' AND user_id = ?`),
+  allOpenTrades: db.prepare(`SELECT * FROM paper_trades WHERE status='OPEN'`),
+  closeTrade: db.prepare(`UPDATE paper_trades SET exit_price=?, exit_ts=?, status='CLOSED', exit_reason=?, pnl=? WHERE id=?`),
+  trades: db.prepare(`SELECT * FROM paper_trades WHERE user_id = ? ORDER BY entry_ts DESC LIMIT ?`),
+  tradeById: db.prepare(`SELECT * FROM paper_trades WHERE id = ?`),
+  upsertScan: db.prepare(`INSERT INTO scan_cache (symbol, payload, updated_at) VALUES (?,?,?) ON CONFLICT(symbol) DO UPDATE SET payload=excluded.payload, updated_at=excluded.updated_at`),
+  getScan: db.prepare(`SELECT payload, updated_at FROM scan_cache WHERE symbol = ?`),
+  allScan: db.prepare(`SELECT symbol, payload, updated_at FROM scan_cache`),
+  log: db.prepare(`INSERT INTO audit_log (user_id, action, detail, ts) VALUES (?,?,?,?)`),
+  // email OTP
+  insertOtp: db.prepare(`INSERT INTO email_otps (email, code, purpose, expires_at, created_at) VALUES (?,?,?,?,?)`),
+  latestOtp: db.prepare(`SELECT * FROM email_otps WHERE email = ? AND purpose = ? AND consumed = 0 ORDER BY id DESC LIMIT 1`),
+  otpById: db.prepare(`SELECT * FROM email_otps WHERE id = ?`),
+  bumpOtp: db.prepare(`UPDATE email_otps SET attempts = attempts + 1 WHERE id = ?`),
+  consumeOtp: db.prepare(`UPDATE email_otps SET consumed = 1 WHERE id = ?`),
+  invalidateOtps: db.prepare(`UPDATE email_otps SET consumed = 1 WHERE email = ? AND purpose = ?`),
+  setEmailVerified: db.prepare(`UPDATE users SET email_verified = 1 WHERE id = ?`),
+  userByEmail: db.prepare(`SELECT * FROM users WHERE username = ?`),
+};
+
+const now = () => Date.now();
+
+module.exports = { db, stmt, now, config };
