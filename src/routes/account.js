@@ -7,7 +7,7 @@ const dhan = require('../dhan');
 const yahoo = require('../providers/yahoo');
 const notify = require('../notify');
 const scanner = require('../scanner');
-const { inr } = require('../util');
+const { inr, marketStatus } = require('../util');
 
 const router = express.Router();
 
@@ -314,9 +314,118 @@ router.post('/dhan/order', requireUser, async (req, res) => {
   }
 });
 
-// ── owner / admin ───────────────────────────────────────────────────────
+// ── owner / admin console ───────────────────────────────────────────────
+router.get('/admin/overview', requireAdmin, (_req, res) => {
+  const dayAgo = now() - 86400000, weekAgo = now() - 7 * 86400000;
+  const mem = process.memoryUsage();
+  const mailer = require('../mailer');
+  res.json({
+    server: {
+      uptimeSec: Math.round(process.uptime()), memoryMB: +(mem.rss / 1048576).toFixed(1),
+      node: process.version, pid: process.pid, port: config.port, startedAt: now() - Math.round(process.uptime() * 1000),
+    },
+    market: marketStatus(),
+    users: { total: stmt.countUsers.get().c, admins: stmt.countAdmins.get().c, last7d: stmt.countUsersSince.get(weekAgo).c },
+    sessions: stmt.countSessions.get(now()).c,
+    signals: { total: stmt.countSignals.get().c, last24h: stmt.countSignalsSince.get(dayAgo).c },
+    trades: { total: stmt.countTrades.get().c, open: stmt.countOpenTrades.get().c },
+    scan: { cachedSymbols: stmt.countScan.get().c, lastScanAt: stmt.lastScanAt.get().m || null },
+    mail: mailer.status(),
+  });
+});
+
 router.get('/admin/users', requireAdmin, (_req, res) => {
-  res.json({ users: stmt.allUsers.all().map((u) => ({ ...u, pass_hash: undefined, salt: undefined })) });
+  const users = stmt.allUsers.all().map((u) => {
+    const full = stmt.userById.get(u.id);
+    const trades = stmt.trades.all(u.id, 100000);
+    const closed = trades.filter((t) => t.status === 'CLOSED');
+    return {
+      id: u.id, email: u.username, displayName: u.display_name, isAdmin: !!u.is_admin,
+      createdAt: u.created_at, lastLogin: u.last_login, verified: !!full?.email_verified,
+      trades: {
+        total: trades.length, open: trades.filter((t) => t.status === 'OPEN').length, closed: closed.length,
+        netPnl: +closed.reduce((a, t) => a + (t.pnl || 0), 0).toFixed(2),
+      },
+      signals: stmt.signals.all(u.id, 100000).length,
+      watchlist: stmt.watchlist.all(u.id).length,
+    };
+  });
+  res.json({ users, total: users.length });
+});
+
+router.patch('/admin/users/:id', requireAdmin, (req, res) => {
+  const id = Number(req.params.id);
+  const u = stmt.userById.get(id);
+  if (!u) return res.status(404).json({ error: 'User not found' });
+  const b = req.body || {};
+  if (b.isAdmin != null) {
+    const makeAdmin = !!b.isAdmin;
+    if (!makeAdmin && u.is_admin) {
+      if (id === req.user.id) return res.status(400).json({ error: 'You cannot remove your own owner role' });
+      if (stmt.countAdmins.get().c <= 1) return res.status(400).json({ error: 'At least one owner must remain' });
+    }
+    stmt.setUserRole.run(makeAdmin ? 1 : 0, id);
+    stmt.log.run(req.user.id, 'ADMIN ROLE', `${u.username} → ${makeAdmin ? 'owner' : 'user'}`, now());
+  }
+  if (b.password) {
+    if (String(b.password).length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters' });
+    const { hash, salt } = auth.hashPassword(b.password);
+    stmt.setUserPassword.run(hash, salt, id);
+    stmt.log.run(req.user.id, 'ADMIN PASSWORD RESET', u.username, now());
+  }
+  const fresh = stmt.userById.get(id);
+  res.json({ ok: true, user: { id: fresh.id, email: fresh.username, isAdmin: !!fresh.is_admin } });
+});
+
+router.delete('/admin/users/:id', requireAdmin, (req, res) => {
+  const id = Number(req.params.id);
+  const u = stmt.userById.get(id);
+  if (!u) return res.status(404).json({ error: 'User not found' });
+  if (id === req.user.id) return res.status(400).json({ error: 'You cannot delete your own account' });
+  if (u.is_admin && stmt.countAdmins.get().c <= 1) return res.status(400).json({ error: 'At least one owner must remain' });
+  stmt.deleteUserWatch.run(id);
+  stmt.deleteUserTrades.run(id);
+  stmt.deleteUserSignals.run(id);
+  stmt.deleteUserSessions.run(id);
+  stmt.deleteUser.run(id);
+  stmt.log.run(req.user.id, 'ADMIN DELETE USER', u.username, now());
+  res.json({ ok: true, deleted: u.username });
+});
+
+router.get('/admin/logs', requireAdmin, (req, res) => {
+  const limit = Math.min(Number(req.query.limit || 100), 500);
+  const offset = Number(req.query.offset || 0);
+  const rows = stmt.logs.all(limit, offset).map((r) => ({
+    ...r, email: r.user_id ? (stmt.userById.get(r.user_id)?.username || null) : null,
+  }));
+  res.json({ logs: rows, limit, offset });
+});
+
+router.get('/admin/trades', requireAdmin, (req, res) => {
+  const limit = Math.min(Number(req.query.limit || 200), 1000);
+  res.json({ trades: stmt.allTradesAdmin.all(limit).map((t) => ({ ...t, pnlFmt: t.pnl != null ? inr(t.pnl, true) : null })) });
+});
+
+router.get('/admin/signals', requireAdmin, (req, res) => {
+  const limit = Math.min(Number(req.query.limit || 200), 1000);
+  res.json({ signals: stmt.allSignalsAdmin.all(limit) });
+});
+
+router.get('/admin/jobs', requireAdmin, (_req, res) => {
+  res.json({ jobs: scanner.listJobs() });
+});
+
+router.get('/admin/health', requireAdmin, async (_req, res) => {
+  const t0 = Date.now();
+  let provider;
+  try {
+    const q = await yahoo.fetchQuote('^NSEI');
+    provider = { ok: q.price != null, name: 'Yahoo Finance', probe: '^NSEI', price: q.price, currency: q.currency, latencyMs: Date.now() - t0 };
+  } catch (e) {
+    provider = { ok: false, name: 'Yahoo Finance', probe: '^NSEI', error: e.message, latencyMs: Date.now() - t0 };
+  }
+  const mailer = require('../mailer');
+  res.json({ provider, market: marketStatus(), mail: mailer.status(), checkedAt: now() });
 });
 
 router.post('/admin/scan', requireAdmin, async (req, res) => {

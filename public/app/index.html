@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
-<title>StockArtha — Live NSE &amp; BSE Smart-Money Scanner</title>
+<title>StockArtha 2.0 — Live NSE &amp; BSE Smart-Money Scanner</title>
 <meta name="description" content="Live NSE/BSE stock scanner: wick rejection + order block + inducement signals with 4H RSI filter, paper trading and Dhan Algo execution." />
-<meta name="theme-color" content="#040b1a" />
+<meta name="theme-color" content="#05070f" />
 <link rel="manifest" href="manifest.webmanifest" />
 <link rel="icon" type="image/svg+xml" href="/logo.svg" />
 <link rel="apple-touch-icon" href="/icons/icon-192.png" />
@@ -22,10 +22,10 @@
 
 <!-- ══════════ AUTH SCREEN (shown only when signed out) ══════════ -->
 <section id="auth-screen" class="screen auth hidden">
-  <div class="auth-card tilt">
+  <div class="auth-card tilt" data-tilt>
     <div class="brand-3d">
       <img src="/logo.svg" alt="StockArtha logo" class="logo-3d" />
-      <h1 class="brand-title">Stock<span>Artha</span></h1>
+      <h1 class="brand-title">Stock<span>Artha</span> <span class="v2">2.0</span></h1>
     </div>
     <p class="tagline">Live NSE &amp; BSE Smart-Money Scanner</p>
 
@@ -69,33 +69,55 @@
   </div>
 </section>
 
-<!-- ══════════ MAIN APP ══════════ -->
+<!-- ══════════ MAIN APP (2.0 shell: desktop sidebar + mobile bottom nav) ══════════ -->
 <div id="app" class="hidden">
-  <header class="topbar glass">
-    <div class="topbar-left">
-      <img src="/logo.svg" class="topbar-logo" alt="" />
-      <div>
-        <div class="app-name">StockArtha</div>
-        <div class="market-pill" id="market-pill"><span class="dot"></span><span id="market-text">—</span></div>
+  <div class="app-shell">
+
+    <aside class="sidebar glass">
+      <div class="side-brand">
+        <img src="/logo.svg" alt="" />
+        <b>StockArtha</b>
+        <span class="v2">2.0</span>
       </div>
-    </div>
-    <div class="topbar-right">
-      <button class="icon-btn" id="btn-alerts" title="Alerts">🔔<span class="badge hidden" id="alert-badge"></span></button>
-      <button class="icon-btn" id="btn-logout" title="Sign out">⏻</button>
-    </div>
-  </header>
+      <button class="navbtn active" data-route="dashboard"><span>📊</span>Dashboard</button>
+      <button class="navbtn" data-route="scanner"><span>🔎</span>Scanner</button>
+      <button class="navbtn" data-route="paper"><span>💼</span>Paper</button>
+      <button class="navbtn" data-route="alerts"><span>🔔</span>Alerts</button>
+      <button class="navbtn hidden" id="nav-admin-side" data-route="admin"><span>🛡️</span>Admin console</button>
+      <button class="navbtn" data-route="settings"><span>⚙️</span>Settings</button>
+      <div class="side-foot">Live NSE &amp; BSE data · ₹ INR<br>Signals are educational, not advice.</div>
+    </aside>
 
-  <div class="ticker-wrap">
-    <div class="ticker" id="index-ticker"></div>
+    <div class="app-main">
+      <header class="topbar glass">
+        <div class="topbar-left">
+          <img src="/logo.svg" class="topbar-logo" alt="" />
+          <div>
+            <div class="app-name">StockArtha<span class="v2">2.0</span></div>
+            <div class="market-pill" id="market-pill"><span class="dot"></span><span id="market-text">—</span></div>
+          </div>
+        </div>
+        <div class="topbar-right">
+          <button class="icon-btn hidden" id="btn-admin" title="Owner console">🛡️</button>
+          <button class="icon-btn" id="btn-alerts" title="Alerts">🔔<span class="badge hidden" id="alert-badge"></span></button>
+          <button class="icon-btn" id="btn-logout" title="Sign out">⏻</button>
+        </div>
+      </header>
+
+      <div class="ticker-wrap">
+        <div class="ticker" id="index-ticker"></div>
+      </div>
+
+      <main id="view" class="view"></main>
+    </div>
   </div>
-
-  <main id="view" class="view"></main>
 
   <nav class="bottomnav glass">
     <button class="navbtn active" data-route="dashboard"><span>📊</span>Home</button>
     <button class="navbtn" data-route="scanner"><span>🔎</span>Scan</button>
     <button class="navbtn" data-route="paper"><span>💼</span>Paper</button>
     <button class="navbtn" data-route="alerts"><span>🔔</span>Alerts</button>
+    <button class="navbtn hidden" id="nav-admin" data-route="admin"><span>🛡️</span>Admin</button>
     <button class="navbtn" data-route="settings"><span>⚙️</span>Settings</button>
   </nav>
 </div>
@@ -103,5 +125,6 @@
 <div id="toast-wrap"></div>
 <script src="chart.js"></script>
 <script src="app.js"></script>
+<script src="fx.js"></script>
 </body>
 </html>

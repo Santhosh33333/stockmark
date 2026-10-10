@@ -139,6 +139,13 @@
   function bindNav() {
     $$('.navbtn').forEach((b) => (b.onclick = () => go(b.dataset.route)));
     $('#btn-alerts').onclick = () => go('alerts');
+    const ba = $('#btn-admin'); if (ba) ba.onclick = () => go('admin');
+  }
+  function applyAdminNav() {
+    const on = !!(state.user && state.user.isAdmin);
+    const ba = $('#btn-admin'); if (ba) ba.classList.toggle('hidden', !on);
+    const na = $('#nav-admin'); if (na) na.classList.toggle('hidden', !on);
+    const nas = $('#nav-admin-side'); if (nas) nas.classList.toggle('hidden', !on);
   }
 
   /* ── DATA LOADERS ── */
@@ -578,38 +585,141 @@
     <div style="height:24px"></div>`;
   }
 
-  /* ── OWNER ADMIN ── */
+  /* ── OWNER ADMIN CONSOLE ── */
+  const ADMIN_TABS = [['overview', 'Overview'], ['users', 'Users'], ['signals', 'Signals'], ['trades', 'Trades'], ['logs', 'Audit log'], ['system', 'System']];
+  const statCard = (k, v, cls = '') => `<div class="stat"><div class="k">${k}</div><div class="v ${cls}">${v}</div></div>`;
+  const fmtUptime = (s) => { const d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60); return d ? `${d}d ${h}h` : (h ? `${h}h ${m}m` : `${m}m`); };
+
   async function renderAdmin() {
     if (!state.user.isAdmin) { go('dashboard'); return ''; }
-    let users = [];
-    try { users = (await api('/admin/users')).users; } catch { }
+    const tab = state.adminTab || 'overview';
+    let body;
+    try {
+      if (tab === 'overview') body = adminOverview(await api('/admin/overview'));
+      else if (tab === 'users') body = adminUsers((await api('/admin/users')).users);
+      else if (tab === 'signals') body = adminSignals((await api('/admin/signals?limit=150')).signals);
+      else if (tab === 'trades') body = adminTrades((await api('/admin/trades?limit=150')).trades);
+      else if (tab === 'logs') body = adminLogs((await api('/admin/logs?limit=150')).logs);
+      else body = adminSystem();
+    } catch (e) { body = `<div class="card empty"><div class="big">⚠️</div>${esc(e.message)}</div>`; }
     return `
-    <div class="card" style="margin-top:14px"><b>Owner console</b><div class="tiny muted">Private account controls</div></div>
-    <div class="card">
-      <div class="set-row"><span class="lbl">Universe</span><button class="btn sm" onclick="window.__sa.loadUniverse()">Reload masters</button></div>
-      <div class="set-row"><span class="lbl">Full scan (all)</span><button class="btn sm gold" onclick="window.__sa.adminScan('all')">Scan NSE+BSE</button></div>
-      <div class="tiny muted">NSE ${state.universe?.counts.nse || 0} · BSE ${state.universe?.counts.bse || 0} · F&O ${state.universe?.counts.fno || 0}</div>
+    <div class="card" style="margin-top:14px">
+      <div class="row between">
+        <div><div style="font-weight:800;font-size:18px">🛡️ Owner console</div><div class="tiny muted">System control · owner only</div></div>
+        <button class="btn sm" onclick="window.__sa.adminRefresh()">⟳ Refresh</button>
+      </div>
     </div>
-    <div class="section-title"><h2>Accounts</h2></div>
-    <div class="tbl-wrap"><table><thead><tr><th>Email</th><th>Role</th><th>Joined</th></tr></thead><tbody>
-      ${users.map((x) => `<tr><td>${esc(x.username)}<div class="tiny muted">${esc(x.display_name || '')}</div></td>
-        <td>${x.is_admin ? '<span class="pill buy">OWNER</span>' : '<span class="pill none">user</span>'}</td>
-        <td class="tiny muted">${dt(x.created_at)}</td></tr>`).join('')}
-    </tbody></table></div>
+    <div class="admin-tabs">${ADMIN_TABS.map(([id, l]) => `<button class="seg-tab ${tab === id ? 'active' : ''}" onclick="window.__sa.adminTab('${id}')">${l}</button>`).join('')}</div>
+    ${body}
     <div style="height:24px"></div>`;
   }
 
+  function adminOverview(o) {
+    const m = o.market || {};
+    return `
+    <div class="stats-grid">
+      ${statCard('Users', o.users.total, 'a')}
+      ${statCard('Owners', o.users.admins)}
+      ${statCard('Sessions', o.sessions)}
+      ${statCard('Signals', o.signals.total)}
+      ${statCard('24h signals', o.signals.last24h, 'u')}
+      ${statCard('Trades', o.trades.total)}
+      ${statCard('Open trades', o.trades.open, 'a')}
+      ${statCard('Scan rows', o.scan.cachedSymbols)}
+      ${statCard('New (7d)', o.users.last7d, 'u')}
+    </div>
+    <div class="section-title"><h2>System</h2></div>
+    <div class="card">
+      <div class="set-row"><span class="lbl">Market</span><b class="${m.state === 'OPEN' ? 'u' : ''}">${esc(m.state || '—')} · ${esc(m.istTime || '')}</b></div>
+      <div class="set-row"><span class="lbl">Runtime</span><b>${esc(o.server.node)} · PID ${o.server.pid}</b></div>
+      <div class="set-row"><span class="lbl">Uptime</span><b>${fmtUptime(o.server.uptimeSec)}</b></div>
+      <div class="set-row"><span class="lbl">Memory (RSS)</span><b>${o.server.memoryMB} MB</b></div>
+      <div class="set-row"><span class="lbl">Port</span><b>${o.server.port}</b></div>
+      <div class="set-row"><span class="lbl">Last scan</span><b>${dt(o.scan.lastScanAt)}</b></div>
+      <div class="set-row"><span class="lbl">Email sender</span><b class="${o.mail.ready ? 'u' : ''}">${esc(o.mail.mode || o.mail.provider)}</b></div>
+    </div>
+    <div class="section-title"><h2>Data provider</h2><button class="btn sm" onclick="window.__sa.adminHealth()">Run health check</button></div>
+    <div class="card" id="admin-health"><div class="tiny muted">Run a live provider probe for the latest status.</div></div>`;
+  }
+
+  function adminUsers(users) {
+    return `
+    <div class="section-title"><h2>Accounts</h2><span class="tiny muted">${users.length} total</span></div>
+    <div class="tbl-wrap"><table><thead><tr><th>User</th><th>Role</th><th>Trades</th><th>Signals</th><th>Joined</th><th>Actions</th></tr></thead><tbody>
+      ${users.map((u) => `<tr>
+        <td><b>${esc(u.email)}</b><div class="tiny muted">${esc(u.displayName || '')}${u.verified ? ' · verified' : ' · unverified'}</div></td>
+        <td>${u.isAdmin ? '<span class="pill buy">OWNER</span>' : '<span class="pill none">user</span>'}</td>
+        <td class="tiny">${u.trades.total} <span class="muted">(${u.trades.open} open)</span><div class="tiny ${u.trades.netPnl >= 0 ? 'u' : 'd'}">${u.trades.netPnl >= 0 ? '+' : ''}₹${u.trades.netPnl}</div></td>
+        <td class="tiny">${u.signals}</td>
+        <td class="tiny muted">${dt(u.createdAt)}</td>
+        <td><div class="row" style="gap:5px">
+          <button class="btn sm" onclick="window.__sa.adminRole(${u.id},${u.isAdmin ? 0 : 1})">${u.isAdmin ? 'Demote' : 'Make owner'}</button>
+          <button class="btn sm" onclick="window.__sa.adminResetPw(${u.id})">Reset pw</button>
+          <button class="btn sm red" onclick="window.__sa.adminDelete(${u.id},'${esc(u.email)}')">Delete</button>
+        </div></td></tr>`).join('') || '<tr><td colspan="6" class="empty">No users</td></tr>'}
+    </tbody></table></div>`;
+  }
+
+  function adminSignals(sig) {
+    return `
+    <div class="section-title"><h2>Recent signals</h2><span class="tiny muted">${sig.length} latest</span></div>
+    <div class="tbl-wrap"><table><thead><tr><th>Time</th><th>Symbol</th><th>User</th><th>Price</th><th>Reason</th></tr></thead><tbody>
+      ${sig.map((s) => `<tr><td class="tiny muted">${dt(s.ts)}</td><td><b>${esc(s.symbol)}</b></td>
+        <td class="tiny">${esc(s.email || 'system')}</td><td>${inr(s.price, 2)}</td><td class="tiny muted">${esc((s.reason || '').slice(0, 60))}</td></tr>`).join('') || '<tr><td colspan="5" class="empty">No signals</td></tr>'}
+    </tbody></table></div>`;
+  }
+
+  function adminTrades(tr) {
+    return `
+    <div class="section-title"><h2>Recent trades</h2><span class="tiny muted">${tr.length} latest</span></div>
+    <div class="tbl-wrap"><table><thead><tr><th>Symbol</th><th>User</th><th>Mode</th><th>Status</th><th>P&amp;L</th><th>Entry</th></tr></thead><tbody>
+      ${tr.map((t) => `<tr><td><b>${esc(t.symbol)}</b> ×${t.qty}</td><td class="tiny">${esc(t.email || '—')}</td>
+        <td class="tiny">${esc(t.mode)}</td><td class="tiny">${esc(t.status)}</td>
+        <td class="${t.pnl >= 0 ? 'u' : 'd'}">${t.pnlFmt || '—'}</td><td class="tiny muted">${dt(t.entry_ts)}</td></tr>`).join('') || '<tr><td colspan="6" class="empty">No trades</td></tr>'}
+    </tbody></table></div>`;
+  }
+
+  function adminLogs(logs) {
+    return `
+    <div class="section-title"><h2>Audit log</h2><span class="tiny muted">${logs.length} latest</span></div>
+    <div class="card">
+      ${logs.map((l) => `<div class="log-row"><span class="pill none">${esc(l.action || '')}</span><span class="tiny muted">${esc(l.email || '')}</span><span class="tiny grow" style="overflow:hidden;text-overflow:ellipsis">${esc((l.detail || '').slice(0, 80))}</span><span class="tiny muted">${dt(l.ts)}</span></div>`).join('') || '<div class="empty">No log entries</div>'}
+    </div>`;
+  }
+
+  function adminSystem() {
+    const u = state.universe || { counts: {} };
+    return `
+    <div class="section-title"><h2>Scanner &amp; universe</h2></div>
+    <div class="card">
+      <div class="set-row"><span class="lbl">Universe masters</span><button class="btn sm" onclick="window.__sa.loadUniverse()">Reload</button></div>
+      <div class="tiny muted" style="margin:8px 0">NSE ${u.counts.nse || 0} · BSE ${u.counts.bse || 0} · F&amp;O ${u.counts.fno || 0}</div>
+      <div class="row wrap" style="gap:8px">
+        <button class="btn sm gold" onclick="window.__sa.adminScan('all')">Scan NSE+BSE</button>
+        <button class="btn sm" onclick="window.__sa.adminScan('fno')">Scan F&amp;O</button>
+        <button class="btn sm" onclick="window.__sa.adminScan('nse')">Scan NSE</button>
+      </div>
+    </div>
+    <div class="section-title"><h2>Email OTP sender</h2></div>
+    <div class="card">
+      <div class="set-row"><span class="lbl">Status</span><b id="mail-status">…</b></div>
+      <div class="tiny muted">Configure the free sender under Settings → Email OTP.</div>
+    </div>
+    <div class="section-title"><h2>Scan jobs (this session)</h2></div>
+    <div class="card" id="admin-jobs"><div class="tiny muted">Loading…</div></div>`;
+  }
+
   /* ── RENDER ── */
-  function render() {
+  async function render() {
     const v = $('#view');
     const route = state.route;
     if (route === 'dashboard') v.innerHTML = renderDashboard();
     else if (route === 'scanner') v.innerHTML = renderScanner();
     else if (route === 'stock') v.innerHTML = renderStock();
-    else if (route === 'paper') v.innerHTML = renderPaper();
-    else if (route === 'alerts') v.innerHTML = renderAlerts();
+    else if (route === 'paper') v.innerHTML = await renderPaper();
+    else if (route === 'alerts') v.innerHTML = await renderAlerts();
     else if (route === 'settings') { v.innerHTML = renderSettings(); setTimeout(actions.mailStatus, 30); }
-    else if (route === 'admin') v.innerHTML = renderAdmin();
+    else if (route === 'admin') { v.innerHTML = await renderAdmin(); setTimeout(actions.mailStatus, 30); actions.adminJobs(); }
     // progress refs
     const bar = $('#scan-bar'); if (bar && state.scanProgress) bar.style.width = state.scanProgress + '%';
   }
@@ -701,7 +811,43 @@
     },
     async adminScan(preset) {
       try { const j = await api('/admin/scan', { method: 'POST', body: { preset } }); toast('Owner scan started · ' + j.total + ' symbols', 'ok'); setProgress(1, '0/' + j.total); }
-      catch (e) { toast(e.message, 'ok' === 'x' ? '' : 'err'); }
+      catch (e) { toast(e.message, 'err'); }
+    },
+    adminTab(t) { state.adminTab = t; render(); },
+    adminRefresh() { render(); toast('Refreshed', 'ok'); },
+    async adminHealth() {
+      const el = $('#admin-health'); if (el) el.innerHTML = '<div class="tiny muted">Probing…</div>';
+      try {
+        const j = await api('/admin/health'); const p = j.provider;
+        if (el) el.innerHTML = `<div class="row between"><span><b>${esc(p.name)}</b><div class="tiny muted">${esc(p.probe)} · ${p.latencyMs} ms</div></span>
+          <span class="${p.ok ? 'u' : 'd'}">${p.ok ? inr(p.price, 2) : '✗ ' + esc(p.error || 'unavailable')}</span></div>
+          <div class="set-row"><span class="lbl">Market</span><b>${esc(j.market.state)} · ${esc(j.market.istTime)}</b></div>
+          <div class="set-row"><span class="lbl">Email sender</span><b class="${j.mail.ready ? 'u' : ''}">${esc(j.mail.mode)}</b></div>`;
+        toast(p.ok ? ('Provider OK · ' + p.latencyMs + 'ms') : 'Provider unavailable', p.ok ? 'ok' : 'err');
+      } catch (e) { if (el) el.innerHTML = '<div class="tiny d">' + esc(e.message) + '</div>'; }
+    },
+    async adminJobs() {
+      const el = $('#admin-jobs'); if (!el) return;
+      try {
+        const jobs = (await api('/admin/jobs')).jobs;
+        el.innerHTML = jobs.length
+          ? jobs.map((j) => `<div class="set-row"><span class="lbl">${esc(j.preset)}</span><span class="tiny muted">${esc(j.status)} · ${j.done}/${j.total} · ${dt(j.startedAt)}</span></div>`).join('')
+          : '<div class="tiny muted">No scan jobs in this session.</div>';
+      } catch { }
+    },
+    async adminRole(id, makeAdmin) {
+      try { await api('/admin/users/' + id, { method: 'PATCH', body: { isAdmin: !!makeAdmin } }); toast('Role updated', 'ok'); render(); }
+      catch (e) { toast(e.message, 'err'); }
+    },
+    async adminResetPw(id) {
+      const p = prompt('New password (min 6 characters)'); if (!p) return;
+      try { await api('/admin/users/' + id, { method: 'PATCH', body: { password: p } }); toast('Password reset', 'ok'); }
+      catch (e) { toast(e.message, 'err'); }
+    },
+    async adminDelete(id, email) {
+      if (!confirm('Delete ' + email + ' and all their data? This cannot be undone.')) return;
+      try { await api('/admin/users/' + id, { method: 'DELETE' }); toast('User deleted', 'ok'); render(); }
+      catch (e) { toast(e.message, 'err'); }
     },
     async loadUniverse() { await loadUniverse(); toast('Universe reloaded', 'ok'); render(); },
     async addWatch(sym) {
@@ -723,6 +869,7 @@
 
   /* ══════════════ BOOT ══════════════ */
   async function bootApp() {
+    applyAdminNav();
     await Promise.all([loadMarket(), loadUniverse(), loadLatest()]);
     render();
     connectSSE();

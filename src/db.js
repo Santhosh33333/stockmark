@@ -139,6 +139,26 @@ const stmt = {
   invalidateOtps: db.prepare(`UPDATE email_otps SET consumed = 1 WHERE email = ? AND purpose = ?`),
   setEmailVerified: db.prepare(`UPDATE users SET email_verified = 1 WHERE id = ?`),
   userByEmail: db.prepare(`SELECT * FROM users WHERE username = ?`),
+  // ── admin / owner console ──
+  countUsers: db.prepare(`SELECT COUNT(*) c FROM users`),
+  countAdmins: db.prepare(`SELECT COUNT(*) c FROM users WHERE is_admin = 1`),
+  countUsersSince: db.prepare(`SELECT COUNT(*) c FROM users WHERE created_at >= ?`),
+  countSessions: db.prepare(`SELECT COUNT(*) c FROM sessions WHERE expires_at > ?`),
+  countSignals: db.prepare(`SELECT COUNT(*) c FROM signal_history`),
+  countSignalsSince: db.prepare(`SELECT COUNT(*) c FROM signal_history WHERE ts >= ?`),
+  countTrades: db.prepare(`SELECT COUNT(*) c FROM paper_trades`),
+  countOpenTrades: db.prepare(`SELECT COUNT(*) c FROM paper_trades WHERE status = 'OPEN'`),
+  countScan: db.prepare(`SELECT COUNT(*) c FROM scan_cache`),
+  lastScanAt: db.prepare(`SELECT MAX(updated_at) m FROM scan_cache`),
+  logs: db.prepare(`SELECT * FROM audit_log ORDER BY ts DESC LIMIT ? OFFSET ?`),
+  logsForUser: db.prepare(`SELECT * FROM audit_log WHERE user_id = ? ORDER BY ts DESC LIMIT ?`),
+  allTradesAdmin: db.prepare(`SELECT t.*, u.username AS email FROM paper_trades t LEFT JOIN users u ON u.id = t.user_id ORDER BY t.entry_ts DESC LIMIT ?`),
+  allSignalsAdmin: db.prepare(`SELECT s.*, u.username AS email FROM signal_history s LEFT JOIN users u ON u.id = s.user_id ORDER BY s.ts DESC LIMIT ?`),
+  setUserRole: db.prepare(`UPDATE users SET is_admin = ? WHERE id = ?`),
+  setUserPassword: db.prepare(`UPDATE users SET pass_hash = ?, salt = ? WHERE id = ?`),
+  deleteUserWatch: db.prepare(`DELETE FROM watchlist WHERE user_id = ?`),
+  deleteUserTrades: db.prepare(`DELETE FROM paper_trades WHERE user_id = ?`),
+  deleteUserSignals: db.prepare(`DELETE FROM signal_history WHERE user_id = ?`),
 };
 
 const now = () => Date.now();

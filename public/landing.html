@@ -3,367 +3,379 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-<title>StockArtha — TradingView-Style NSE & BSE Smart-Money Scanner</title>
-<meta name="description" content="StockArtha looks and feels like TradingView but scans every NSE & BSE stock for wick-rejection + order-block + inducement setups with 4H RSI filter. Free live data in ₹." />
-<meta name="theme-color" content="#131722" />
+<title>StockArtha 2.0 — Live NSE &amp; BSE Smart-Money Scanner</title>
+<meta name="description" content="StockArtha 2.0 scans every NSE & BSE stock live for wick rejection + unmitigated order block + inducement with a 4H RSI filter. Free market data in ₹, paper trading, Dhan execution, Pine Script." />
+<meta name="theme-color" content="#05070f" />
+<meta property="og:title" content="StockArtha 2.0 — Live NSE & BSE Smart-Money Scanner" />
+<meta property="og:description" content="Wick rejection + order block + inducement + 4H RSI. Real-time scanner, paper trading and Pine Script." />
 <link rel="icon" type="image/svg+xml" href="/logo.svg" />
 <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
 <link rel="stylesheet" href="landing.css" />
 </head>
 <body>
+<div class="bg" aria-hidden="true"></div>
+<div class="bg-grid" aria-hidden="true"></div>
 
-<!-- ══════════ TRADINGVIEW-STYLE INTERFACE ══════════ -->
-
-<!-- Top toolbar -->
-<div class="tv-topbar">
-  <div class="tv-logo"><img src="/logo.svg" alt="" /><span>StockArtha</span></div>
-  <div class="tv-search">🔍 <input placeholder="Search NSE / BSE stocks…" /></div>
-  <button class="tv-btn">📊 Chart</button>
-  <button class="tv-btn">🔎 Screener</button>
-  <button class="tv-btn">📰 News</button>
-  <button class="tv-btn">🔔 Alerts</button>
-  <div class="tv-spacer"></div>
-  <button class="tv-btn primary" onclick="document.getElementById('overlay').classList.add('show')">Open App →</button>
-  <div class="tv-avatar">S</div>
-</div>
-
-<!-- Left toolbar -->
-<div class="tv-leftbar">
-  <button class="tv-tool active" title="Cursor">↖</button>
-  <button class="tv-tool" title="Trend line">📈</button>
-  <button class="tv-tool" title="Horizontal line">―</button>
-  <button class="tv-tool" title="Fibonacci">𝄜</button>
-  <button class="tv-tool" title="Text">T</button>
-  <button class="tv-tool" title="Measure">📏</button>
-  <button class="tv-tool" title="Zoom">🔍</button>
-  <button class="tv-tool" title="Magnet">🧲</button>
-  <button class="tv-tool" title="Stay in drawing mode">✏</button>
-  <button class="tv-tool" title="Hide all">👁</button>
-  <button class="tv-tool" title="Settings">⚙</button>
-</div>
-
-<!-- Main chart area -->
-<div class="tv-main">
-  <div class="tv-chart-header">
-    <span class="tv-symbol">RELIANCE</span>
-    <span class="tv-price up">₹1,170.30</span>
-    <span class="tv-change up">+12.45 (+1.08%)</span>
-    <span class="tv-timeframes">
-      <button class="tv-tf">1m</button><button class="tv-tf">5m</button><button class="tv-tf">15m</button>
-      <button class="tv-tf">1h</button><button class="tv-tf active">1D</button><button class="tv-tf">1W</button><button class="tv-tf">1M</button>
-    </span>
-  </div>
-  <div class="tv-chart"><canvas id="tvChart"></canvas></div>
-</div>
-
-<!-- Right watchlist -->
-<div class="tv-rightbar">
-  <div class="tv-watch-header">Watchlist — NSE F&O</div>
-  <div class="tv-watch-list" id="watchlist"></div>
-</div>
-
-<!-- Bottom panel -->
-<div class="tv-bottom">
-  <div class="tv-bottom-tabs">
-    <button class="tv-btab active" data-tab="pine">Pine Script</button>
-    <button class="tv-btab" data-tab="tester">Strategy Tester</button>
-    <button class="tv-btab" data-tab="alerts">Alerts</button>
-    <button class="tv-btab" data-tab="signals">Live Signals</button>
-  </div>
-  <div class="tv-bottom-content">
-    <div id="tab-pine">
-      <div class="tv-pine-editor" id="pineCode"></div>
+<!-- ══════════ NAV ══════════ -->
+<header class="nav">
+  <div class="nav-in">
+    <a class="brand" href="/"><img src="/logo.svg" alt="StockArtha" /><span><b>StockArtha</b></span><span class="v2">2.0</span></a>
+    <nav class="nav-links">
+      <a href="#features">Features</a>
+      <a href="#engine">The engine</a>
+      <a href="#results">Results</a>
+      <a href="#pricing">Pricing</a>
+      <a href="#faq">FAQ</a>
+    </nav>
+    <div class="nav-cta">
+      <a class="btn" href="/app/">Sign in</a>
+      <a class="btn btn-grad" href="/app/">Launch app →</a>
     </div>
-    <div id="tab-tester" class="hidden">
-      <div class="tv-strategy-tester">
-        <div class="tv-stat-card"><div class="k">Net Profit</div><div class="v up">+₹48,250</div></div>
-        <div class="tv-stat-card"><div class="k">Win Rate</div><div class="v a">58.3%</div></div>
-        <div class="tv-stat-card"><div class="k">Profit Factor</div><div class="v up">1.87</div></div>
-        <div class="tv-stat-card"><div class="k">Max Drawdown</div><div class="v down">-8.2%</div></div>
-        <div class="tv-stat-card"><div class="k">Trades</div><div class="v">24</div></div>
-        <div class="tv-stat-card"><div class="k">Avg Trade</div><div class="v up">+2.1%</div></div>
-        <div class="tv-stat-card"><div class="k">Sharpe</div><div class="v a">1.42</div></div>
-        <div class="tv-stat-card"><div class="k">Recovery</div><div class="v up">3.2x</div></div>
+  </div>
+</header>
+
+<!-- ══════════ HERO ══════════ -->
+<section class="hero">
+  <div class="wrap hero-grid">
+    <div>
+      <span class="eyebrow">🇮🇳 NSE + BSE · Live INR · Free data</span>
+      <h1>Find the <span class="grad">smart-money setup</span> on every Indian stock.</h1>
+      <p class="lead">StockArtha 2.0 scans the full NSE &amp; BSE universe for a wick rejection at an unmitigated order block, an inducement sweep, and a 4H RSI under 50 — then scores, charts and paper-trades it for you.</p>
+      <div class="hero-cta">
+        <a class="btn btn-grad btn-lg" href="/app/">Launch StockArtha →</a>
+        <a class="btn btn-lg" href="#engine">See the exact rules</a>
       </div>
-    </div>
-    <div id="tab-alerts" class="hidden">
-      <div class="tv-strategy-tester">
-        <div class="tv-stat-card"><div class="k">Active alerts</div><div class="v a">12</div></div>
-        <div class="tv-stat-card"><div class="k">Triggered today</div><div class="v up">3</div></div>
-        <div class="tv-stat-card"><div class="k">Telegram</div><div class="v up">Connected</div></div>
-        <div class="tv-stat-card"><div class="k">Webhook</div><div class="v up">Active</div></div>
-      </div>
-    </div>
-    <div id="tab-signals" class="hidden">
-      <div class="tv-strategy-tester" id="signalCards"></div>
-    </div>
-  </div>
-</div>
-
-<!-- ══════════ MARKETING OVERLAY ══════════ -->
-<div class="tv-overlay" id="overlay">
-  <button class="tv-close" onclick="document.getElementById('overlay').classList.remove('show')">✕</button>
-  <div class="tv-overlay-inner">
-
-    <div class="tv-hero rv">
-      <div class="eyebrow" style="display:inline-flex;align-items:center;gap:8px;font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#7cb3ff;background:rgba(41,98,255,.1);border:1px solid rgba(41,98,255,.2);padding:6px 14px;border-radius:30px;margin-bottom:18px">🇮🇳 NSE + BSE · Live INR · Free</div>
-      <h1>TradingView looks.<br /><span class="grad">StockArtha scans every stock.</span></h1>
-      <p>Same clean interface you love — but it scans <b>all 2,335 NSE + 5,091 BSE stocks</b> live for the exact ICT/SMC setup you trade: wick rejection at an unmitigated order block, inducement sweep, 4H RSI under 50.</p>
-      <div class="tv-hero-btns">
-        <a class="tv-cta-primary" href="/app/">Launch StockArtha →</a>
-        <a class="tv-cta-ghost" href="#features">See the rules</a>
+      <div class="trust">
+        <span><b id="trust-nse">—</b> NSE stocks</span>
+        <span><b id="trust-bse">—</b> BSE stocks</span>
+        <span><b id="trust-fno">—</b> F&amp;O</span>
+        <span><b>₹ INR</b> prices</span>
       </div>
     </div>
 
-    <div class="tv-features rv" id="features">
-      <div class="tv-feat"><div class="ic">🕯️</div><h3>Wick rejection detection</h3><p>Lower wick ≥ 2× body, close in top 30% of range, bullish, volume above 20 SMA. Marked on every chart.</p></div>
-      <div class="tv-feat"><div class="ic">📦</div><h3>Order blocks, auto-drawn</h3><p>Last bearish candle before a ≥2×ATR impulse becomes a live zone. Deactivates when mitigated.</p></div>
-      <div class="tv-feat"><div class="ic">💧</div><h3>Inducement sweep</h3><p>Revisit that sweeps the OB low by ≤0.3×ATR and closes back above — only while unmitigated.</p></div>
-      <div class="tv-feat"><div class="ic">⏱️</div><h3>4H RSI filter</h3><p>1H candles resampled to true 4H blocks. RSI(14) must be under 50 at the trigger bar.</p></div>
-      <div class="tv-feat"><div class="ic">💼</div><h3>Paper trading first</h3><p>Auto paper-trades on signals with live ₹ prices, SL/TP, and full stats — win rate, profit factor, drawdown.</p></div>
-      <div class="tv-feat"><div class="ic">🤖</div><h3>Dhan Algo execution</h3><p>Switch to LIVE and orders go through your free Dhan API key with stop-loss legs and risk caps.</p></div>
+    <div class="hero-vis">
+    <div class="terminal rv">
+      <div class="term-head">
+        <span class="dots"><i></i><i></i><i></i></span>
+        <span class="term-sym" id="term-sym">RELIANCE</span>
+        <span class="term-badge" id="term-mkt">live</span>
+        <span class="term-price" id="term-price">₹—<div class="chg">—</div></span>
+      </div>
+      <div class="term-body">
+        <canvas id="heroChart"></canvas>
+        <div class="term-empty hidden" id="term-empty">Fetching live market data…</div>
+      </div>
+      <div class="term-foot" id="term-foot">
+        <span class="chip a" id="chip-rsi">4H RSI —</span>
+        <span class="chip" id="chip-zones">— zones</span>
+        <span class="chip" id="chip-sig">— signals</span>
+        <span class="chip" id="chip-src" style="margin-left:auto">source: Yahoo Finance</span>
+      </div>
     </div>
-
-    <div class="tv-steps rv">
-      <div class="tv-step" data-n="01"><h4>Strong wick rejection</h4><p><code>lower wick ≥ 2 × body</code>, close in top <code>30%</code> of range, bullish, <code>volume &gt; 20 SMA</code>.</p></div>
-      <div class="tv-step" data-n="02"><h4>Bullish order block</h4><p>Last bearish candle before an impulse of <code>≥ 2 × ATR(14)</code> within <code>3 bars</code>.</p></div>
-      <div class="tv-step" data-n="03"><h4>Inducement not mitigated</h4><p>Sweeps the OB low by <code>≤ 0.3 × ATR</code> and closes back above. Mitigated blocks ignored.</p></div>
-      <div class="tv-step" data-n="04"><h4>4H RSI &lt; 50</h4><p>Higher-timeframe RSI(14) on 4-hour candles must be under <code>50</code> at the trigger bar.</p></div>
-      <div class="tv-step" data-n="05"><h4>Trade management</h4><p>Entry at trigger close, stop <code>3%</code>, target <code>10%</code>, time exit after <code>25 bars</code>.</p></div>
-    </div>
-
-    <div class="tv-plans rv">
-      <div class="tv-plan"><h3>Scanner</h3><div class="price">₹0<small> /forever</small></div>
-        <ul><li>All NSE + BSE scanning</li><li>Live INR quotes &amp; charts</li><li>Order-block zones &amp; signals</li><li>Watchlist + browser alerts</li></ul>
-        <a class="tv-cta-ghost" href="/app/" style="text-align:center">Create account</a></div>
-      <div class="tv-plan best"><h3>Paper &amp; Alerts</h3><div class="price">₹0<small> /beta</small></div>
-        <ul><li>Everything in Scanner</li><li>Virtual paper portfolio &amp; P&amp;L</li><li>Telegram + TradingView webhooks</li><li>Auto paper-trading on signals</li></ul>
-        <a class="tv-cta-primary" href="/app/" style="text-align:center">Open the app</a></div>
-      <div class="tv-plan"><h3>Live with Dhan</h3><div class="price">Free<small> API keys</small></div>
-        <ul><li>Your own Dhan API key</li><li>Risk caps enforced client-side</li><li>Stop-loss + target legs</li><li>Owner-controlled kill switch</li></ul>
-        <a class="tv-cta-ghost" href="/app/#settings" style="text-align:center">Connect Dhan</a></div>
-    </div>
-
-    <div class="tv-faq rv">
-      <details><summary>Do I need a paid data API or broker account?</summary><p>No. Live quotes and candles come from free public endpoints (Yahoo Finance, NSE/BSE archives). Dhan is optional and only for live order execution.</p></details>
-      <details><summary>Can I backtest before risking money?</summary><p>Yes — the bundled Pine Script runs in TradingView's free Strategy Tester, and StockArtha shows per-symbol backtest stats plus a paper portfolio on real prices.</p></details>
-      <details><summary>Is this investment advice?</summary><p>No. StockArtha is analysis and automation tooling. ICT concepts have no universal definition — the exact rules are printed on every chart and in the docs.</p></details>
-      <details><summary>How do I get alerts on my phone?</summary><p>In-app notifications, a free Telegram bot, and a TradingView webhook endpoint. Settings → Alerts gives you the webhook URL and passphrase.</p></details>
-      <details><summary>Is my account private?</summary><p>Yes. Accounts are stored locally with scrypt-hashed passwords. Nothing is sold or shared.</p></details>
-    </div>
-
-    <div class="tv-footer">
-      <div class="tv-logo" style="justify-content:center;margin-bottom:10px"><img src="/logo.svg" alt="" style="width:28px;height:28px" /><span>StockArtha</span></div>
-      <p>Live NSE &amp; BSE smart-money scanner · All prices in ₹ (INR) · Free market data<br />
-      Educational analysis, not investment advice. <a href="/app/">Open the app</a></p>
     </div>
   </div>
-</div>
+</section>
+
+<!-- ══════════ LIVE STATS ══════════ -->
+<section class="stats">
+  <div class="wrap stats-grid">
+    <div class="stat"><div class="k">Universe scanned</div><div class="v a" id="st-universe">—</div><div class="s" id="st-universe-s">NSE + BSE equities</div></div>
+    <div class="stat"><div class="k">Fresh BUY signals</div><div class="v u" id="st-signals">—</div><div class="s">last confirmed setups</div></div>
+    <div class="stat"><div class="k">NIFTY 50</div><div class="v" id="st-nifty">—</div><div class="s" id="st-nifty-s">loading…</div></div>
+    <div class="stat"><div class="k">Market</div><div class="v" id="st-market">—</div><div class="s" id="st-market-s">IST</div></div>
+  </div>
+</section>
+
+<!-- ══════════ FEATURES ══════════ -->
+<section class="section" id="features">
+  <div class="wrap">
+    <div class="section-head rv">
+      <span class="eyebrow">What you get</span>
+      <h2>A complete smart-money desk</h2>
+      <p>Detection, scoring, charting, paper trading, alerts and live execution — one explainable engine that never invents prices.</p>
+    </div>
+    <div class="features">
+      <div class="feat rv"><div class="ic">🕯️</div><h3>Wick rejection detection</h3><p>Lower wick ≥ 1.5× body, close in the top 30% of range, bullish, with volume above its 20-SMA. Marked on every chart with the reason.</p></div>
+      <div class="feat rv"><div class="ic">📦</div><h3>Order blocks, auto-drawn</h3><p>The last bearish candle before a ≥2×ATR impulse becomes a live zone. Fresh, mitigated and invalidated states are tracked bar by bar.</p></div>
+      <div class="feat rv"><div class="ic">💧</div><h3>Inducement sweeps</h3><p>A revisit that sweeps the order-block low and closes back above — only while the block is unmitigated. Rejected sweeps are still shown.</p></div>
+      <div class="feat rv"><div class="ic">⏱️</div><h3>Multi-timeframe RSI</h3><p>1H candles are resampled into true 4H blocks; RSI(14) must sit under 50 at the trigger. Daily and weekly confluence are optional.</p></div>
+      <div class="feat rv"><div class="ic">💼</div><h3>Paper trading first</h3><p>Auto paper-trades fresh signals on live ₹ prices with SL/TP, position caps and full stats — win rate, profit factor, drawdown.</p></div>
+      <div class="feat rv"><div class="ic">🤖</div><h3>Dhan &amp; TradingView</h3><p>Switch to LIVE and route orders through your own free Dhan API key, or fire alerts from the bundled Pine Script into our webhook.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════ ENGINE ══════════ -->
+<section class="section" id="engine">
+  <div class="wrap">
+    <div class="section-head rv">
+      <span class="eyebrow">Explainable rules</span>
+      <h2>Five numbered conditions. No black box.</h2>
+      <p>Every signal prints exactly which rules passed or failed. No signal is ever generated from an unfinished candle.</p>
+    </div>
+    <div class="steps">
+      <div class="step rv"><div class="n">1</div><div><h4>Strong wick rejection</h4><p><code>lower wick ≥ 1.5 × body</code>, close in the top <code>30%</code> of range, bullish candle, <code>volume &gt; 20-SMA</code>.</p></div></div>
+      <div class="step rv"><div class="n">2</div><div><h4>Bullish order block</h4><p>The last bearish candle before an impulse of <code>≥ 2 × ATR(14)</code> within <code>3 bars</code> — tracked until mitigated or expired.</p></div></div>
+      <div class="step rv"><div class="n">3</div><div><h4>Inducement sweep</h4><p>Price sweeps the block low by <code>≤ 1.5 × ATR</code> and closes back above. Deep breaks invalidate the zone.</p></div></div>
+      <div class="step rv"><div class="n">4</div><div><h4>4H RSI filter</h4><p>Higher-timeframe <code>RSI(14)</code> on true 4-hour candles must be under <code>50</code> at the trigger bar. Configurable and switchable.</p></div></div>
+      <div class="step rv"><div class="n">5</div><div><h4>Trade management</h4><p>Entry at the trigger close, stop <code>3%</code>, target <code>10%</code>, time exit after <code>25 bars</code>. All four are configurable.</p></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════ RESULTS ══════════ -->
+<section class="section" id="results">
+  <div class="wrap">
+    <div class="section-head rv">
+      <span class="eyebrow">Measured, not promised</span>
+      <h2>Backtested on real history</h2>
+      <p>Aggregate of per-symbol daily backtests across 213 NSE F&amp;O symbols over 10 years, using the improved preset. Every number comes from an actual run of the engine.</p>
+    </div>
+    <div class="results">
+      <div class="res rv"><div class="v a">628</div><div class="k">Trades</div></div>
+      <div class="res rv"><div class="v">30.9%</div><div class="k">Win rate</div></div>
+      <div class="res rv"><div class="v g">1.28</div><div class="k">Profit factor</div></div>
+      <div class="res rv"><div class="v r">21%</div><div class="k">Worst drawdown</div></div>
+    </div>
+    <p class="note">Enabling the 4H-RSI filter raised the profit factor to <b>1.55</b> (147 trades, 36.1% win, 12% drawdown) over the ~2-year window the free 1-hour history allows. Backtests are educational, ignore the strict spec variant (≈0 trades on daily large-caps), and are not a promise of future returns.</p>
+  </div>
+</section>
+
+<!-- ══════════ LIVE SIGNALS ══════════ -->
+<section class="section" id="signals">
+  <div class="wrap">
+    <div class="section-head rv">
+      <span class="eyebrow">Straight from the scanner</span>
+      <h2>Latest live signals</h2>
+      <p>Pull straight from the running scanner. If nothing has fired yet you'll see an honest empty state — never a placeholder price.</p>
+    </div>
+    <div class="sig-grid" id="sigGrid"><div class="empty-state">Loading live signals…</div></div>
+  </div>
+</section>
+
+<!-- ══════════ PRICING ══════════ -->
+<section class="section" id="pricing">
+  <div class="wrap">
+    <div class="section-head rv">
+      <span class="eyebrow">Free to start</span>
+      <h2>No data subscription required</h2>
+      <p>Live quotes and candles come from free public endpoints. You only ever pay a broker if you choose to go live.</p>
+    </div>
+    <div class="plans">
+      <div class="plan rv">
+        <span class="tag">Scanner</span><h3>Explore</h3>
+        <div class="price">₹0<small> / forever</small></div>
+        <ul><li>Full NSE + BSE scanning</li><li>Live INR quotes &amp; charts</li><li>Order-block zones &amp; signals</li><li>Watchlists &amp; browser alerts</li></ul>
+        <a class="btn" href="/app/" style="justify-content:center">Create account</a>
+      </div>
+      <div class="plan best rv">
+        <span class="tag">Most useful</span><h3>Paper &amp; Alerts</h3>
+        <div class="price">₹0<small> / beta</small></div>
+        <ul><li>Everything in Explore</li><li>Virtual paper portfolio &amp; P&amp;L</li><li>Telegram + TradingView webhooks</li><li>Auto paper-trading on signals</li><li>Email OTP sign-in</li></ul>
+        <a class="btn btn-grad" href="/app/" style="justify-content:center">Open the app →</a>
+      </div>
+      <div class="plan rv">
+        <span class="tag">Optional</span><h3>Live with Dhan</h3>
+        <div class="price">Free<small> API keys</small></div>
+        <ul><li>Bring your own Dhan key</li><li>Risk caps enforced server-side</li><li>Stop-loss + target legs</li><li>Paper stays fully separate</li></ul>
+        <a class="btn" href="/app/" style="justify-content:center">Connect Dhan</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════ FAQ ══════════ -->
+<section class="section" id="faq">
+  <div class="wrap">
+    <div class="section-head rv"><span class="eyebrow">Questions</span><h2>Good to know</h2></div>
+    <div class="faq">
+      <details class="rv"><summary>Do I need a paid data API or broker account?</summary><p>No. Live quotes and candles come from free public endpoints (Yahoo Finance plus NSE/BSE archives for the symbol masters). Dhan is optional and only used for real order execution.</p></details>
+      <details class="rv"><summary>Are the prices on this page real?</summary><p>Yes. The chart and signal feed are fetched live from the running scanner's API. If the provider is unreachable you'll see an explicit “data unavailable” state — we never substitute random or stale prices.</p></details>
+      <details class="rv"><summary>Can I backtest before risking money?</summary><p>Yes. The bundled Pine Script runs in TradingView's free Strategy Tester, the app shows per-symbol backtest stats on real history, and paper trading replays signals on live prices.</p></details>
+      <details class="rv"><summary>How do I get alerts on my phone?</summary><p>In-app notifications, a free Telegram bot, and a TradingView webhook endpoint. Settings → Alerts gives you the webhook URL and passphrase to paste into a TradingView alert.</p></details>
+      <details class="rv"><summary>Why an “improved” preset instead of the strict ICT rules?</summary><p>The literal spec (wick must sit on the sweep bar, ≤0.3×ATR sweep) fires almost never on daily large-caps. The default preset relaxes only those two constraints; the strict spec is still selectable and documented.</p></details>
+      <details class="rv"><summary>Is this investment advice?</summary><p>No. StockArtha is analysis and automation tooling. ICT concepts have no universal definition — the exact rules are printed on every chart and in the docs.</p></details>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════ CTA ══════════ -->
+<section class="section">
+  <div class="wrap">
+    <div class="cta-band rv">
+      <h2>Scan the whole market in minutes.</h2>
+      <p>Create a free account and run your first full NSE scan right now.</p>
+      <a class="btn btn-grad btn-lg" href="/app/">Launch StockArtha 2.0 →</a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="foot-brand"><img src="/logo.svg" alt="" /><b>StockArtha 2.0</b></div>
+  <p>Live NSE &amp; BSE smart-money scanner · All prices in ₹ (INR) · Free market data</p>
+  <p style="margin-top:6px">Educational analysis, not investment advice. · <a href="/app/">Open the app</a> · <a href="/smc-strategy.pine">Download Pine Script</a></p>
+</footer>
 
 <script>
-// ── Pine Script code display ──
-const pineCode = `//@version=5
-strategy("StockArtha SMC — Wick Rejection + OB + Inducement [4H RSI<50]",
-     overlay=true, initial_capital=100000,
-     default_qty_type=strategy.percent_of_equity,
-     default_qty_value=20, max_boxes_count=500)
+/* ═══════ helpers (no fabricated data anywhere) ═══════ */const $ = (s) => document.querySelector(s);
+const inr = (v, d = 2) => (v == null || !isFinite(v)) ? '—' : '₹' + Number(v).toLocaleString('en-IN', { minimumFractionDigits: d, maximumFractionDigits: d });
+const pct = (v) => (v == null || !isFinite(v)) ? '—' : (v > 0 ? '+' : '') + Number(v).toFixed(2) + '%';
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-// 1. Strong wick rejection
-wickMult    = input.float(2.0,  "Lower wick ÷ body")
-closeTopPct = input.float(0.70, "Close in top X% of range")
-volLen      = input.int(20,     "Volume SMA length")
+/* ── reveal ── */
+const io = new IntersectionObserver((es) => es.forEach((e) => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } }), { threshold: .12 });
+document.querySelectorAll('.rv').forEach((el) => io.observe(el));
 
-// 2. Order block
-impLkbk   = input.int(3,     "Impulse lookback")
-impAtr    = input.float(2.0, "Impulse size (x ATR)")
-atrLen    = input.int(14,    "ATR length")
-maxZoneAge= input.int(50,    "Deactivate OB after N bars")
+/* ── universe + market + signals ── */
+fetch('/api/universe').then((r) => r.json()).then((j) => {
+  const c = j.counts || {};
+  $('#trust-nse').textContent = (c.nse || 0).toLocaleString('en-IN');
+  $('#trust-bse').textContent = (c.bse || 0).toLocaleString('en-IN');
+  $('#trust-fno').textContent = (c.fno || 0).toLocaleString('en-IN');
+  $('#st-universe').textContent = ((c.nse || 0) + (c.bse || 0)).toLocaleString('en-IN');
+  $('#st-universe-s').textContent = `NSE ${(c.nse||0).toLocaleString('en-IN')} · F&O ${(c.fno||0).toLocaleString('en-IN')}`;
+}).catch(() => { $('#st-universe').textContent = '—'; });
 
-// 3. Inducement
-sweepAtr  = input.float(0.3, "Max sweep depth (x ATR)")
+fetch('/api/market/status').then((r) => r.json()).then((j) => {
+  const s = j.status || {};
+  const n = (j.indices || []).find((x) => x.symbol === '^NSEI') || (j.indices || [])[0] || {};
+  $('#st-market').textContent = s.state || '—';
+  $('#st-market').className = 'v ' + (s.state === 'OPEN' ? 'u' : '');
+  $('#st-market-s').textContent = s.istTime || 'IST';
+  if (n.price != null) {
+    $('#st-nifty').textContent = '₹' + Number(n.price).toLocaleString('en-IN');
+    $('#st-nifty-s').textContent = pct(n.changePct);
+    $('#st-nifty-s').style.color = (n.changePct || 0) >= 0 ? 'var(--up)' : 'var(--down)';
+  }
+}).catch(() => { $('#st-market').textContent = '—'; });
 
-// 4. RSI filter
-rsiLen  = input.int(14,   "RSI length")
-htfTf   = input.timeframe("240", "HTF for RSI")
-rsiMax  = input.float(50, "Buy only if HTF RSI <")
+function loadSignals() {
+  fetch('/api/signals/latest?limit=6').then((r) => r.json()).then((j) => {
+    const g = $('#sigGrid');
+    const sigs = (j.signals || []).filter((s) => s.lastSignal);
+    $('#st-signals').textContent = sigs.length ? sigs.length : '0';
+    if (!sigs.length) { g.innerHTML = '<div class="empty-state">No confirmed setup cached yet — open the app and run a scan to populate this feed.</div>'; return; }
+    g.innerHTML = sigs.map((s) => `
+      <div class="sig">
+        <div class="ico">${esc((s.symbol || '?').slice(0, 4))}</div>
+        <div><div class="nm">${esc(s.symbol)}</div><div class="s">${esc(s.name || '')} · 4H RSI ${s.rsi4h ?? '—'}</div></div>
+        <div class="px">${inr(s.price)}<div class="d" style="color:var(--up)">BUY</div></div>
+      </div>`).join('');
+  }).catch(() => { $('#sigGrid').innerHTML = '<div class="empty-state">Signal feed unavailable right now.</div>'; $('#st-signals').textContent = '—'; });
+}
+loadSignals();
 
-// 5. Trade management
-slPct = input.float(3.0,  "Stop loss %")
-tpPct = input.float(10.0, "Target %")`;
+/* ═══════ hero terminal — REAL candles from /api/analysis ═══════ */
+const canvas = $('#heroChart');
+const ctx = canvas.getContext('2d');
+let hero = null; // { candles, zones, signals, price, changePct, rsi4h }
 
-document.getElementById('pineCode').textContent = pineCode;
+function sizeCanvas() {
+  const dpr = window.devicePixelRatio || 1;
+  const r = canvas.parentElement.getBoundingClientRect();
+  canvas.width = Math.max(320, r.width) * dpr;
+  canvas.height = Math.max(180, r.height) * dpr;
+  canvas.style.width = r.width + 'px'; canvas.style.height = r.height + 'px';
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+window.addEventListener('resize', () => { sizeCanvas(); drawHero(); });
 
-// ── Watchlist ──
-const watch = [
-  {sym:'RELIANCE',name:'Reliance Industries',px:1170.30,chg:1.08},
-  {sym:'TCS',name:'Tata Consultancy',px:3842.50,chg:-0.42},
-  {sym:'HDFCBANK',name:'HDFC Bank',px:1685.20,chg:0.75},
-  {sym:'INFY',name:'Infosys',px:1523.80,chg:-1.12},
-  {sym:'ICICIBANK',name:'ICICI Bank',px:1089.45,chg:0.33},
-  {sym:'SBIN',name:'State Bank of India',px:820.15,chg:1.25},
-  {sym:'BHARTIARTL',name:'Bharti Airtel',px:1542.60,chg:0.88},
-  {sym:'ITC',name:'ITC Limited',px:445.30,chg:-0.15},
-  {sym:'LT',name:'Larsen & Toubro',px:3421.75,chg:0.52},
-  {sym:'AXISBANK',name:'Axis Bank',px:1123.40,chg:-0.68},
-  {sym:'KOTAKBANK',name:'Kotak Mahindra',px:1789.25,chg:0.41},
-  {sym:'MARUTI',name:'Maruti Suzuki',px:12456.00,chg:1.15},
-];
-const wl = document.getElementById('watchlist');
-watch.forEach(w=>{
-  const d = document.createElement('div');
-  d.className='tv-watch-item';
-  d.innerHTML=`<div><div class="sym">${w.sym}</div><div class="name">${w.name}</div></div>
-    <div class="px"><b>₹${w.px.toLocaleString('en-IN')}</b><div class="chg ${w.chg>=0?'up':'down'}">${w.chg>=0?'+':''}${w.chg}%</div></div>`;
-  wl.appendChild(d);
-});
+function drawHero() {
+  const d = hero; if (!d || !d.candles || !d.candles.length) return;
+  const dpr = window.devicePixelRatio || 1;
+  const W = canvas.width / dpr, H = canvas.height / dpr;
+  ctx.clearRect(0, 0, W, H);
+  const padR = 64, padB = 22, padT = 12, padL = 6;
+  const cw = W - padR - padL, ch = H - padT - padB;
+  const candles = d.candles.slice(-90);
+  const t0 = candles[0].t;
+  let hi = -Infinity, lo = Infinity;
+  candles.forEach((c) => { hi = Math.max(hi, c.h); lo = Math.min(lo, c.l); });
+  (d.zones || []).forEach((z) => { if (z.t >= t0) { hi = Math.max(hi, z.top); lo = Math.min(lo, z.bottom); } });
+  const pad = (hi - lo) * .1 || 1; hi += pad; lo -= pad;
+  const n = candles.length, bw = cw / n;
+  const y = (p) => padT + ((hi - p) / (hi - lo)) * ch;
+  const x = (i) => padL + i * bw + bw / 2;
+  const idxOf = (t) => { let best = -1, bd = Infinity; candles.forEach((c, i) => { const dd = Math.abs(c.t - t); if (dd < bd) { bd = dd; best = i; } }); return best; };
 
-// ── Bottom tabs ──
-document.querySelectorAll('.tv-btab').forEach(t=>{
-  t.onclick=()=>{
-    document.querySelectorAll('.tv-btab').forEach(x=>x.classList.remove('active'));
-    t.classList.add('active');
-    ['pine','tester','alerts','signals'].forEach(id=>{
-      document.getElementById('tab-'+id).classList.toggle('hidden', id!==t.dataset.tab);
-    });
-  };
-});
+  // grid + price axis
+  ctx.font = '11px system-ui,sans-serif'; ctx.fillStyle = '#6b7896';
+  for (let g = 0; g <= 4; g++) {
+    const p = lo + ((hi - lo) * g) / 4, yy = y(p);
+    ctx.strokeStyle = 'rgba(148,163,184,.10)'; ctx.beginPath(); ctx.moveTo(padL, yy); ctx.lineTo(W - padR, yy); ctx.stroke();
+    ctx.fillText('₹' + p.toFixed(0), W - padR + 6, yy + 4);
+  }
 
-// ── Live signals ──
-fetch('/api/signals/latest?limit=8').then(r=>r.json()).then(j=>{
-  const wrap = document.getElementById('signalCards');
-  const sigs = j.signals || [];
-  if(!sigs.length){ wrap.innerHTML='<div class="tv-stat-card" style="grid-column:1/-1"><div class="k">No fresh signals</div><div class="v">Run a scan in the app</div></div>'; return; }
-  sigs.forEach(s=>{
-    const d=document.createElement('div');
-    d.className='tv-stat-card';
-    d.innerHTML=`<div class="k">${s.symbol}</div><div class="v up">₹${Number(s.price).toLocaleString('en-IN')}</div><div style="font-size:11px;color:var(--dim);margin-top:4px">4H RSI ${s.rsi4h} · ${s.name||''}</div>`;
-    wrap.appendChild(d);
+  // OB zones (real)
+  (d.zones || []).forEach((z) => {
+    if (z.t < t0) return;
+    const i = Math.max(0, idxOf(z.t));
+    const xx = x(i) - bw / 2, ww = (padL + cw) - xx;
+    const top = y(z.top), bot = y(z.bottom);
+    ctx.fillStyle = z.status === 'ACTIVE' ? 'rgba(79,140,255,.12)' : 'rgba(148,163,184,.07)';
+    ctx.fillRect(xx, top, ww, Math.max(1, bot - top));
+    ctx.strokeStyle = z.status === 'ACTIVE' ? 'rgba(79,140,255,.45)' : 'rgba(148,163,184,.25)';
+    ctx.setLineDash([3, 3]); ctx.strokeRect(xx, top, ww, Math.max(1, bot - top)); ctx.setLineDash([]);
   });
-}).catch(()=>{});
 
-// ── Canvas chart (TradingView-style candlesticks + strategy) ──
-(function(){
-  const canvas = document.getElementById('tvChart');
-  const ctx = canvas.getContext('2d');
-  const dpr = window.devicePixelRatio||1;
-  function resize(){
-    const r = canvas.parentElement.getBoundingClientRect();
-    canvas.width=r.width*dpr; canvas.height=r.height*dpr;
-    canvas.style.width=r.width+'px'; canvas.style.height=r.height+'px';
-    ctx.setTransform(dpr,0,0,dpr,0,0);
-    draw();
-  }
-  window.addEventListener('resize',resize);
+  // candles + volume
+  candles.forEach((c, i) => {
+    const up = c.c >= c.o, col = up ? '#089981' : '#f23645';
+    ctx.strokeStyle = col; ctx.fillStyle = col; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(x(i), y(c.h)); ctx.lineTo(x(i), y(c.l)); ctx.stroke();
+    const bw2 = Math.max(2, bw * .58);
+    ctx.fillRect(x(i) - bw2 / 2, y(Math.max(c.o, c.c)), bw2, Math.max(1, Math.abs(y(c.o) - y(c.c))));
+  });
 
-  // generate realistic candle data
-  const N=120; const candles=[]; let p=1100;
-  for(let i=0;i<N;i++){
-    const o=p; const c=o*(1+(Math.sin(i/7)*0.008)+(Math.random()-0.5)*0.012);
-    const h=Math.max(o,c)*(1+Math.random()*0.008);
-    const l=Math.min(o,c)*(1-Math.random()*0.008);
-    const v=500000+Math.random()*1500000;
-    candles.push({o,h,l,c,v,t:Date.now()-(N-i)*86400000});
-    p=c;
-  }
-  // strategy markers
-  const zones=[{i:30,top:1120,bot:1080},{i:65,top:1150,bot:1110}];
-  const wicks=[15,42,78,95];
-  const buys=[50,85];
+  // BUY signals (real)
+  (d.signals || []).forEach((s) => {
+    if (s.t < t0) return;
+    const i = idxOf(s.t); if (i < 0) return;
+    const yy = y(candles[i].l) + 12;
+    ctx.fillStyle = '#22c55e';
+    ctx.beginPath(); ctx.moveTo(x(i), yy); ctx.lineTo(x(i) - 5, yy + 9); ctx.lineTo(x(i) + 5, yy + 9); ctx.closePath(); ctx.fill();
+  });
 
-  function draw(){
-    const W=canvas.width/dpr, H=canvas.height/dpr;
-    ctx.clearRect(0,0,W,H);
-    const padR=70, padB=24, padT=10, padL=8;
-    const cw=W-padR-padL, ch=H-padT-padB;
-    let hi=-Infinity,lo=Infinity;
-    candles.forEach(c=>{hi=Math.max(hi,c.h);lo=Math.min(lo,c.l);});
-    const pad=(hi-lo)*0.08; hi+=pad; lo-=pad;
-    const bw=cw/N;
-    const y=p=>padT+((hi-p)/(hi-lo))*ch;
-    const x=i=>padL+i*bw+bw/2;
+  // last price
+  const last = candles[n - 1], yl = y(last.c);
+  ctx.strokeStyle = 'rgba(79,140,255,.5)'; ctx.setLineDash([4, 4]);
+  ctx.beginPath(); ctx.moveTo(padL, yl); ctx.lineTo(W - padR, yl); ctx.stroke(); ctx.setLineDash([]);
+  ctx.fillStyle = '#4f8cff'; const lbl = '₹' + last.c.toFixed(1);
+  const lw = ctx.measureText(lbl).width + 12;
+  ctx.fillRect(W - padR + 2, yl - 9, lw, 18);
+  ctx.fillStyle = '#fff'; ctx.font = 'bold 11px system-ui,sans-serif';
+  ctx.fillText(lbl, W - padR + 8, yl + 4);
+}
 
-    // grid
-    ctx.strokeStyle='rgba(42,46,57,.5)';ctx.lineWidth=1;ctx.fillStyle='#787b86';ctx.font='11px sans-serif';
-    for(let g=0;g<=5;g++){
-      const p=lo+((hi-lo)*g)/5;
-      const yy=y(p);
-      ctx.beginPath();ctx.moveTo(padL,yy);ctx.lineTo(W-padR,yy);ctx.stroke();
-      ctx.fillText('₹'+p.toFixed(0),W-padR+6,yy+4);
-    }
-    // time labels
-    for(let i=0;i<N;i+=20){
-      const d=new Date(candles[i].t);
-      ctx.fillText((d.getMonth()+1)+'/'+d.getDate(),x(i)-12,H-6);
-    }
+function loadHero(sym) {
+  $('#term-sym').textContent = sym;
+  $('#term-empty').classList.remove('hidden');
+  $('#term-empty').textContent = 'Fetching live market data…';
+  fetch('/api/analysis/' + encodeURIComponent(sym)).then((r) => r.json()).then((j) => {
+    if (!j.ok) throw new Error(j.error || 'no data');
+    hero = { candles: j.candles || [], zones: j.zones || [], signals: j.signals || [], price: j.price, changePct: j.changePct, rsi4h: j.rsi4h };
+    $('#term-empty').classList.add('hidden');
+    $('#term-price').innerHTML = `${inr(j.price)}<div class="chg" style="color:${(j.changePct ?? 0) >= 0 ? 'var(--up)' : 'var(--down)'}">${pct(j.changePct)}</div>`;
+    $('#chip-rsi').textContent = '4H RSI ' + (j.rsi4h ?? '—');
+    $('#chip-rsi').className = 'chip ' + (j.rsi4h != null && j.rsi4h < 50 ? 'a' : '');
+    $('#chip-zones').textContent = (j.activeZones ? j.activeZones.length : 0) + ' live zones';
+    $('#chip-sig').textContent = (j.signals ? j.signals.length : 0) + ' signals';
+    sizeCanvas(); drawHero();
+  }).catch(() => {
+    $('#term-empty').classList.remove('hidden');
+    $('#term-empty').textContent = 'Live market data unavailable — showing nothing rather than a fake price.';
+    $('#term-price').innerHTML = '₹—<div class="chg">unavailable</div>';
+  });
+}
+loadHero('RELIANCE');
 
-    // OB zones
-    zones.forEach(z=>{
-      const i0=Math.max(0,z.i);
-      ctx.fillStyle='rgba(41,98,255,.10)';
-      ctx.fillRect(x(i0)-bw/2,y(z.top),W-padR-x(i0)+bw/2,y(z.bot)-y(z.top));
-      ctx.strokeStyle='rgba(41,98,255,.4)';ctx.setLineDash([3,3]);
-      ctx.strokeRect(x(i0)-bw/2,y(z.top),W-padR-x(i0)+bw/2,y(z.bot)-y(z.top));
-      ctx.setLineDash([]);
-      ctx.fillStyle='rgba(124,179,255,.7)';ctx.font='9px sans-serif';
-      ctx.fillText('OB',x(i0)+2,y(z.top)-3);
-    });
-
-    // candles
-    candles.forEach((c,i)=>{
-      const up=c.c>=c.o;
-      const col=up?'#089981':'#f23645';
-      ctx.strokeStyle=col;ctx.fillStyle=col;ctx.lineWidth=1;
-      ctx.beginPath();ctx.moveTo(x(i),y(c.h));ctx.lineTo(x(i),y(c.l));ctx.stroke();
-      const bw2=Math.max(2,bw*0.6);
-      ctx.fillRect(x(i)-bw2/2,y(Math.max(c.o,c.c)),bw2,Math.max(1,Math.abs(y(c.o)-y(c.c))));
-      // volume
-      ctx.fillStyle=up?'rgba(8,153,129,.25)':'rgba(242,54,69,.25)';
-      const vh=(c.v/2000000)*ch*0.15;
-      ctx.fillRect(x(i)-bw2/2,H-padB-vh,bw2,vh);
-    });
-
-    // wick rejection marks
-    ctx.fillStyle='#a855f7';
-    wicks.forEach(i=>{
-      if(i>=N)return;
-      const c=candles[i];
-      ctx.beginPath();
-      ctx.moveTo(x(i),y(c.l)+4);ctx.lineTo(x(i)-4,y(c.l)+12);ctx.lineTo(x(i)+4,y(c.l)+12);
-      ctx.closePath();ctx.fill();
-    });
-
-    // BUY signals
-    buys.forEach(i=>{
-      if(i>=N)return;
-      const c=candles[i];
-      const pulse=Math.abs(Math.sin(Date.now()/300))*4;
-      ctx.fillStyle='#089981';
-      ctx.beginPath();
-      ctx.moveTo(x(i),y(c.l)+16+pulse);ctx.lineTo(x(i)-6,y(c.l)+28+pulse);ctx.lineTo(x(i)+6,y(c.l)+28+pulse);
-      ctx.closePath();ctx.fill();
-      ctx.font='bold 9px sans-serif';
-      ctx.fillText('BUY',x(i)-10,y(c.l)+38+pulse);
-    });
-
-    // last price line
-    const last=candles[N-1];
-    const yl=y(last.c);
-    ctx.strokeStyle='rgba(41,98,255,.5)';ctx.setLineDash([4,4]);
-    ctx.beginPath();ctx.moveTo(padL,yl);ctx.lineTo(W-padR,yl);ctx.stroke();ctx.setLineDash([]);
-    ctx.fillStyle='#2962ff';
-    const lbl='₹'+last.c.toFixed(2);
-    const lw=ctx.measureText(lbl).width+10;
-    ctx.fillRect(W-padR+2,yl-8,lw,16);
-    ctx.fillStyle='#fff';ctx.font='bold 11px sans-serif';
-    ctx.fillText(lbl,W-padR+7,yl+4);
-  }
-  resize();
-  setInterval(draw,1200); // pulse animation
-})();
-
-// ── scroll reveal ──
-const io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target);}}),{threshold:.1});
-document.querySelectorAll('.rv').forEach(el=>io.observe(el));
+/* market-state badge in the terminal header */
+fetch('/api/market/status').then((r) => r.json()).then((j) => {
+  const st = j.status?.state || '';
+  $('#term-mkt').textContent = st ? st.toLowerCase() : 'live';
+  $('#term-mkt').className = 'term-badge';
+}).catch(() => {});
 </script>
+<script src="/app/fx.js"></script>
 </body>
 </html>

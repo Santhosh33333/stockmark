@@ -2,7 +2,7 @@
 const path = require('path');
 
 const config = {
-  port: Number(process.env.PORT || 8787),
+  port: Number(process.env.PORT || 5124),
   host: process.env.HOST || '0.0.0.0',
 
   // Local folders (created at runtime)

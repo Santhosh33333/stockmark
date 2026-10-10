@@ -7,7 +7,7 @@ const { sma, ema, rsi, atr, macdHistogram, resample4h } = require('./indicators'
 
 const DEFAULTS = {
   // 1. Strong wick rejection candle
-  wickMult: 2.0,          // lower wick >= 2 x body
+  wickMult: 1.5,          // lower wick >= 1.5 x body (strict preset uses 2.0)
   closePct: 0.70,         // close in top 30% of range
   requireBull: true,
   volLen: 20,             // volume > 20 SMA
@@ -18,9 +18,10 @@ const DEFAULTS = {
   atrLen: 14,
   maxZoneAge: 50,         // deactivate OB after N bars
   // 3. Inducement (liquidity sweep)
-  sweepAtrMult: 0.3,      // sweep below OB low by <= 0.3 x ATR
-  requireWickOnSweep: true,
-  mitigateOnDeepSweep: true,
+  sweepAtrMult: 1.5,      // default = improved preset; strict preset uses 0.3
+  requireWickOnSweep: false, // default = improved; strict requires a wick on the sweep bar
+  wickLookback: 0,        // 0 = wick must be on the sweep bar; N = within last N bars
+  mitigateOnDeepSweep: false, // default = improved; strict mitigates on a deep sweep
   // 4. RSI filter
   rsiLen: 14,
   htfRsiMax: 50,          // 4H RSI < 50
@@ -160,7 +161,9 @@ function analyze(daily, hourly, opts = {}) {
             if (c4h[k] && c4h[k].t <= daily[i].t && rsi4h[k] != null) { htfRsi = rsi4h[k]; break; }
           }
           const passHtf = !o.useHtfRsi || (htfRsi != null && htfRsi < o.htfRsiMax);
-          const passWick = !o.requireWickOnSweep || wickFlags[i];
+          const passWick = !o.requireWickOnSweep || (o.wickLookback > 0
+            ? wickFlags.slice(Math.max(0, i - o.wickLookback), i + 1).some(Boolean)
+            : wickFlags[i]);
           const passEma = !o.useEma || (emaA[i] != null && daily[i].c > emaA[i]);
           const passRsiD = !o.useDailyRsi || (rsiD[i] != null && rsiD[i] > o.dailyRsiMin);
           let passMacd = true;
@@ -227,6 +230,8 @@ function analyze(daily, hourly, opts = {}) {
     winRate: closed.length ? +(wins.length / closed.length * 100).toFixed(1) : 0,
     profitFactor: grossLoss > 0 ? +(grossProfit / grossLoss).toFixed(2) : (grossProfit > 0 ? 99 : 0),
     netProfitPct: +netPct.toFixed(2),
+    grossProfitPct: +grossProfit.toFixed(2),
+    grossLossPct: +grossLoss.toFixed(2),
     maxDrawdownPct: +maxDD.toFixed(2),
     avgTradePct: closed.length ? +(netPct / closed.length).toFixed(2) : 0,
     bestTradePct: closed.length ? +Math.max(...closed.map((t) => t.pct)).toFixed(2) : 0,
@@ -266,4 +271,20 @@ function analyze(daily, hourly, opts = {}) {
   };
 }
 
-module.exports = { analyze, DEFAULTS, wickRejectionAt, bearWickRejectionAt };
+// Named presets. DEFAULTS above IS the "improved" preset (the only variant that
+// actually triggers on real daily data). "strict" is the original specification:
+// it requires a full wick-rejection candle to also be the sweep bar and only
+// allows a 0.3 x ATR sweep — on daily large-caps that produces ~0 signals.
+const PRESETS = {
+  improved: {},
+  strict: {
+    wickMult: 2.0,
+    closePct: 0.70,
+    sweepAtrMult: 0.3,
+    requireWickOnSweep: true,
+    wickLookback: 0,
+    mitigateOnDeepSweep: true,
+  },
+};
+
+module.exports = { analyze, DEFAULTS, PRESETS, wickRejectionAt, bearWickRejectionAt };
