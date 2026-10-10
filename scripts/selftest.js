@@ -97,7 +97,7 @@ async function main() {
     // watchlist + settings
     await call('POST', '/api/watchlist', { symbol: 'INFY' }, authHeaders);
     const wl = await call('GET', '/api/watchlist', null, authHeaders);
-    check('Watchlist with live price', wl.status === 200 && wl.body.watchlist?.length === 1,
+    check('Watchlist with live price', wl.status === 200 && wl.body.watchlist?.length === 1 && typeof wl.body.watchlist?.[0]?.price === 'number',
       `INFY ₹${wl.body.watchlist?.[0]?.price}`);
 
     const set = await call('PUT', '/api/me/settings', { capital: 250000, slPct: 4, tpPct: 12 }, authHeaders);
@@ -148,6 +148,37 @@ async function main() {
 
     const dhan = await call('POST', '/api/dhan/test', {}, authHeaders);
     check('Dhan guard (no token → clean refusal)', dhan.status === 200 && dhan.body.ok === false, dhan.body.error || '');
+
+    // ── owner / admin console (temporarily promote the test user) ──
+    {
+      const { DatabaseSync } = require('node:sqlite');
+      const adb = new DatabaseSync('./data/app.db');
+      const meRow = adb.prepare('SELECT id, is_admin FROM users WHERE username = ?').get(email);
+      adb.prepare('UPDATE users SET is_admin = 1 WHERE id = ?').run(meRow.id);
+      try {
+        const overview = await call('GET', '/api/admin/overview', null, authHeaders);
+        check('Admin overview', overview.status === 200 && typeof overview.body.users?.total === 'number',
+          `users ${overview.body.users?.total} · admins ${overview.body.users?.admins} · sessions ${overview.body.sessions} · mem ${overview.body.server?.memoryMB}MB`);
+        const au = await call('GET', '/api/admin/users', null, authHeaders);
+        check('Admin users list', au.status === 200 && Array.isArray(au.body.users) && au.body.users.length >= 1,
+          `${au.body.total} accounts`);
+        const alogs = await call('GET', '/api/admin/logs?limit=5', null, authHeaders);
+        check('Admin audit log', alogs.status === 200 && Array.isArray(alogs.body.logs));
+        const ajobs = await call('GET', '/api/admin/jobs', null, authHeaders);
+        check('Admin scan jobs', ajobs.status === 200 && Array.isArray(ajobs.body.jobs));
+        const ahealth = await call('GET', '/api/admin/health', null, authHeaders);
+        check('Admin health probe', ahealth.status === 200 && !!ahealth.body.provider,
+          `${ahealth.body.provider?.name} ${ahealth.body.provider?.ok ? 'ok' : 'down'} · ${ahealth.body.provider?.latencyMs}ms`);
+        const atrades = await call('GET', '/api/admin/trades?limit=5', null, authHeaders);
+        check('Admin trades view', atrades.status === 200 && Array.isArray(atrades.body.trades));
+        const asig = await call('GET', '/api/admin/signals?limit=5', null, authHeaders);
+        check('Admin signals view', asig.status === 200 && Array.isArray(asig.body.signals));
+      } finally {
+        adb.prepare('UPDATE users SET is_admin = ? WHERE id = ?').run(meRow.is_admin, meRow.id);
+      }
+      const guard = await call('GET', '/api/admin/overview');
+      check('Admin guard (anonymous → 403)', guard.status === 403);
+    }
 
     const mail = await call('GET', '/api/mail/status');
     check('Email OTP sender status', mail.status === 200 && mail.body.mail?.provider,
