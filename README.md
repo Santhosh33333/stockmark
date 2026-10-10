@@ -114,21 +114,24 @@ The original spec is kept as the **`strict`** preset (`wickMult 2.0`, `sweepAtrM
 
 Aggregate of per-symbol daily backtests using the engine, across NSE F&O names over 10 years:
 
-| Run | Trades | Win rate | Profit factor | Worst DD |
-| --- | --- | --- | --- | --- |
-| `improved`, 10y | 628 | 30.9% | 1.28 | 21% |
-| `improved` + 4H RSI filter (~2y window)* | 147 | 36.1% | 1.55 | 12% |
-| `strict`, 10y | 6 | 16.7% | 0.23 | −11.5% |
+| Run | Trades | Win rate | Profit factor | Worst DD | Net P&L |
+| --- | --- | --- | --- | --- | --- |
+| `improved`, 10y | 628 | 30.9% | 1.28 | 21% | +364.7% |
+| `improved` + 4H RSI filter (~2y window)* | 147 | 36.1% | 1.55 | 12% | +152.0% |
+| `strict`, 10y | 6 | 16.7% | 0.23 | 3% | −11.5% |
 
 \* Yahoo caps 1-hour history at 730 days, so the 4H-filtered run spans ~2 years. Backtests ignore costs/slippage and are **educational** — run your own.
 
 ```bash
-node scripts/backtest.js                       # NIFTY 50, default preset
-node scripts/backtest.js --range=10y           # longer window
-node scripts/backtest.js --no-htf              # drop the 4H RSI filter
+node scripts/backtest.js                                   # NIFTY 50 · strict (≈0 trades on daily)
+node scripts/backtest.js --preset=improved                 # relaxed preset that actually triggers
+node scripts/backtest.js --universe=fno --preset=improved --no-htf --range=10y   # the 628-trade run
+node scripts/backtest.js --universe=fno --preset=improved  # the 147-trade 4H-filter run
 node scripts/backtest.js --symbols=RELIANCE,TCS,INFY
-node scripts/backtest.js --limit=80            # 80 largest F&O names
+node scripts/backtest.js --limit=80                        # 80 largest F&O names
 ```
+
+> The runner defaults to the **`strict`** preset; pass `--preset=improved` for the engine default.
 
 ---
 

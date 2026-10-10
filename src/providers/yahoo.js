@@ -62,7 +62,13 @@ async function fetchQuotes(symbols, { concurrency = 10 } = {}) {
   const unique = [...new Set(symbols)];
   const results = await pMap(unique, concurrency, async (s) => fetchQuote(s));
   const out = {};
-  results.forEach((r, i) => { out[unique[i]] = r.ok ? r.value : { symbol: unique[i], price: null }; });
+  results.forEach((r, i) => {
+    const val = r.ok ? r.value : { symbol: unique[i], price: null };
+    out[unique[i]] = val;
+    // also index by the bare symbol so callers can look up "SBIN" or "SBIN.NS"
+    const base = String(unique[i]).replace(/\.(NS|BO)$/i, '');
+    if (!(base in out)) out[base] = val;
+  });
   return out;
 }
 

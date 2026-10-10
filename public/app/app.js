@@ -13,7 +13,7 @@
     token: localStorage.getItem('sa_token') || null,
     user: null, route: 'dashboard', market: null,
     scanRows: [], scanJob: null, scanPreset: 'fno', scanOpts: {},
-    scanTimer: null, es: null, alerts: [], universe: null,
+    scanTimer: null, es: null, alerts: [], universe: null, watchlist: [],
     symbols: [], selected: null, detail: null, chart: null, paper: null, alertCount: 0,
   };
 
@@ -174,6 +174,9 @@
       state.scanRows = j.rows;
     } catch { }
   }
+  async function loadWatchlist() {
+    try { state.watchlist = (await api('/watchlist')).watchlist || []; } catch { }
+  }
 
   /* ── SCANNER (SSE live) ── */
   function connectSSE() {
@@ -260,6 +263,9 @@
     <div class="section-title"><h2>Fresh signals</h2><button class="btn sm" onclick="window.__sa.go('scanner')">View all</button></div>
     ${sigs.length ? sigs.slice(0, 8).map(signalCard).join('') : `<div class="card empty"><div class="big">📡</div>No fresh signals yet.<br>Run a scan to find wick-rejection + order-block setups.</div>`}
 
+    <div class="section-title"><h2>Watchlist</h2><span class="tiny muted">${state.watchlist.length} symbol${state.watchlist.length === 1 ? '' : 's'}</span></div>
+    ${state.watchlist.length ? state.watchlist.map(watchCard).join('') : `<div class="card empty"><div class="big">★</div>No symbols yet.<br>Open a stock and tap “★ Watchlist”.</div>`}
+
     <div class="section-title"><h2>Quick actions</h2></div>
     <div class="card row wrap" style="gap:8px">
       <button class="btn sm" onclick="window.__sa.startScan('fno')">Scan F&amp;O</button>
@@ -277,6 +283,18 @@
         <div class="sub">${esc(r.name || '')} · 4H RSI ${r.rsi4h ?? '—'} · Vol ${r.volRatio ?? '—'}x</div>
       </div>
       <div class="px"><b>${inr(r.price)}</b><div class="tiny ${(r.changePct ?? 0) >= 0 ? '' : ''}" style="color:${(r.changePct ?? 0) >= 0 ? 'var(--up)' : 'var(--down)'}">${pct(r.changePct)}</div></div>
+    </div>`;
+  }
+
+  function watchCard(w) {
+    return `<div class="sig" onclick="window.__sa.openStock('${esc(w.symbol)}')">
+      <div class="ticker-icon">${esc((w.symbol || '?').slice(0, 4))}</div>
+      <div style="min-width:0">
+        <div class="nm">${esc(w.symbol)} ${w.lastSignal ? '<span class="pill buy">BUY</span>' : ''}</div>
+        <div class="sub">4H RSI ${w.rsi4h ?? '—'}${w.activeZones?.length ? ' · ' + w.activeZones.length + ' zone' + (w.activeZones.length === 1 ? '' : 's') : ''}</div>
+      </div>
+      <div class="px"><b>${inr(w.price)}</b><div class="tiny" style="color:${(w.changePct ?? 0) >= 0 ? 'var(--up)' : 'var(--down)'}">${pct(w.changePct)}</div></div>
+      <button class="btn sm" title="Remove from watchlist" onclick="event.stopPropagation();window.__sa.removeWatch('${esc(w.symbol)}')">✕</button>
     </div>`;
   }
 
@@ -851,8 +869,20 @@
     },
     async loadUniverse() { await loadUniverse(); toast('Universe reloaded', 'ok'); render(); },
     async addWatch(sym) {
-      try { await api('/watchlist', { method: 'POST', body: { symbol: sym } }); toast(sym + ' added to watchlist', 'ok'); }
-      catch (e) { toast(e.message, 'err'); }
+      try {
+        await api('/watchlist', { method: 'POST', body: { symbol: sym } });
+        toast(sym + ' added to watchlist', 'ok');
+        await loadWatchlist();
+        if (state.route === 'dashboard') render();
+      } catch (e) { toast(e.message, 'err'); }
+    },
+    async removeWatch(sym) {
+      try {
+        await api('/watchlist/' + encodeURIComponent(sym), { method: 'DELETE' });
+        toast(sym + ' removed', 'ok');
+        await loadWatchlist();
+        render();
+      } catch (e) { toast(e.message, 'err'); }
     },
     tvAlert(sym) {
       const txt = 'In TradingView: open ' + sym + ' chart → Alerts → Create alert → Condition: StockArtha SMC strategy → message: {"symbol":"' + sym + '","price":{{close}},"action":"BUY"} → webhook URL: ' + location.origin + '/api/webhook/tradingview?pass=' + encodeURIComponent(state.user.settings.webhookPass || 'YOUR_PASS');
@@ -870,13 +900,14 @@
   /* ══════════════ BOOT ══════════════ */
   async function bootApp() {
     applyAdminNav();
-    await Promise.all([loadMarket(), loadUniverse(), loadLatest()]);
+    await Promise.all([loadMarket(), loadUniverse(), loadLatest(), loadWatchlist()]);
     render();
     connectSSE();
     // live refresh loop
     setInterval(loadMarket, 30000);
     setInterval(async () => {
       if (state.route === 'scanner' || state.route === 'dashboard') await loadLatest();
+      if (state.route === 'dashboard') await loadWatchlist();
       if (state.route === 'paper') render();
       if (state.route === 'stock' && state.detail) openStock(state.detail);
       render();

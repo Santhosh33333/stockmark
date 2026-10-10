@@ -153,13 +153,15 @@ router.put('/me/settings', requireUser, (req, res) => {
 // ── watchlist ───────────────────────────────────────────────────────────
 router.get('/watchlist', requireUser, async (req, res) => {
   const rows = stmt.watchlist.all(req.user.id).map((r) => r.symbol);
-  const quotes = rows.length ? await yahoo.fetchQuotes(rows, { concurrency: 6 }) : {};
-  const list = rows.map((sym) => {
-    const yahooSym = sym.includes('.') ? sym : `${sym}.NS`;
-    const q = quotes[yahooSym] || {};
-    const cached = scanner.getSymbolRow(yahooSym);
+  // Yahoo needs the exchange suffix; key the response back by the bare symbol.
+  const yahooSyms = rows.map((s) => (s.includes('.') ? s : `${s}.NS`));
+  const quotes = rows.length ? await yahoo.fetchQuotes(yahooSyms, { concurrency: 6 }) : {};
+  const list = rows.map((sym, i) => {
+    const yahooSym = yahooSyms[i];
+    const q = quotes[yahooSym] || quotes[sym] || {};
+    const cached = scanner.getSymbolRow(yahooSym) || scanner.getSymbolRow(sym);
     return {
-      symbol: sym, price: q.price, change: q.change,
+      symbol: sym, price: q.price ?? null, change: q.change ?? null,
       changePct: q.change != null && q.prevClose ? +((q.change / q.prevClose) * 100).toFixed(2) : null,
       rsi4h: cached?.rsi4h ?? null, lastSignal: cached?.lastSignal ?? null,
       activeZones: cached?.activeZones ?? [],
@@ -187,7 +189,8 @@ router.get('/paper/stats', requireUser, async (req, res) => {
   const open = stmt.openTrades.all(req.user.id);
   const quotes = open.length ? await yahoo.fetchQuotes(open.map((t) => (t.symbol.includes('.') ? t.symbol : `${t.symbol}.NS`)), { concurrency: 6 }) : {};
   const positions = open.map((t) => {
-    const q = quotes[t.symbol] || {};
+    const ySym = t.symbol.includes('.') ? t.symbol : `${t.symbol}.NS`;
+    const q = quotes[ySym] || quotes[t.symbol] || {};
     const px = q.price ?? t.entry_price;
     return {
       ...t,
