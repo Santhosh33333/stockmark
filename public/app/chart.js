@@ -19,6 +19,8 @@
       this.zones = [];
       this.signals = [];
       this.inducements = [];
+      this.fvgs = [];
+      this.structure = null;
       this.rsi = [];
       this.view = { from: 0, to: 0 };
       this.hover = null;
@@ -28,14 +30,16 @@
       window.addEventListener('resize', () => this._resize());
     }
 
-    setData({ candles = [], zones = [], signals = [], inducements = [], rsi = [] }) {
+    setData({ candles = [], zones = [], signals = [], inducements = [], fvgs = [], structure = null, rsi = [] }) {
       this.candles = candles;
       this.zones = zones;
       this.signals = signals;
       this.inducements = inducements;
+      this.fvgs = fvgs;
+      this.structure = structure;
       this.rsi = rsi;
       const n = candles.length;
-      const show = Math.min(n, opts2 => 0, 0) || Math.min(n, 110);
+      const show = Math.min(n, 110);
       this.view.from = Math.max(0, n - show);
       this.view.to = n;
       this.animT = 1;
@@ -104,11 +108,12 @@
       let hi = -Infinity, lo = Infinity;
       for (const c of view) { hi = Math.max(hi, c.h); lo = Math.min(lo, c.l); }
       for (const z of this.zones) {
-        const cz = this.zones.filter(zz => zz._vis !== false);
-      }
-      for (const z of this.zones) {
         const inView = z.t >= view[0].t && z.t <= view[view.length - 1].t;
         if (inView) { hi = Math.max(hi, z.top); lo = Math.min(lo, z.bottom); }
+      }
+      for (const f of this.fvgs) {
+        const inView = f.t >= view[0].t && f.t <= view[view.length - 1].t;
+        if (inView && !f.filled) { hi = Math.max(hi, f.top); lo = Math.min(lo, f.bottom); }
       }
       for (const s of this.signals) { if (s.t >= view[0].t && s.t <= view[view.length - 1].t) hi = Math.max(hi, s.price * 1.01); }
       const pad = (hi - lo) * 0.06 || hi * 0.01;
@@ -146,6 +151,32 @@
         ctx.fillStyle = z.status === 'ACTIVE' ? 'rgba(147,197,253,.85)' : 'rgba(148,163,184,.5)';
         ctx.font = '9px system-ui';
         ctx.fillText(z.status === 'ACTIVE' ? (z.swept ? 'OB · swept' : 'OB') : 'mitigated', xStart + 3, yT - 3);
+        ctx.globalAlpha = 1;
+      }
+
+      // ── fair value gaps (imbalance) ──
+      for (const f of this.fvgs) {
+        const i0 = view.findIndex((c) => c.t >= f.t);
+        if (i0 < 0) continue;
+        const yT = yP(f.top), yB = yP(f.bottom);
+        const xStart = xI(i0) - bodyW / 2;
+        // filled gaps stop at their fill bar; unfilled run to the right edge
+        let xEnd = x1;
+        if (f.filled && f.filledT) {
+          const fi = view.findIndex((c) => c.t >= f.filledT);
+          if (fi >= 0) xEnd = xI(fi) + bodyW / 2;
+        }
+        const bull = f.dir === 'BULL';
+        ctx.globalAlpha = f.filled ? 0.35 : 0.85;
+        ctx.fillStyle = bull ? 'rgba(34,197,94,.16)' : 'rgba(239,68,68,.13)';
+        ctx.fillRect(xStart, yT, Math.max(1, xEnd - xStart), Math.max(2, yB - yT));
+        ctx.strokeStyle = bull ? 'rgba(34,197,94,.5)' : 'rgba(239,68,68,.45)';
+        ctx.setLineDash([2, 3]); ctx.lineWidth = 1;
+        ctx.strokeRect(xStart, yT, Math.max(1, xEnd - xStart), Math.max(2, yB - yT));
+        ctx.setLineDash([]);
+        ctx.fillStyle = bull ? 'rgba(134,239,172,.9)' : 'rgba(252,165,165,.85)';
+        ctx.font = '9px system-ui';
+        ctx.fillText('FVG' + (f.filled ? '' : ' · open'), xStart + 3, bull ? yT - 3 : yB + 9);
         ctx.globalAlpha = 1;
       }
 
@@ -213,6 +244,26 @@
         ctx.fillStyle = 'rgba(34,197,94,.95)';
         ctx.font = 'bold 9px system-ui';
         ctx.fillText('BUY', x - 9, y + 42 + pulse);
+      }
+
+      // ── market-structure events (BOS / CHoCH) ──
+      const sEvents = (this.structure && this.structure.events) || [];
+      for (const e of sEvents) {
+        const i = view.findIndex((c) => c.t === e.t);
+        if (i < 0) continue;
+        const x = xI(i);
+        const bull = e.dir === 'BULL';
+        const y = bull ? yP(view[i].h) - 6 : yP(view[i].l) + 6;
+        ctx.strokeStyle = bull ? 'rgba(34,197,94,.9)' : 'rgba(239,68,68,.9)';
+        ctx.fillStyle = bull ? 'rgba(34,197,94,.95)' : 'rgba(239,68,68,.95)';
+        ctx.lineWidth = 1.4;
+        ctx.beginPath();
+        if (bull) { ctx.moveTo(x, y - 6); ctx.lineTo(x - 4, y + 2); ctx.lineTo(x + 4, y + 2); }
+        else { ctx.moveTo(x, y + 6); ctx.lineTo(x - 4, y - 2); ctx.lineTo(x + 4, y - 2); }
+        ctx.closePath(); ctx.fill();
+        ctx.font = 'bold 8px system-ui';
+        ctx.fillStyle = e.type === 'CHoCH' ? 'rgba(251,191,36,.95)' : (bull ? 'rgba(134,239,172,.95)' : 'rgba(252,165,165,.95)');
+        ctx.fillText(e.type, x - (e.type === 'CHoCH' ? 13 : 8), bull ? y - 9 : y + 16);
       }
 
       // ── time axis ──

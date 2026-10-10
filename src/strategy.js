@@ -35,6 +35,12 @@ const DEFAULTS = {
   tpPct: 10.0,
   maxBars: 25,
   direction: 'LONG',      // LONG | BOTH
+  // 5. context layers (additive — do not change signal generation)
+  swingLen: 3,            // pivot strength for fractal swings
+  fvgMax: 8,              // fair-value gaps kept in the payload
+  structureMax: 6,        // BOS/CHoCH events kept in the payload
+  liqTolAtr: 0.25,        // equal-high/low tolerance (x ATR)
+  liqMax: 3,              // liquidity pools per side kept in the payload
 };
 
 // ── Detect a strong wick-rejection candle ───────────────────────────────
@@ -85,6 +91,145 @@ function toWeekly(daily) {
   }
   if (cur) out.push(cur);
   return out;
+}
+
+// ── Fractal swing pivots (a high/low that dominates `len` bars each side) ──
+function findSwings(candles, len = 3) {
+  const highs = [], lows = [];
+  for (let i = len; i < candles.length - len; i++) {
+    let isHigh = true, isLow = true;
+    for (let j = i - len; j <= i + len; j++) {
+      if (j === i) continue;
+      if (candles[j].h >= candles[i].h) isHigh = false;
+      if (candles[j].l <= candles[i].l) isLow = false;
+      if (!isHigh && !isLow) break;
+    }
+    if (isHigh) highs.push({ idx: i, t: candles[i].t, price: candles[i].h });
+    if (isLow) lows.push({ idx: i, t: candles[i].t, price: candles[i].l });
+  }
+  return { highs, lows };
+}
+
+// ── Market structure: BOS (continuation) & CHoCH (change of character) ────
+// A close above the last confirmed swing high is bullish. If the prior trend
+// was DOWN it is a CHoCH (reversal); otherwise a BOS (continuation). Symmetric
+// for the downside. This runs on the daily series.
+function marketStructure(candles, len = 3, swings = null) {
+  const sw = swings || findSwings(candles, len);
+  const pts = [
+    ...sw.highs.map((s) => ({ ...s, type: 'H' })),
+    ...sw.lows.map((s) => ({ ...s, type: 'L' })),
+  ].sort((a, b) => a.idx - b.idx);
+
+  const events = [];
+  let trend = 'RANGE';
+  let hi = null, lo = null, p = 0;
+  for (let i = 1; i < candles.length; i++) {
+    // register pivots whose right-side window has closed by bar i
+    while (p < pts.length && pts[p].idx + len <= i) {
+      const s = pts[p++];
+      if (s.type === 'H') { if (!hi || s.idx > hi.idx) hi = s; }
+      else { if (!lo || s.idx > lo.idx) lo = s; }
+    }
+    const c = candles[i];
+    if (hi && c.c > hi.price) {
+      const type = trend === 'DOWN' ? 'CHoCH' : 'BOS';
+      events.push({ type, dir: 'BULL', idx: i, t: c.t, price: +c.c.toFixed(2), level: +hi.price.toFixed(2), swingIdx: hi.idx, swingT: hi.t });
+      trend = 'UP'; hi = null;
+    } else if (lo && c.c < lo.price) {
+      const type = trend === 'UP' ? 'CHoCH' : 'BOS';
+      events.push({ type, dir: 'BEAR', idx: i, t: c.t, price: +c.c.toFixed(2), level: +lo.price.toFixed(2), swingIdx: lo.idx, swingT: lo.t });
+      trend = 'DOWN'; lo = null;
+    }
+  }
+  const lastOf = (t) => [...events].reverse().find((e) => e.type === t) || null;
+  return {
+    trend,
+    lastEvent: events[events.length - 1] || null,
+    lastBOS: lastOf('BOS'),
+    lastCHoCH: lastOf('CHoCH'),
+    bullCount: events.filter((e) => e.dir === 'BULL').length,
+    bearCount: events.filter((e) => e.dir === 'BEAR').length,
+    levels: {
+      swingHigh: sw.highs.length ? { t: sw.highs[sw.highs.length - 1].t, price: +sw.highs[sw.highs.length - 1].price.toFixed(2) } : null,
+      swingLow: sw.lows.length ? { t: sw.lows[sw.lows.length - 1].t, price: +sw.lows[sw.lows.length - 1].price.toFixed(2) } : null,
+    },
+    events,
+  };
+}
+
+// ── Fair Value Gaps (3-candle imbalance) ─────────────────────────────────
+// Bullish FVG: candle[i].low > candle[i-2].high → gap [high(i-2), low(i)].
+// Bearish FVG: candle[i].high < candle[i-2].low → gap [high(i), low(i-2)].
+// A gap is "filled" once price trades back into it.
+function fairValueGaps(candles) {
+  const gaps = [];
+  for (let i = 2; i < candles.length; i++) {
+    const a = candles[i - 2], c = candles[i];
+    if (c.l > a.h) gaps.push({ dir: 'BULL', idx: i, t: c.t, top: +c.l.toFixed(2), bottom: +a.h.toFixed(2), filled: false, filledIdx: null, filledT: null });
+    else if (c.h < a.l) gaps.push({ dir: 'BEAR', idx: i, t: c.t, top: +a.l.toFixed(2), bottom: +c.h.toFixed(2), filled: false, filledIdx: null, filledT: null });
+  }
+  for (const g of gaps) {
+    for (let k = g.idx + 1; k < candles.length; k++) {
+      const touched = g.dir === 'BULL' ? candles[k].l <= g.top : candles[k].h >= g.bottom;
+      if (touched) { g.filled = true; g.filledIdx = k; g.filledT = candles[k].t; break; }
+    }
+  }
+  return gaps;
+}
+
+// ── Liquidity pools: clusters of equal highs/lows within tol x ATR ───────
+// Buy-side liquidity sits above equal highs; sell-side below equal lows.
+// A pool is "swept" once price trades beyond the level.
+function liquidityPools(candles, swings, atrArr, tolAtr = 0.25) {
+  const atrLast = atrArr[candles.length - 1] ?? 0;
+  const tol = Math.max(atrLast * tolAtr, 1e-6);
+  const cluster = (pts, side) => {
+    const out = [];
+    const sorted = [...pts].sort((a, b) => a.price - b.price);
+    let group = [];
+    const flush = () => {
+      if (group.length >= 2) {
+        const level = group.reduce((s, g) => s + g.price, 0) / group.length;
+        const lastIdx = Math.max(...group.map((g) => g.idx));
+        let swept = false, sweptIdx = null;
+        for (let k = lastIdx + 1; k < candles.length; k++) {
+          if (side === 'BUY' ? candles[k].h > level : candles[k].l < level) { swept = true; sweptIdx = k; break; }
+        }
+        out.push({
+          side, level: +level.toFixed(2), touches: group.length, swept, sweptIdx,
+          t: candles[lastIdx].t, sweptT: sweptIdx != null ? candles[sweptIdx].t : null,
+        });
+      }
+      group = [];
+    };
+    for (const p of sorted) {
+      if (group.length && p.price - group[group.length - 1].price > tol) flush();
+      group.push(p);
+    }
+    flush();
+    return out;
+  };
+  const buyside = cluster(swings.highs, 'BUY');
+  const sellside = cluster(swings.lows, 'SELL');
+  return { buyside, sellside, tol: +tol.toFixed(2) };
+}
+
+// ── Confluence score: how many independent bullish factors line up ───────
+function confluenceScore(last, o, rsi4hNow, activeZoneCount, lastSignal, structure, fvgs, liquidity) {
+  const parts = [];
+  let score = 0;
+  const add = (label, pts, ok) => { if (ok) { score += pts; parts.push({ label, pts }); } };
+  add('4H RSI < 50', 15, rsi4hNow != null && rsi4hNow < o.htfRsiMax);
+  add('Active order block', 15, activeZoneCount > 0);
+  add('Fresh BUY signal', 20, !!lastSignal);
+  add('Uptrend structure', 15, structure.trend === 'UP');
+  const inBullFvg = fvgs.some((f) => f.dir === 'BULL' && !f.filled && last.c >= f.bottom && last.c <= f.top);
+  add('Price in bullish FVG', 15, inBullFvg);
+  const sweptSell = liquidity.sellside.some((p) => p.swept);
+  add('Sell-side liquidity swept', 10, sweptSell);
+  add('Bullish CHoCH', 10, !!(structure.lastCHoCH && structure.lastCHoCH.dir === 'BULL'));
+  return { score: Math.min(100, score), parts };
 }
 
 // ── Main analysis ───────────────────────────────────────────────────────
@@ -242,6 +387,19 @@ function analyze(daily, hourly, opts = {}) {
   const last = daily[n - 1];
   const prev = daily[n - 2];
   const activeZones = zones.filter((z) => z.status === 'ACTIVE');
+
+  // ── context layers (additive; do not affect signals/backtest above) ──
+  const swings = findSwings(daily, o.swingLen);
+  const structure = marketStructure(daily, o.swingLen, swings);
+  const allFvgs = fairValueGaps(daily);
+  const liquidity = liquidityPools(daily, swings, atrA, o.liqTolAtr);
+  const rsi4hNow = rsi4h.length && rsi4h[rsi4h.length - 1] != null ? +rsi4h[rsi4h.length - 1].toFixed(1) : null;
+  const lastSig = signals.length ? signals[signals.length - 1] : null;
+  const confluence = confluenceScore(last, o, rsi4hNow, activeZones.length, lastSig, structure, allFvgs, liquidity);
+  const unfilled = allFvgs.filter((f) => !f.filled);
+  const nearestFvg = unfilled
+    .map((f) => ({ ...f, distance: +Math.abs(last.c - (f.top + f.bottom) / 2).toFixed(2) }))
+    .sort((a, b) => a.distance - b.distance)[0] || null;
   const recentZones = zones.slice(-24).map((z) => ({
     t: z.t, top: +z.top.toFixed(2), bottom: +z.bottom.toFixed(2),
     status: z.status, signal: z.signal || null, anchorIdx: z.anchorIdx, swept: z.swept,
@@ -265,6 +423,26 @@ function analyze(daily, hourly, opts = {}) {
     zones: recentZones,
     lastSignal: signals.length ? { t: signals[signals.length - 1].t, price: signals[signals.length - 1].price, htfRsi: signals[signals.length - 1].htfRsi } : null,
     signalCount: signals.length,
+    structure: {
+      trend: structure.trend,
+      lastEvent: structure.lastEvent,
+      lastBOS: structure.lastBOS,
+      lastCHoCH: structure.lastCHoCH,
+      bullCount: structure.bullCount,
+      bearCount: structure.bearCount,
+      levels: structure.levels,
+      events: structure.events.slice(-o.structureMax),
+    },
+    fvgs: allFvgs.slice(-o.fvgMax).map((f) => ({ dir: f.dir, top: f.top, bottom: f.bottom, t: f.t, filled: f.filled, filledT: f.filledT })),
+    nearestFvg: nearestFvg
+      ? { dir: nearestFvg.dir, top: nearestFvg.top, bottom: nearestFvg.bottom, t: nearestFvg.t, filled: nearestFvg.filled, distance: nearestFvg.distance }
+      : null,
+    liquidity: {
+      tol: liquidity.tol,
+      buyside: liquidity.buyside.slice(-o.liqMax),
+      sellside: liquidity.sellside.slice(-o.liqMax),
+    },
+    confluence,
     stats,
     bars: n,
     optsUsed: o,
@@ -287,4 +465,7 @@ const PRESETS = {
   },
 };
 
-module.exports = { analyze, DEFAULTS, PRESETS, wickRejectionAt, bearWickRejectionAt };
+module.exports = {
+  analyze, DEFAULTS, PRESETS, wickRejectionAt, bearWickRejectionAt,
+  findSwings, marketStructure, fairValueGaps, liquidityPools, confluenceScore,
+};

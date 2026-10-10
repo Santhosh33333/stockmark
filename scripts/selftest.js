@@ -54,6 +54,9 @@ async function main() {
       `winRate ${a.body.stats?.winRate}% · PF ${a.body.stats?.profitFactor} · DD ${a.body.stats?.maxDrawdownPct}%`);
     check('4H RSI series for chart', Array.isArray(a.body.rsi4hSeries) && a.body.rsi4hSeries.length > 10,
       `${a.body.rsi4hSeries?.length} 4H bars`);
+    check('Structure + FVG + liquidity layers',
+      a.body.structure && Array.isArray(a.body.fvgs) && a.body.liquidity && typeof a.body.confluence?.score === 'number',
+      `${a.body.structure?.trend} trend · ${a.body.fvgs?.length} FVG · ${a.body.liquidity?.buyside?.length + a.body.liquidity?.sellside?.length} pools · score ${a.body.confluence?.score}`);
 
     const email = `test.user${Date.now()}@example.com`;
     const signup = await call('POST', '/api/auth/signup', { email, password: 'test1234', displayName: 'Test User' });

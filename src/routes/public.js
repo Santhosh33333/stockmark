@@ -62,6 +62,7 @@ function compactRow(r) {
     price: r.price, changePct: r.changePct, volume: r.volume, volRatio: r.volRatio,
     rsi4h: r.rsi4h, rsiDaily: r.rsiDaily, ema: r.ema50, atr: r.atr,
     activeZones: r.activeZones, lastSignal: r.lastSignal, signalCount: r.signalCount,
+    score: r.confluence?.score ?? null, trend: r.structure?.trend ?? null,
     wickLast: r.wickLastIdx != null && r.bars ? r.wickLastIdx === r.bars - 1 : false,
     scannedAt: r.scannedAt,
   };

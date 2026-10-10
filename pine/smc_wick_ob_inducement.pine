@@ -17,6 +17,11 @@
 //     "Mark OB mitigated if swept too deep" = ON
 //  NOTE: strict rules produce ~0 trades on daily large-caps.
 //
+//  Overlays (informational, do NOT affect entries/exits or the Strategy
+//  Tester): fair-value-gap boxes and BOS / CHoCH market-structure markers,
+//  toggled under "6. SMC context overlays". These mirror the web engine's
+//  context layers on src/strategy.js.
+//
 //  Drop this on any NSE/BSE chart (Daily recommended for swing trading).
 //  Strategy Tester -> review Net Profit, Win Rate, Profit Factor, Max DD.
 // ═══════════════════════════════════════════════════════════════════════════
@@ -68,6 +73,11 @@ tpPct        = input.float(10.0,   "Target %", step=0.5, group=grpT)
 maxBarsHold  = input.int(25,       "Exit after N bars (0 = off)", minval=0, group=grpT)
 showZones    = input.bool(true,    "Draw order-block boxes", group=grpT)
 showWick     = input.bool(true,    "Mark wick-rejection candles", group=grpT)
+
+grpC = "6. SMC context overlays (informational)"
+showFvg      = input.bool(true,    "Draw fair-value gaps (FVG)", group=grpC)
+showStruct   = input.bool(true,    "Mark BOS / CHoCH structure breaks", group=grpC)
+swingLen     = input.int(3,        "Swing pivot strength (bars each side)", minval=1, maxval=10, group=grpC)
 
 // ───────────────────────── CANDLE MATHS ─────────────────────────
 body    = math.abs(close - open)
@@ -206,6 +216,46 @@ if barstate.isconfirmed
                     sigZoneBot := bot
         j -= 1
 
+// ───────────────────────── SMC CONTEXT (informational overlays) ─────────────────────────
+// These layers are informational only — they never affect entries/exits, so the
+// Strategy Tester results are unchanged.
+
+// Fair value gaps (3-candle imbalance): candle[i].low > candle[i-2].high (bull),
+// candle[i].high < candle[i-2].low (bear).
+fvgUp = low > high[2]
+fvgDn = high < low[2]
+
+// Market structure from fractal swing pivots.
+ph = ta.pivothigh(high, swingLen, swingLen)
+pl = ta.pivotlow(low, swingLen, swingLen)
+var float lastPH  = na
+var float lastPL  = na
+var string stTrend = "RANGE"
+bosBull   = false
+bosBear   = false
+chochBull = false
+chochBear = false
+
+if not na(ph)
+    lastPH := ph
+if not na(pl)
+    lastPL := pl
+
+if not na(lastPH) and close > lastPH
+    if stTrend == "DOWN"
+        chochBull := true
+    else
+        bosBull := true
+    stTrend := "UP"
+    lastPH  := na
+if not na(lastPL) and close < lastPL
+    if stTrend == "UP"
+        chochBear := true
+    else
+        bosBear := true
+    stTrend := "DOWN"
+    lastPL  := na
+
 // ───────────────────────── TRADE MANAGEMENT ─────────────────────────
 var float entryPx  = na
 var int   barsHold = 0
@@ -258,6 +308,28 @@ if barstate.isconfirmed and inducement
          color=color.new(#fbbf24, 55),
          textcolor=color.new(#422006, 0), size=size.tiny)
 
+// fair value gap boxes
+if barstate.isconfirmed and showFvg and fvgUp
+     box.new(bar_index - 2, low, bar_index + 8, high[2],
+          border_color=color.new(#22c55e, 45),
+          bgcolor=color.new(#22c55e, 84),
+          text="FVG", text_color=color.new(#86efac, 0), text_size=size.tiny)
+if barstate.isconfirmed and showFvg and fvgDn
+     box.new(bar_index - 2, low[2], bar_index + 8, high,
+          border_color=color.new(#ef4444, 45),
+          bgcolor=color.new(#ef4444, 86),
+          text="FVG", text_color=color.new(#fca5a5, 0), text_size=size.tiny)
+
+// BOS / CHoCH structure markers
+plotshape(showStruct and bosBull,   "BOS",     shape.triangleup,
+     location.belowbar, color.new(#22c55e, 25), size=size.tiny, text="BOS")
+plotshape(showStruct and chochBull, "CHoCH",   shape.triangleup,
+     location.belowbar, color.new(#fbbf24, 10), size=size.tiny, text="CHoCH")
+plotshape(showStruct and bosBear,   "BOS↓",    shape.triangledown,
+     location.abovebar, color.new(#ef4444, 25), size=size.tiny, text="BOS")
+plotshape(showStruct and chochBear, "CHoCH↓",  shape.triangledown,
+     location.abovebar, color.new(#fbbf24, 10), size=size.tiny, text="CHoCH")
+
 // live signal marker with zone details
 if barstate.isconfirmed and buySignal
     label.new(bar_index, low,
@@ -268,7 +340,7 @@ if barstate.isconfirmed and buySignal
          textcolor=color.white, size=size.small)
 
 // ───────────────────────── INFO TABLE ─────────────────────────
-var tbl = table.new(position.top_right, 2, 6,
+var tbl = table.new(position.top_right, 2, 7,
      bgcolor=color.new(#0b1b33, 12), border_color=color.new(#38bdf8, 80),
      border_width=1, frame_width=1, frame_color=color.new(#38bdf8, 60))
 
@@ -289,6 +361,8 @@ if barstate.islast
     f_cell(5, 0, "Float P&L", color.new(#94a3b8, 0))
     f_cell(5, 1, str.tostring(strategy.openprofit, format.mintick) + " ₹",
          strategy.openprofit >= 0 ? color.new(#22c55e, 0) : color.new(#ef4444, 0))
+    f_cell(6, 0, "Structure", color.new(#94a3b8, 0))
+    f_cell(6, 1, stTrend, stTrend == "UP" ? color.new(#22c55e, 0) : stTrend == "DOWN" ? color.new(#ef4444, 0) : color.new(#64748b, 0))
 
 // ───────────────────────── ALERTS ─────────────────────────
 alertcondition(buySignal,  "StockArtha BUY",

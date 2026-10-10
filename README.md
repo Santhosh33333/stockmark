@@ -23,7 +23,8 @@ The strategy engine exists as **two twins that share identical rules**:
 
 - 🔎 **Full-universe scanner** — every NSE + BSE equity, F&O tag, indices; parallel, cached, resumable.
 - 🕯️ **Explainable setups** — wick rejection, order block, inducement sweep, 4H RSI; every pass/fail reason is surfaced.
-- 📈 **Real charts** — candles, order-block zones (fresh / mitigated / invalidated), BUY markers, 4H RSI series.
+- 🧭 **SMC context** — market-structure breaks (**BOS / CHoCH**), **fair-value gaps** (filled/unfilled), equal-high/low **liquidity pools** with sweep status, and a 0–100% confluence score on every symbol.
+- 📈 **Real charts** — candles, order-block zones (fresh / mitigated / invalidated), FVG bands, BOS/CHoCH markers, BUY markers, 4H RSI series.
 - 💼 **Paper trading** — SL/TP/time exits on live ₹ prices, portfolio stats (win rate, profit factor, drawdown), auto-fill from signals.
 - 🔔 **Alerts** — in-app feed, browser notifications, Telegram bot, and a TradingView webhook endpoint.
 - 🛡️ **Owner console** — overview, users (role toggle + password reset), signals, trades, audit log and system health, all in one tabbed panel.
@@ -108,6 +109,18 @@ The owner account is seeded on boot from the private local file **`owner.json`**
 
 Optional confluence: EMA(50), daily RSI, weekly MACD.
 
+### Context layers (SMC structure, FVG, liquidity)
+
+Alongside the five entry conditions, the engine computes three additive SMC layers and a **confluence score**. These do **not** change signal generation (so the backtest numbers below are unaffected) — they add context to every symbol and are shown on the stock page and scanner.
+
+| Layer | What it detects | Output |
+| --- | --- | --- |
+| **Market structure** | fractal swing pivots and their breaks — **BOS** (trend continuation) vs **CHoCH** (change of character / possible reversal) | `structure.trend` (`UP`/`DOWN`/`RANGE`), last BOS, last CHoCH, recent events with level |
+| **Fair value gaps (FVG)** | 3-candle imbalances — bullish when `low[i] > high[i-2]`, bearish when `high[i] < low[i-2]`; a gap is *filled* once price trades back into it | list of gaps (`dir`, `top`, `bottom`, `filled`) + nearest unfilled gap to price |
+| **Liquidity pools** | clusters of equal highs/lows within `0.25 × ATR`, marked **swept** once price trades beyond the level | buy-side / sell-side pools with touch count and swept status |
+
+The **confluence score** (0–100%) sums independent bullish factors — 4H RSI < 50 (15), active order block (15), fresh BUY signal (20), uptrend structure (15), price inside a bullish FVG (15), sell-side liquidity swept (10), bullish CHoCH (10). A high score means more factors line up; it is **not** a probability.
+
 The original spec is kept as the **`strict`** preset (`wickMult 2.0`, `sweepAtrMult 0.3`, the wick must sit on the sweep bar, deep sweeps mitigate the zone). It is selectable and documented, but on daily large-caps it produces **~0 signals**.
 
 ### Measured results (not promises)
@@ -146,7 +159,7 @@ Base: `/api`. Auth via `Authorization: Bearer <token>` (issued by the OTP flows)
 | `GET` | `/health` | Liveness |
 | `GET` | `/market/status` | Market state (IST), indices |
 | `GET` | `/universe` | Symbol masters + counts (NSE / BSE / F&O) |
-| `GET` | `/analysis/:symbol` | Candles, OB zones, signals, 4H RSI, stats |
+| `GET` | `/analysis/:symbol` | Candles, OB zones, signals, 4H RSI, stats, **structure / FVG / liquidity / confluence** |
 | `POST` | `/scan/start` | Start a background scan (`preset`, `opts`) |
 | `GET` | `/scan/latest` | Latest scan rows |
 | `GET` | `/scan/jobs` | Running scan jobs |
@@ -187,7 +200,7 @@ Base: `/api`. Auth via `Authorization: Bearer <token>` (issued by the OTP flows)
 
 ## TradingView Pine Script
 
-Download from **`/smc-strategy.pine`** (or the footer link on the landing page) and paste it into TradingView's Pine editor. It mirrors `src/strategy.js`, including the `improved` defaults, the `wickWindow` input and the `strict` toggle. The Pine editor cannot be automated (shadow DOM) — paste it manually.
+Download from **`/smc-strategy.pine`** (or the footer link on the landing page) and paste it into TradingView's Pine editor. It mirrors `src/strategy.js`, including the `improved` defaults, the `wickWindow` input and the `strict` toggle. It also renders the **context overlays** — fair-value-gap boxes and BOS / CHoCH markers — as an opt-in `6. SMC context overlays` group; these are informational and do **not** change the Strategy Tester results. The Pine editor cannot be automated (shadow DOM) — paste it manually, and treat the JavaScript engine as the reference if you spot any divergence.
 
 ---
 

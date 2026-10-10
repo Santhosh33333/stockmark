@@ -341,7 +341,7 @@
     </div>
 
     <div class="tbl-wrap"><table>
-      <thead><tr><th>Symbol</th><th>Price</th><th>Chg%</th><th>4H RSI</th><th>Vol×</th><th>Signal</th><th>Zone</th></tr></thead>
+      <thead><tr><th>Symbol</th><th>Price</th><th>Chg%</th><th>4H RSI</th><th>Vol×</th><th>Signal</th><th>Trend</th><th>Zone</th></tr></thead>
       <tbody>
         ${filtered.length ? filtered.map((r) => `
           <tr onclick="window.__sa.openStock('${esc(r.symbol)}')">
@@ -351,8 +351,9 @@
             <td class="${r.rsi4h != null && r.rsi4h < 50 ? 'a' : ''}">${r.rsi4h ?? '—'}</td>
             <td>${r.volRatio ?? '—'}</td>
             <td>${r.lastSignal ? '<span class="pill buy">BUY</span>' : r.wickLast ? '<span class="pill watch">Wick</span>' : '<span class="pill none">—</span>'}</td>
+            <td>${r.trend === 'UP' ? '<span class="u">▲ up</span>' : r.trend === 'DOWN' ? '<span class="d">▼ down</span>' : '<span class="tiny muted">—</span>'}${r.score ? ` <span class="tiny muted">${r.score}%</span>` : ''}</td>
             <td class="tiny muted">${r.activeZones?.length ? r.activeZones.length + ' live' : '—'}</td>
-          </tr>`).join('') : `<tr><td colspan="7" class="empty">No rows match. Run a scan first.</td></tr>`}
+          </tr>`).join('') : `<tr><td colspan="8" class="empty">No rows match. Run a scan first.</td></tr>`}
       </tbody>
     </table></div>
     <p class="tiny muted" style="text-align:center;margin:8px 14px 20px">Showing ${filtered.length} of ${rows.length} cached rows · live data ${state.market?.state === 'OPEN' ? 'refreshing every 30s' : 'updates on next scan'}</p>`;
@@ -400,6 +401,8 @@
       <div class="legend">
         <span><i style="background:rgba(59,130,246,.45)"></i>Order block</span>
         <span><i style="background:rgba(100,116,139,.35)"></i>Mitigated OB</span>
+        <span><i style="background:rgba(34,197,94,.4)"></i>Bull FVG</span>
+        <span><i style="background:rgba(239,68,68,.35)"></i>Bear FVG</span>
         <span><i style="background:var(--buy,#22c55e)"></i>BUY signal</span>
         <span><i style="background:var(--gold,#fbbf24)"></i>Inducement (filtered)</span>
         <span><i style="background:#a855f7"></i>Wick rejection</span>
@@ -412,6 +415,7 @@
       ${stat('Vol × 20MA', d.volRatio ?? '—', d.volRatio && d.volRatio > 1.3 ? 'u' : '')}
       ${stat('ATR(14)', d.atr ?? '—')}
       ${stat('Live zones', d.activeZones?.length ?? 0)}
+      ${stat('Confluence', (d.confluence?.score ?? 0) + '%', (d.confluence?.score ?? 0) >= 50 ? 'u' : (d.confluence?.score ?? 0) > 0 ? 'a' : '')}
     </div>
 
     <div class="section-title"><h2>Backtest on this chart (${st.trades} trades)</h2><span class="tiny muted">SL ${s.slPct}% · TP ${s.tpPct}%</span></div>
@@ -427,6 +431,33 @@
     <div class="tbl-wrap"><table><thead><tr><th>Date</th><th>Zone</th><th>Status</th></tr></thead><tbody>
       ${zones.map((z) => `<tr><td>${dt(z.t)}</td><td>${inr(z.bottom, 2)} – ${inr(z.top, 2)}</td>
         <td>${z.status === 'ACTIVE' ? (z.signal ? '<span class="pill buy">BUY</span>' : '<span class="pill watch">Active</span>') : '<span class="pill none">' + z.status + '</span>'}</td></tr>`).join('') || '<tr><td colspan="3" class="empty">No zones</td></tr>'}
+    </tbody></table></div>
+
+    <div class="section-title"><h2>Market structure</h2>
+      <span class="pill ${d.structure?.trend === 'UP' ? 'buy' : d.structure?.trend === 'DOWN' ? 'sell' : 'none'}">${esc(d.structure?.trend || '—')} trend</span></div>
+    <div class="card">
+      ${d.structure?.lastEvent ? `<div class="row between" style="padding:6px 0;border-bottom:1px solid rgba(56,189,248,.08)">
+        <span><span class="pill ${d.structure.lastEvent.dir === 'BULL' ? 'buy' : 'sell'}">${esc(d.structure.lastEvent.type)} ${d.structure.lastEvent.dir === 'BULL' ? '▲' : '▼'}</span> <span class="tiny muted">${dt(d.structure.lastEvent.t)}</span></span>
+        <b>${inr(d.structure.lastEvent.price, 2)}</b></div>` : '<div class="empty">No structure breaks in this window</div>'}
+      ${(d.structure?.events || []).slice(-4).reverse().map((e) => `<div class="row between tiny muted" style="padding:3px 0">
+        <span>${esc(e.type)} ${e.dir === 'BULL' ? '▲' : '▼'} · ${dt(e.t)}</span><span>level ${inr(e.level, 2)}</span></div>`).join('')}
+      <div class="tiny muted" style="margin-top:6px">BOS = trend continuation · CHoCH = possible reversal</div>
+    </div>
+
+    <div class="section-title"><h2>Fair value gaps</h2><span class="tiny muted">unfilled = “open”</span></div>
+    <div class="tbl-wrap"><table><thead><tr><th>Date</th><th>Dir</th><th>Zone</th><th>Status</th></tr></thead><tbody>
+      ${(d.fvgs || []).slice().reverse().slice(0, 8).map((f) => `<tr><td>${dt(f.t)}</td>
+        <td><span class="pill ${f.dir === 'BULL' ? 'buy' : 'sell'}">${esc(f.dir)}</span></td>
+        <td>${inr(f.bottom, 2)} – ${inr(f.top, 2)}</td>
+        <td>${f.filled ? '<span class="pill none">filled</span>' : '<span class="pill watch">open</span>'}</td></tr>`).join('') || '<tr><td colspan="4" class="empty">No gaps</td></tr>'}
+    </tbody></table></div>
+
+    <div class="section-title"><h2>Liquidity pools</h2><span class="tiny muted">equal highs / lows · tolerance ${inr(d.liquidity?.tol, 2)}</span></div>
+    <div class="tbl-wrap"><table><thead><tr><th>Side</th><th>Level</th><th>Touches</th><th>Status</th></tr></thead><tbody>
+      ${[...(d.liquidity?.buyside || []), ...(d.liquidity?.sellside || [])].map((p) => `<tr>
+        <td><span class="pill ${p.side === 'BUY' ? 'buy' : 'sell'}">${p.side === 'BUY' ? 'buy-side' : 'sell-side'}</span></td>
+        <td>${inr(p.level, 2)}</td><td>${p.touches}</td>
+        <td>${p.swept ? '<span class="pill watch">swept</span>' : '<span class="pill none">intact</span>'}</td></tr>`).join('') || '<tr><td colspan="4" class="empty">No clusters</td></tr>'}
     </tbody></table></div>
 
     <div class="section-title"><h2>Signals on this symbol</h2></div>
@@ -449,6 +480,8 @@
       zones: d.zones.filter((z) => z.t >= (d.candles[0]?.t ?? 0)),
       signals: d.signals.filter((s) => s.t >= (d.candles[0]?.t ?? 0)),
       inducements: d.inducements.filter((s) => s.t >= (d.candles[0]?.t ?? 0)),
+      fvgs: (d.fvgs || []).filter((f) => f.t >= (d.candles[0]?.t ?? 0)),
+      structure: d.structure || null,
       rsi: state.detailData.rsi4hSeries || buildRsiSeries(d),
     });
     // wick marks
