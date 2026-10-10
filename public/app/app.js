@@ -305,6 +305,7 @@
     const filtered = rows.filter((r) => {
       if (f.buy && !r.lastSignal) return false;
       if (f.fno && !r.fno) return false;
+      if (f.mtf && !(r.mtf && r.mtf.alignment === 'BULL')) return false;
       if (f.exch !== 'ALL' && r.exchange !== f.exch) return false;
       if (f.q) {
         const q = f.q.toLowerCase();
@@ -337,6 +338,7 @@
         </select>
         <button class="btn sm ${f.buy ? 'green' : ''}" onclick="window.__sa.filter({buy:!f.buy})">BUY only</button>
         <button class="btn sm ${f.fno ? 'gold' : ''}" onclick="window.__sa.filter({fno:!f.fno})">F&amp;O</button>
+        <button class="btn sm ${f.mtf ? 'green' : ''}" onclick="window.__sa.filter({mtf:!f.mtf})">MTF ▲ aligned</button>
       </div>
     </div>
 
@@ -351,7 +353,7 @@
             <td class="${r.rsi4h != null && r.rsi4h < 50 ? 'a' : ''}">${r.rsi4h ?? '—'}</td>
             <td>${r.volRatio ?? '—'}</td>
             <td>${r.lastSignal ? '<span class="pill buy">BUY</span>' : r.wickLast ? '<span class="pill watch">Wick</span>' : '<span class="pill none">—</span>'}</td>
-            <td>${r.trend === 'UP' ? '<span class="u">▲ up</span>' : r.trend === 'DOWN' ? '<span class="d">▼ down</span>' : '<span class="tiny muted">—</span>'}${r.score ? ` <span class="tiny muted">${r.score}%</span>` : ''}</td>
+            <td>${r.trend === 'UP' ? '<span class="u">▲ up</span>' : r.trend === 'DOWN' ? '<span class="d">▼ down</span>' : '<span class="tiny muted">—</span>'}${r.score ? ` <span class="tiny muted">${r.score}%</span>` : ''}${r.mtf && r.mtf.alignment === 'BULL' ? ' <span class="pill buy">MTF▲</span>' : r.mtf && r.mtf.alignment === 'BEAR' ? ' <span class="pill sell">MTF▼</span>' : ''}</td>
             <td class="tiny muted">${r.activeZones?.length ? r.activeZones.length + ' live' : '—'}</td>
           </tr>`).join('') : `<tr><td colspan="8" class="empty">No rows match. Run a scan first.</td></tr>`}
       </tbody>
@@ -442,6 +444,20 @@
       ${(d.structure?.events || []).slice(-4).reverse().map((e) => `<div class="row between tiny muted" style="padding:3px 0">
         <span>${esc(e.type)} ${e.dir === 'BULL' ? '▲' : '▼'} · ${dt(e.t)}</span><span>level ${inr(e.level, 2)}</span></div>`).join('')}
       <div class="tiny muted" style="margin-top:6px">BOS = trend continuation · CHoCH = possible reversal</div>
+    </div>
+
+    <div class="section-title"><h2>Multi-timeframe</h2>
+      <span class="pill ${d.mtf?.alignment === 'BULL' ? 'buy' : d.mtf?.alignment === 'BEAR' ? 'sell' : 'none'}">${esc(d.mtf?.alignment || '—')}${d.mtf ? ` ${d.mtf.score > 0 ? '+' : ''}${d.mtf.score}` : ''}</span></div>
+    <div class="card">
+      <div class="mtf-grid">
+        ${(d.mtf?.timeframes || []).map((t) => `<div class="mtf-tf">
+          <div class="tiny muted">${esc(t.tf)}</div>
+          <div class="${t.bias === 'UP' ? 'u' : t.bias === 'DOWN' ? 'd' : 'tiny muted'}" style="font-size:18px;line-height:1.1">${t.bias === 'UP' ? '▲' : t.bias === 'DOWN' ? '▼' : '—'}</div>
+          <div class="tiny">RSI ${t.rsi ?? '—'}</div>
+          <div class="tiny muted">${t.lastEvent ? esc(t.lastEvent.type) + ' ' + (t.lastEvent.dir === 'BULL' ? '▲' : '▼') : '—'}</div>
+        </div>`).join('') || '<div class="empty">No timeframe history</div>'}
+      </div>
+      <div class="tiny muted" style="margin-top:8px">Weighted W×4 · D×3 · 4H×2 · 1H×1 · score −100 bearish → +100 bullish</div>
     </div>
 
     <div class="section-title"><h2>Fair value gaps</h2><span class="tiny muted">unfilled = “open”</span></div>
@@ -776,7 +792,7 @@
   }
 
   /* ══════════════ ACTIONS ══════════════ */
-  state.scanFilter = { q: '', exch: 'ALL', buy: false, fno: false };
+  state.scanFilter = { q: '', exch: 'ALL', buy: false, fno: false, mtf: false };
   state.scanProgress = 0;
 
   const actions = {

@@ -63,6 +63,7 @@ function compactRow(r) {
     rsi4h: r.rsi4h, rsiDaily: r.rsiDaily, ema: r.ema50, atr: r.atr,
     activeZones: r.activeZones, lastSignal: r.lastSignal, signalCount: r.signalCount,
     score: r.confluence?.score ?? null, trend: r.structure?.trend ?? null,
+    mtf: r.mtf ? { alignment: r.mtf.alignment, score: r.mtf.score } : null,
     wickLast: r.wickLastIdx != null && r.bars ? r.wickLastIdx === r.bars - 1 : false,
     scannedAt: r.scannedAt,
   };

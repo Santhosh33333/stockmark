@@ -57,6 +57,9 @@ async function main() {
     check('Structure + FVG + liquidity layers',
       a.body.structure && Array.isArray(a.body.fvgs) && a.body.liquidity && typeof a.body.confluence?.score === 'number',
       `${a.body.structure?.trend} trend · ${a.body.fvgs?.length} FVG · ${a.body.liquidity?.buyside?.length + a.body.liquidity?.sellside?.length} pools · score ${a.body.confluence?.score}`);
+    check('Multi-timeframe alignment',
+      a.body.mtf && Array.isArray(a.body.mtf.timeframes) && a.body.mtf.timeframes.length >= 2 && typeof a.body.mtf.score === 'number',
+      `${a.body.mtf?.timeframes?.map((t) => t.tf + ':' + t.bias).join(' ')} · ${a.body.mtf?.alignment} ${a.body.mtf?.score}`);
 
     const email = `test.user${Date.now()}@example.com`;
     const signup = await call('POST', '/api/auth/signup', { email, password: 'test1234', displayName: 'Test User' });

@@ -232,6 +232,61 @@ function confluenceScore(last, o, rsi4hNow, activeZoneCount, lastSignal, structu
   return { score: Math.min(100, score), parts };
 }
 
+// ── Multi-timeframe context: weekly / daily / 4H / 1H agreement ─────────
+const TF_WEIGHT = { W: 4, D: 3, '4H': 2, '1H': 1 };
+
+// Bias for one timeframe: structure trend, refined by price vs EMA(20) when
+// structure is RANGE. Returns null when there is not enough history.
+function timeframeBias(tf, candles, o) {
+  if (!candles || candles.length < o.swingLen * 2 + 6) return null;
+  const closes = candles.map((c) => c.c);
+  const r = rsi(closes, 14);
+  const e = ema(closes, 20);
+  const price = closes[closes.length - 1];
+  const emaLast = e[e.length - 1];
+  const st = marketStructure(candles, o.swingLen);
+  let bias = st.trend;
+  if (bias === 'RANGE' && emaLast != null) bias = price > emaLast ? 'UP' : 'DOWN';
+  return {
+    tf,
+    bars: candles.length,
+    trend: st.trend,
+    bias,
+    rsi: r[r.length - 1] != null ? +r[r.length - 1].toFixed(1) : null,
+    aboveEma: emaLast != null ? price > emaLast : null,
+    lastEvent: st.lastEvent ? { type: st.lastEvent.type, dir: st.lastEvent.dir, t: st.lastEvent.t } : null,
+  };
+}
+
+function multiTimeframe(daily, hourly, o) {
+  const series = [
+    ['W', toWeekly(daily || [])],
+    ['D', daily || []],
+    ['4H', resample4h(hourly || [])],
+    ['1H', hourly || []],
+  ];
+  const timeframes = [];
+  let wBull = 0, wBear = 0, wTotal = 0;
+  for (const [tf, candles] of series) {
+    const b = timeframeBias(tf, candles, o);
+    if (!b) continue;
+    timeframes.push(b);
+    const w = TF_WEIGHT[tf] || 1;
+    if (b.bias === 'UP') wBull += w;
+    else if (b.bias === 'DOWN') wBear += w;
+    wTotal += w;
+  }
+  const bull = timeframes.filter((t) => t.bias === 'UP').length;
+  const bear = timeframes.filter((t) => t.bias === 'DOWN').length;
+  const neutral = timeframes.length - bull - bear;
+  let alignment = 'NEUTRAL';
+  if (bull && !bear) alignment = 'BULL';
+  else if (bear && !bull) alignment = 'BEAR';
+  else if (bull && bear) alignment = 'MIXED';
+  const score = wTotal ? Math.round(((wBull - wBear) / wTotal) * 100) : 0;
+  return { timeframes, bull, bear, neutral, alignment, score };
+}
+
 // ── Main analysis ───────────────────────────────────────────────────────
 function analyze(daily, hourly, opts = {}) {
   const o = { ...DEFAULTS, ...opts };
@@ -393,6 +448,7 @@ function analyze(daily, hourly, opts = {}) {
   const structure = marketStructure(daily, o.swingLen, swings);
   const allFvgs = fairValueGaps(daily);
   const liquidity = liquidityPools(daily, swings, atrA, o.liqTolAtr);
+  const mtf = multiTimeframe(daily, hourly, o);
   const rsi4hNow = rsi4h.length && rsi4h[rsi4h.length - 1] != null ? +rsi4h[rsi4h.length - 1].toFixed(1) : null;
   const lastSig = signals.length ? signals[signals.length - 1] : null;
   const confluence = confluenceScore(last, o, rsi4hNow, activeZones.length, lastSig, structure, allFvgs, liquidity);
@@ -442,6 +498,7 @@ function analyze(daily, hourly, opts = {}) {
       buyside: liquidity.buyside.slice(-o.liqMax),
       sellside: liquidity.sellside.slice(-o.liqMax),
     },
+    mtf,
     confluence,
     stats,
     bars: n,
@@ -467,5 +524,5 @@ const PRESETS = {
 
 module.exports = {
   analyze, DEFAULTS, PRESETS, wickRejectionAt, bearWickRejectionAt,
-  findSwings, marketStructure, fairValueGaps, liquidityPools, confluenceScore,
+  findSwings, marketStructure, fairValueGaps, liquidityPools, confluenceScore, multiTimeframe,
 };
