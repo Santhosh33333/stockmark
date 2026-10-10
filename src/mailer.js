@@ -94,19 +94,19 @@ async function send({ to, subject, html, text }) {
 // ── Email templates (3D-styled, mobile friendly) ───────────────────────
 function otpEmail(code, minutes, purpose = 'signup') {
   const title = purpose === 'login' ? 'Sign-in code' : 'Verify your email';
-  const subject = `${code} is your StockArtha ${title.toLowerCase()}`;
+  const subject = `${code} is your TradeMind ${title.toLowerCase()}`;
   const html = `
   <div style="margin:0;padding:0;background:#040b1a;font-family:Segoe UI,Arial,sans-serif">
     <div style="max-width:420px;margin:0 auto;padding:26px 18px">
       <div style="text-align:center;margin-bottom:18px">
         <div style="display:inline-block;background:linear-gradient(120deg,#0ea5e9,#7c3aed);color:#fff;font-weight:800;
-             font-size:19px;padding:10px 20px;border-radius:14px;box-shadow:0 14px 30px -12px #0ea5e9">StockArtha</div>
+             font-size:19px;padding:10px 20px;border-radius:14px;box-shadow:0 14px 30px -12px #0ea5e9">TradeMind</div>
       </div>
       <div style="background:linear-gradient(165deg,rgba(18,36,68,.95),rgba(8,17,35,.96));border:1px solid rgba(56,189,248,.22);
            border-radius:20px;padding:28px 22px;text-align:center;box-shadow:0 30px 60px -30px #000">
         <h1 style="color:#e6eefc;font-size:20px;margin:0 0 8px">${title}</h1>
         <p style="color:#93a4c4;font-size:13.5px;margin:0 0 20px;line-height:1.6">
-          ${purpose === 'login' ? 'Use this one-time code to finish signing in.' : 'Enter this one-time code to activate your StockArtha account.'}
+          ${purpose === 'login' ? 'Use this one-time code to finish signing in.' : 'Enter this one-time code to activate your TradeMind account.'}
         </p>
         <div style="font-size:38px;font-weight:800;letter-spacing:10px;color:#7dd3fc;
              background:rgba(56,189,248,.10);border:1px dashed rgba(125,211,252,.5);border-radius:16px;padding:16px 8px;margin-bottom:18px">
@@ -115,11 +115,11 @@ function otpEmail(code, minutes, purpose = 'signup') {
         <p style="color:#6c81a8;font-size:12px;margin:0">Valid for ${minutes} minutes · never share this code</p>
       </div>
       <p style="color:#4b5f80;font-size:11px;text-align:center;margin:16px 4px 0;line-height:1.6">
-        StockArtha — live NSE &amp; BSE smart-money scanner.<br/>This is an automated message, replies are not monitored.
+        TradeMind — live NSE &amp; BSE smart-money scanner.<br/>This is an automated message, replies are not monitored.
       </p>
     </div>
   </div>`;
-  const text = `${title}\n\nYour StockArtha code: ${code}\nValid for ${minutes} minutes.\n\nIf you did not request this, ignore this email.`;
+  const text = `${title}\n\nYour TradeMind code: ${code}\nValid for ${minutes} minutes.\n\nIf you did not request this, ignore this email.`;
   return { subject, html, text };
 }
 

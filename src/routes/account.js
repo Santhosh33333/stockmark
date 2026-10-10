@@ -271,7 +271,7 @@ router.get('/alerts/history', requireUser, (req, res) => {
 
 router.post('/alerts/telegram-test', requireUser, async (req, res) => {
   const settings = auth.getSettings(req.user);
-  const out = await notify.sendTelegram(settings, '✅ <b>StockArtha</b> connected — alerts will arrive here.');
+  const out = await notify.sendTelegram(settings, '✅ <b>TradeMind</b> connected — alerts will arrive here.');
   res.json(out);
 });
 

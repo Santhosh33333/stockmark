@@ -3,7 +3,7 @@ const { spawn } = require('child_process');
 const path = require('path');
 
 const PORT = process.env.PORT || 5124;
-const BASE = process.env.STOCKARTHA_BASE || `http://127.0.0.1:${PORT}`;
+const BASE = process.env.TRADEMIND_BASE || `http://127.0.0.1:${PORT}`;
 let server = null;
 
 async function call(method, url, body, headers = {}) {
@@ -24,7 +24,7 @@ function check(name, ok, detail = '') {
 }
 
 async function main() {
-  if (!process.env.STOCKARTHA_BASE) {
+  if (!process.env.TRADEMIND_BASE) {
     console.log(`Starting server on :${PORT} for tests…`);
     server = spawn(process.execPath, [path.join(__dirname, '..', 'server.js')], {
       env: { ...process.env, PORT: String(PORT) }, stdio: 'inherit',
@@ -210,9 +210,9 @@ async function main() {
       `${mail.body.mail?.mode} · TTL ${mail.body.otpTtl}min`);
 
     const landing = await fetch(BASE + '/');
-    check('Landing page', landing.status === 200 && (await landing.text()).includes('StockArtha'));
+    check('Landing page', landing.status === 200 && (await landing.text()).includes('TradeMind'));
     const appHtml = await fetch(BASE + '/app/');
-    check('App shell', appHtml.status === 200 && (await appHtml.text()).includes('StockArtha'));
+    check('App shell', appHtml.status === 200 && (await appHtml.text()).includes('TradeMind'));
     const manifest = await fetch(BASE + '/app/manifest.webmanifest');
     check('PWA manifest', manifest.status === 200);
     const icon = await fetch(BASE + '/icons/icon-512.png');

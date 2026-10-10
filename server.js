@@ -1,4 +1,4 @@
-// StockArtha server — Express. Zero-cost stack: node:sqlite + free public market data.
+// TradeMind server — Express. Zero-cost stack: node:sqlite + free public market data.
 const fs = require('fs');
 const path = require('path');
 const express = require('express');
@@ -17,7 +17,7 @@ if (fs.existsSync(ownerFile)) {
   } catch { }
 }
 const admin = auth.seedAdmin();
-if (admin) console.log('[StockArtha] owner account ready:', admin.username);
+if (admin) console.log('[TradeMind] owner account ready:', admin.username);
 
 const app = express();
 app.disable('x-powered-by');
@@ -35,10 +35,15 @@ app.get('/', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'landing
 // ── NIFTY 50 live 3D page ──────────────────────────────────────────────
 app.get('/nifty', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'nifty.html')));
 
+// ── Static content pages (docs / legal) ────────────────────────────────
+app.get('/docs', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'docs.html')));
+app.get('/privacy', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'privacy.html')));
+app.get('/terms', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'terms.html')));
+
 // ── Pine Script download (the TradingView deliverable) ─────────────────
 app.get('/smc-strategy.pine', (_req, res) => {
   res.type('text/plain; charset=utf-8');
-  res.setHeader('Content-Disposition', 'inline; filename="stockartha-smc-strategy.pine"');
+  res.setHeader('Content-Disposition', 'inline; filename="trademind-smc-strategy.pine"');
   res.sendFile(path.join(__dirname, 'pine', 'smc_wick_ob_inducement.pine'));
 });
 
@@ -52,7 +57,13 @@ app.use('/app', express.static(path.join(__dirname, 'public', 'app'), {
 }));
 
 // Root-level brand assets for the landing page / favicons
-app.use(express.static(path.join(__dirname, 'public'), { maxAge: '6h' }));
+// (HTML/CSS/JS revalidate so UI updates are never served stale; images stay cached)
+app.use(express.static(path.join(__dirname, 'public'), {
+  maxAge: '6h',
+  setHeaders(res, p) {
+    if (/\.(html|css|js)$/i.test(p)) res.setHeader('Cache-Control', 'no-cache');
+  },
+}));
 
 // Health probe for hosting platforms
 app.get('/healthz', (_req, res) => res.status(200).send('ok'));
@@ -68,7 +79,7 @@ app.use((err, _req, res, _next) => {
 app.listen(config.port, config.host, () => {
   const { marketStatus } = require('./src/util');
   const m = marketStatus();
-  console.log(`[StockArtha] server ready`);
+  console.log(`[TradeMind] server ready`);
   console.log(`  Web app      : http://localhost:${config.port}/app`);
   console.log(`  Landing page : http://localhost:${config.port}/`);
   console.log(`  API base     : http://localhost:${config.port}/api`);

@@ -1,4 +1,4 @@
-/* StockArtha — SPA app logic */
+/* TradeMind — SPA app logic */
 (function () {
   'use strict';
   const $ = (s, el = document) => el.querySelector(s);
@@ -1035,7 +1035,7 @@
           body: {
             provider: $('#mail-provider').value,
             otpType: $('#mail-otptype').value,
-            from: $('#mail-from').value, fromName: 'StockArtha',
+            from: $('#mail-from').value, fromName: 'TradeMind',
             brevoKey: $('#mail-brevo').value,
             smtp: {
               host: $('#mail-host').value, port: Number($('#mail-port').value || 587), secure: false,
@@ -1124,7 +1124,7 @@
       } catch (e) { toast(e.message, 'err'); }
     },
     tvAlert(sym) {
-      const txt = 'In TradingView: open ' + sym + ' chart → Alerts → Create alert → Condition: StockArtha SMC strategy → message: {"symbol":"' + sym + '","price":{{close}},"action":"BUY"} → webhook URL: ' + location.origin + '/api/webhook/tradingview?pass=' + encodeURIComponent(state.user.settings.webhookPass || 'YOUR_PASS');
+      const txt = 'In TradingView: open ' + sym + ' chart → Alerts → Create alert → Condition: TradeMind SMC strategy → message: {"symbol":"' + sym + '","price":{{close}},"action":"BUY"} → webhook URL: ' + location.origin + '/api/webhook/tradingview?pass=' + encodeURIComponent(state.user.settings.webhookPass || 'YOUR_PASS');
       toast(txt.slice(0, 120) + '…', 'ok');
       console.log(txt);
     },
@@ -1133,7 +1133,7 @@
 
   function notifyBrowser(text) {
     if (!state.user?.settings.notifyBrowser) return;
-    try { if (Notification.permission === 'granted') new Notification('StockArtha', { body: text }); } catch { }
+    try { if (Notification.permission === 'granted') new Notification('TradeMind', { body: text }); } catch { }
   }
 
   /* ══════════════ BOOT ══════════════ */

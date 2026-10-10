@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Terms of Service — TradeMind</title>
+<meta name="description" content="TradeMind terms of service, acceptable use and risk disclosure." />
+<meta name="theme-color" content="#0a0e17" />
+<link rel="icon" type="image/svg+xml" href="/logo.svg" />
+<link rel="stylesheet" href="landing.css" />
+<style>
+.legal{max-width:820px;margin:0 auto}
+.legal h2{font-size:22px;margin:34px 0 10px;font-weight:800}
+.legal h2:first-child{margin-top:0}
+.legal p,.legal li{color:var(--dim);font-size:15px}
+.legal ul{padding-left:20px;display:flex;flex-direction:column;gap:7px}
+.legal .updated{font-size:13px;color:var(--dim2)}
+.risk{border:1px solid rgba(245,158,11,.4);background:rgba(245,158,11,.08);border-radius:12px;padding:18px 20px;margin-top:18px}
+.risk p{color:#e2c07a}
+</style>
+</head>
+<body>
+<div class="scene" aria-hidden="true"><span class="glow g1"></span><span class="glow g2"></span></div>
+<header class="nav"><div class="wrap nav-in">
+  <a class="brand" href="/"><img src="/logo.svg" alt="" width="28" height="28" /><span class="brand-name">TradeMind</span><span class="ver">2.0</span></a>
+  <nav class="nav-links"><a href="/">Home</a><a href="/docs">Docs</a><a href="/privacy">Privacy</a></nav>
+  <div class="nav-cta"><a class="btn primary" href="/app/">Launch app →</a></div>
+</div></header>
+
+<main class="sec"><div class="wrap legal">
+  <h1 style="font-size:32px;font-weight:800;margin-bottom:6px">Terms of Service</h1>
+  <p class="updated">Last updated: October 2026</p>
+
+  <h2>1. Acceptance</h2>
+  <p>By accessing or using TradeMind (the “Service”) you agree to these terms. If you do not agree, do not use the Service.</p>
+
+  <h2>2. Nature of the Service</h2>
+  <p>TradeMind is a <b>market analysis and education tool</b>. It provides technical analysis, backtesting and a simulated (paper) trading environment. It does <b>not</b> provide investment advice, portfolio management, or brokerage services, and it is not a registered investment adviser, research analyst or stock broker in any jurisdiction.</p>
+
+  <h2>3. Market data</h2>
+  <p>Data is sourced from third-party public providers (Yahoo Finance, NSE, BSE) and optionally Dhan. It may be delayed, incomplete or unavailable. The Service shows an explicit “unavailable” state when data cannot be retrieved and does not represent fabricated values as live. You are responsible for verifying any information before acting on it.</p>
+
+  <h2>4. Paper trading and live execution</h2>
+  <p>Paper trading is entirely simulated and involves no real money. If you choose to connect a Dhan account and place live orders, you do so at your own risk and are solely responsible for those orders, their compliance with exchange rules, and any resulting loss. You must keep your API credentials secure.</p>
+
+  <h2>5. Acceptable use</h2>
+  <ul>
+    <li>Do not misuse, overload, scrape abusively, or attempt to disrupt the Service.</li>
+    <li>Do not use the Service for any unlawful purpose or to violate any exchange or regulatory rule.</li>
+    <li>Do not attempt to access data or accounts that are not yours.</li>
+  </ul>
+
+  <h2>6. No warranty</h2>
+  <p>The Service is provided “as is” and “as available”, without warranties of any kind, express or implied, including fitness for a particular purpose or uninterrupted availability.</p>
+
+  <h2>7. Limitation of liability</h2>
+  <p>To the maximum extent permitted by law, TradeMind and its operators are not liable for any trading losses, lost profits, or indirect, incidental or consequential damages arising from your use of the Service.</p>
+
+  <h2>8. Changes</h2>
+  <p>We may modify or discontinue the Service, or update these terms, at any time. Continued use after changes constitutes acceptance.</p>
+
+  <h2 id="risk">9. Risk disclosure</h2>
+  <div class="risk">
+    <p>Trading and investing in securities and derivatives involves substantial risk of loss and is not suitable for every investor. Prices can move against your position and you may lose more than you expect. Past performance — including any backtest shown in the Service — is <b>not</b> indicative of future results. Backtests use historical data and simplified assumptions (such as fills and costs) and will not match live results. Detailed backtest statistics shown by the Service are illustrative of a specific historical run and are not a promise of returns. Never trade with money you cannot afford to lose, and seek independent professional advice where appropriate.</p>
+  </div>
+
+  <h2>10. Contact</h2>
+  <p><a href="mailto:santhoshkrishna958@gmail.com">santhoshkrishna958@gmail.com</a></p>
+</div></main>
+
+<footer class="foot"><div class="wrap foot-bot"><span>© <span id="yr"></span> TradeMind. Prices in ₹ (INR).</span><span>Not investment advice.</span></div></footer>
+<script>document.getElementById('yr').textContent=new Date().getFullYear();</script>
+</body>
+</html>

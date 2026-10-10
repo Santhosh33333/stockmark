@@ -31,6 +31,15 @@ const config = {
     maxAutoScanMs: 25 * 60 * 1000,      // hard cap for a background scan
   },
 
+  // Backtest data window. The strategy's 4H-RSI gate needs intraday bars, and
+  // Yahoo serves 1h data for at most ~730 days, so the effective backtest
+  // window is the overlap of the two ranges (≈2 years). Reported honestly by
+  // the /api/backtest endpoint (dataFrom/dataTo).
+  backtest: {
+    dailyRange: process.env.BACKTEST_DAILY_RANGE || '2y',
+    hourlyRange: process.env.BACKTEST_HOURLY_RANGE || '730d',
+  },
+
   // Indian market hours (IST) used for market-status badge + live refresh
   market: {
     timezone: 'Asia/Kolkata',
@@ -45,8 +54,8 @@ const config = {
   //  • dev             → nothing configured, OTP printed to server log & UI
   mail: {
     provider: process.env.MAIL_PROVIDER || (process.env.BREVO_API_KEY ? 'brevo' : process.env.SMTP_HOST ? 'smtp' : 'dev'),
-    from: process.env.MAIL_FROM || 'no-reply@stockartha.app',
-    fromName: process.env.MAIL_FROM_NAME || 'StockArtha',
+    from: process.env.MAIL_FROM || 'no-reply@trademind.app',
+    fromName: process.env.MAIL_FROM_NAME || 'TradeMind',
     brevoKey: process.env.BREVO_API_KEY || '',
     brevoUrl: 'https://api.brevo.com/v3/smtp/email',
     smtp: {

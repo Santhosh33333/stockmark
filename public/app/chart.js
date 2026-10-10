@@ -1,4 +1,4 @@
-/* StockArtha Chart Engine — dependency-free canvas candlestick chart with
+/* TradeMind Chart Engine — dependency-free canvas candlestick chart with
    order-block zones, wick-rejection marks, inducement labels and RSI pane. */
 (function () {
   const UP = '#22c55e', DOWN = '#ef4444', GRID = 'rgba(148,163,184,.10)';

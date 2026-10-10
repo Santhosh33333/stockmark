@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Privacy Policy — TradeMind</title>
+<meta name="description" content="How TradeMind handles your data: account, market data, credentials and your rights." />
+<meta name="theme-color" content="#0a0e17" />
+<link rel="icon" type="image/svg+xml" href="/logo.svg" />
+<link rel="stylesheet" href="landing.css" />
+<style>
+.legal{max-width:820px;margin:0 auto}
+.legal h2{font-size:22px;margin:34px 0 10px;font-weight:800}
+.legal h2:first-child{margin-top:0}
+.legal p,.legal li{color:var(--dim);font-size:15px}
+.legal ul{padding-left:20px;display:flex;flex-direction:column;gap:7px}
+.legal .updated{font-size:13px;color:var(--dim2)}
+</style>
+</head>
+<body>
+<div class="scene" aria-hidden="true"><span class="glow g1"></span><span class="glow g2"></span></div>
+<header class="nav"><div class="wrap nav-in">
+  <a class="brand" href="/"><img src="/logo.svg" alt="" width="28" height="28" /><span class="brand-name">TradeMind</span><span class="ver">2.0</span></a>
+  <nav class="nav-links"><a href="/">Home</a><a href="/docs">Docs</a><a href="/terms">Terms</a></nav>
+  <div class="nav-cta"><a class="btn primary" href="/app/">Launch app →</a></div>
+</div></header>
+
+<main class="sec"><div class="wrap legal">
+  <h1 style="font-size:32px;font-weight:800;margin-bottom:6px">Privacy Policy</h1>
+  <p class="updated">Last updated: October 2026</p>
+
+  <h2>What we collect</h2>
+  <ul>
+    <li><b>Account data</b> — your email address (used as your login and for one-time codes).</li>
+    <li><b>Profile data</b> — an optional display name and your preferences (theme, watchlists, risk settings).</li>
+    <li><b>Usage data</b> — the symbols you analyse, your paper-trade history and saved settings, stored to run the product.</li>
+    <li><b>Integration credentials</b> — if you connect Dhan, your API client id and access token are stored on the server.</li>
+  </ul>
+
+  <h2>How credentials are handled</h2>
+  <p>Broker API secrets are stored server-side and are never sent to the browser. They are used only to fetch option-chain data or place orders that you explicitly request. You can remove them at any time in Settings.</p>
+
+  <h2>What we do NOT do</h2>
+  <ul>
+    <li>We do not sell your personal data.</li>
+    <li>We do not place trades without your explicit action and a configured broker connection.</li>
+    <li>We do not fabricate market prices; market data comes from the providers listed in the <a href="/docs#data">docs</a>.</li>
+  </ul>
+
+  <h2>Cookies &amp; sessions</h2>
+  <p>We use a session cookie solely to keep you signed in. No third-party advertising or tracking cookies are used.</p>
+
+  <h2>Data retention &amp; deletion</h2>
+  <p>Your account data and paper-trade history are retained while your account is active. You may request deletion of your account and associated data by emailing the contact below; we will remove it within a reasonable period.</p>
+
+  <h2>Third-party services</h2>
+  <p>Market data is retrieved from Yahoo Finance, NSE and BSE public endpoints, and optionally Dhan. Email one-time codes are delivered through the configured mail provider. These providers process data under their own policies.</p>
+
+  <h2>Children</h2>
+  <p>TradeMind is not intended for use by anyone under 18.</p>
+
+  <h2>Changes</h2>
+  <p>We may update this policy as the product evolves. Material changes will be reflected by the “last updated” date above.</p>
+
+  <h2>Contact</h2>
+  <p>Questions or deletion requests: <a href="mailto:santhoshkrishna958@gmail.com">santhoshkrishna958@gmail.com</a>.</p>
+</div></main>
+
+<footer class="foot"><div class="wrap foot-bot"><span>© <span id="yr"></span> TradeMind. Prices in ₹ (INR).</span><span>Not investment advice.</span></div></footer>
+<script>document.getElementById('yr').textContent=new Date().getFullYear();</script>
+</body>
+</html>

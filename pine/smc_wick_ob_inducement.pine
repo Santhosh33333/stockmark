@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════════
-//  StockArtha — SMC Wick Rejection + Order Block + Inducement (4H RSI < 50)
+//  TradeMind — SMC Wick Rejection + Order Block + Inducement (4H RSI < 50)
 //  Pine Script v5 · Strategy Tester ready
 //  ─────────────────────────────────────────────────────────────────────────
 //  Entry confluence (evaluated on each confirmed bar):
@@ -26,7 +26,7 @@
 //  Strategy Tester -> review Net Profit, Win Rate, Profit Factor, Max DD.
 // ═══════════════════════════════════════════════════════════════════════════
 //@version=5
-strategy("StockArtha SMC — Wick Rejection + OB + Inducement [4H RSI<50]",
+strategy("TradeMind SMC — Wick Rejection + OB + Inducement [4H RSI<50]",
      overlay=true,
      initial_capital=100000,
      default_qty_type=strategy.percent_of_equity,
@@ -348,7 +348,7 @@ f_cell(r, c, txt, col) =>
     table.cell(tbl, c, r, txt, text_color=col, text_size=size.small)
 
 if barstate.islast
-    f_cell(0, 0, "StockArtha SMC", color.new(#7dd3fc, 0))
+    f_cell(0, 0, "TradeMind SMC", color.new(#7dd3fc, 0))
     f_cell(0, 1, "", color.white)
     f_cell(1, 0, "4H RSI", color.new(#94a3b8, 0))
     f_cell(1, 1, str.tostring(htfRsi, "#.#"), htfRsi < rsiMax ? color.new(#22c55e, 0) : color.new(#ef4444, 0))
@@ -365,24 +365,24 @@ if barstate.islast
     f_cell(6, 1, stTrend, stTrend == "UP" ? color.new(#22c55e, 0) : stTrend == "DOWN" ? color.new(#ef4444, 0) : color.new(#64748b, 0))
 
 // ───────────────────────── ALERTS ─────────────────────────
-alertcondition(buySignal,  "StockArtha BUY",
-     'StockArtha SMC BUY — {{ticker}} @ {{close}} | 4H RSI ' + str.tostring(htfRsi, "#.#") + ' < ' + str.tostring(rsiMax))
-alertcondition(sellSignal, "StockArtha SELL",
-     'StockArtha SMC SELL — {{ticker}} @ {{close}}')
+alertcondition(buySignal,  "TradeMind BUY",
+     'TradeMind SMC BUY — {{ticker}} @ {{close}} | 4H RSI ' + str.tostring(htfRsi, "#.#") + ' < ' + str.tostring(rsiMax))
+alertcondition(sellSignal, "TradeMind SELL",
+     'TradeMind SMC SELL — {{ticker}} @ {{close}}')
 alertcondition(bullWick,   "Wick rejection",
      'Wick rejection candle — {{ticker}} (bullish, vol > 20 SMA)')
 
 if buySignal
-    alert('StockArtha SMC BUY — {{ticker}}\nPrice: {{close}}\n4H RSI: ' + str.tostring(htfRsi, "#.#") +
+    alert('TradeMind SMC BUY — {{ticker}}\nPrice: {{close}}\n4H RSI: ' + str.tostring(htfRsi, "#.#") +
           '\nOB zone: ' + str.tostring(sigZoneBot, format.mintick) + ' - ' + str.tostring(sigZoneTop, format.mintick) +
           '\nSL: ' + str.tostring(close * (1 - slPct / 100), format.mintick) +
           '\nTP: ' + str.tostring(close * (1 + tpPct / 100), format.mintick), alert.freq_once_per_bar_close)
 if sellSignal
-    alert('StockArtha SMC SELL — {{ticker}}\nPrice: {{close}}', alert.freq_once_per_bar_close)
+    alert('TradeMind SMC SELL — {{ticker}}\nPrice: {{close}}', alert.freq_once_per_bar_close)
 
 // ───────────────────────── STRATEGY TESTER NOTES ─────────────────────────
 // Pine has no lookahead, so the order block is confirmed on the impulse bar
 // (close-to-close >= 2 x ATR) and the inducement is detected when the sweep
 // bar closes back above the block low. Nothing in this script reads future bars.
 // Recommended: Daily timeframe, 3-10 years of data, then create an alert on
-// "StockArtha BUY" and point the webhook at your StockArtha app for automation.
+// "TradeMind BUY" and point the webhook at your TradeMind app for automation.

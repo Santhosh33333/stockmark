@@ -1,5 +1,5 @@
-/* StockArtha app service worker — offline shell + Play Store (TWA) readiness */
-const CACHE = 'stockartha-v1';
+/* TradeMind app service worker — offline shell + Play Store (TWA) readiness */
+const CACHE = 'trademind-v1';
 const SHELL = [
   '/app/',
   '/app/index.html',

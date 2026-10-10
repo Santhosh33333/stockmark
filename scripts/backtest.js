@@ -75,7 +75,7 @@ async function run() {
     console.log('NOTE: strict rules rarely trigger on daily large-caps — expect 0 trades.');
   }
 
-  console.log(`\nStockArtha backtest — ${symbols.length} symbols · preset ${preset} · daily range ${range}` +
+  console.log(`\nTradeMind backtest — ${symbols.length} symbols · preset ${preset} · daily range ${range}` +
     ` · 4H RSI filter ${noHtf ? 'OFF' : 'ON'} · SL ${opts.slPct}% / TP ${opts.tpPct}% / ${opts.maxBars} bars\n`);
 
   const rows = [];

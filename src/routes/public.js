@@ -10,7 +10,7 @@ const { marketStatus } = require('../util');
 
 const router = express.Router();
 
-router.get('/health', (_req, res) => res.json({ ok: true, ts: now(), service: 'StockArtha' }));
+router.get('/health', (_req, res) => res.json({ ok: true, ts: now(), service: 'TradeMind' }));
 
 router.get('/market/status', async (_req, res) => {
   const status = marketStatus();
@@ -111,6 +111,54 @@ function dailyRsiSeries(daily) {
 // Lightweight candles for the chart (last N daily bars)
 function compressCandles(daily) {
   return daily.slice(-160).map((c) => ({ t: c.t, o: +c.o.toFixed(2), h: +c.h.toFixed(2), l: +c.l.toFixed(2), c: +c.c.toFixed(2), v: c.v }));
+}
+
+// ── Backtest: run the deterministic scanner rules over history ─────────
+// Returns the real engine output (never fabricated): stats, equity curve,
+// per-trade log and monthly P&L for the requested parameters.
+router.get('/backtest/:symbol', async (req, res) => {
+  const raw = String(req.params.symbol || '').toUpperCase();
+  const yahooSym = raw.endsWith('.NS') || raw.endsWith('.BO') || raw.startsWith('^') ? raw : `${raw}.NS`;
+  const preset = String(req.query.preset || 'improved').toLowerCase();
+  const base = strategy.PRESETS[preset] || {};
+  const num = (v) => (v != null && v !== '' && isFinite(Number(v)) ? Number(v) : undefined);
+  const opts = { ...base };
+  const slPct = num(req.query.slPct); if (slPct != null) opts.slPct = slPct;
+  const tpPct = num(req.query.tpPct); if (tpPct != null) opts.tpPct = tpPct;
+  const maxBars = num(req.query.maxBars); if (maxBars != null) opts.maxBars = Math.max(1, Math.floor(maxBars));
+  try {
+    const data = await yahoo.fetchSymbolData(yahooSym, {
+      dailyRange: config.backtest.dailyRange,
+      hourlyRange: config.backtest.hourlyRange,
+    });
+    const a = strategy.analyze(data.daily, data.hourly, opts);
+    if (!a.ok) return res.status(422).json({ error: a.reason });
+    const trades = (a.trades || []).filter((t) => t.reason !== 'OPEN (latest bar)' && t.reason !== 'OPEN');
+    res.json({
+      symbol: raw, yahoo: yahooSym, preset,
+      engine: 'SMC wick-rejection + order block + inducement (with 4H RSI gate)',
+      params: { preset, slPct: a.optsUsed.slPct, tpPct: a.optsUsed.tpPct, maxBars: a.optsUsed.maxBars },
+      bars: a.bars, stats: a.stats, equityCurve: a.stats.equityCurve || [],
+      trades, monthly: monthlyReturns(trades),
+      dataFrom: data.daily.length ? data.daily[0].t : null,
+      dataTo: data.daily.length ? data.daily[data.daily.length - 1].t : null,
+      generatedAt: now(),
+    });
+  } catch (e) {
+    res.status(502).json({ error: `Backtest data fetch failed: ${e.message}` });
+  }
+});
+
+// Group closed trades into month buckets (IST) for the monthly-returns table.
+function monthlyReturns(trades) {
+  const buckets = new Map();
+  for (const t of trades) {
+    const label = new Date(t.exitTs).toLocaleString('en-US', { timeZone: 'Asia/Kolkata', year: 'numeric', month: 'short' });
+    const cur = buckets.get(label) || { month: label, trades: 0, pct: 0, wins: 0 };
+    cur.trades += 1; cur.pct += t.pct; if (t.pct > 0) cur.wins += 1;
+    buckets.set(label, cur);
+  }
+  return [...buckets.values()].map((b) => ({ ...b, pct: +b.pct.toFixed(2), winRate: b.trades ? +((b.wins / b.trades) * 100).toFixed(1) : 0 }));
 }
 
 router.post('/scan/start', async (req, res) => {

@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Documentation — TradeMind</title>
+<meta name="description" content="TradeMind documentation: methodology, data sources, API reference and getting started." />
+<meta name="theme-color" content="#0a0e17" />
+<link rel="icon" type="image/svg+xml" href="/logo.svg" />
+<link rel="stylesheet" href="landing.css" />
+<style>
+.doc-wrap{display:grid;grid-template-columns:220px 1fr;gap:40px;align-items:start}
+.doc-nav{position:sticky;top:88px;font-size:14px;display:flex;flex-direction:column;gap:2px}
+.doc-nav a{color:var(--dim);padding:7px 0;border-left:2px solid transparent;padding-left:12px}
+.doc-nav a:hover{color:var(--txt);border-left-color:var(--accent)}
+.doc-body h2{font-size:24px;margin:38px 0 12px;font-weight:800}
+.doc-body h2:first-child{margin-top:0}
+.doc-body h3{font-size:16px;margin:22px 0 8px;font-weight:700}
+.doc-body p,.doc-body li{color:var(--dim);font-size:15px}
+.doc-body ul,.doc-body ol{padding-left:20px;display:flex;flex-direction:column;gap:7px}
+.doc-body code{background:rgba(148,163,184,.12);border:1px solid var(--line);border-radius:6px;padding:1px 6px;font-size:13px;color:#cbd5e1}
+.doc-body pre{background:rgba(5,8,14,.7);border:1px solid var(--line);border-radius:12px;padding:16px;overflow:auto;font-size:13px;color:#cbd5e1}
+.doc-body table{width:100%;border-collapse:collapse;font-size:14px;margin-top:10px}
+.doc-body th,.doc-body td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line)}
+.doc-body th{color:var(--dim2);font-size:12px;text-transform:uppercase;letter-spacing:.05em}
+.doc-body td code{white-space:nowrap}
+.note{border:1px solid rgba(245,158,11,.35);background:rgba(245,158,11,.07);border-radius:12px;padding:14px 16px;font-size:14px;color:#e2c07a;margin:16px 0}
+@media(max-width:820px){.doc-wrap{grid-template-columns:1fr}.doc-nav{position:static;flex-direction:row;flex-wrap:wrap;gap:12px}.doc-nav a{border-left:0;padding-left:0}}
+</style>
+</head>
+<body>
+<div class="scene" aria-hidden="true"><span class="glow g1"></span><span class="glow g2"></span></div>
+
+<header class="nav">
+  <div class="wrap nav-in">
+    <a class="brand" href="/"><img src="/logo.svg" alt="" width="28" height="28" /><span class="brand-name">TradeMind</span><span class="ver">2.0</span></a>
+    <nav class="nav-links" id="navLinks">
+      <a href="/#features">Features</a>
+      <a href="/docs">Docs</a>
+      <a href="/nifty">NIFTY 3D</a>
+    </nav>
+    <div class="nav-cta"><a class="btn primary" href="/app/">Launch app →</a></div>
+  </div>
+</header>
+
+<main class="sec">
+  <div class="wrap doc-wrap">
+    <nav class="doc-nav" aria-label="Docs">
+      <a href="#getting-started">Getting started</a>
+      <a href="#methodology">Methodology</a>
+      <a href="#mtf">Multi-timeframe</a>
+      <a href="#data">Data sources</a>
+      <a href="#paper">Paper trading</a>
+      <a href="#options">Options</a>
+      <a href="#dhan">Dhan live</a>
+      <a href="#alerts">TradingView alerts</a>
+      <a href="#api">API reference</a>
+    </nav>
+
+    <article class="doc-body">
+      <h2 id="getting-started">Getting started</h2>
+      <p>TradeMind is a web application. Open <a href="/app/">the app</a>, sign up with your email (an OTP is emailed; in development the code is shown on screen when no mail provider is configured), and you land in the workspace in <b>paper-trading mode</b> — no real orders, no card required.</p>
+      <ol>
+        <li>Use the global search or the <b>Scanner</b> to find setups.</li>
+        <li>Open a symbol to read its market structure and overlays.</li>
+        <li>Check multi-timeframe alignment and the risk/reward box.</li>
+        <li>Run a <b>Backtest</b> to see how the rules performed historically.</li>
+        <li>Practise in <b>Paper Trading</b> before ever connecting a real broker.</li>
+      </ol>
+
+      <h2 id="methodology">Methodology</h2>
+      <p>The strategy is fully deterministic and documented. A <b>BUY setup</b> is confirmed when all of the following are true on the analysis timeframe:</p>
+      <ul>
+        <li><b>Wick rejection</b> — a long lower wick rejecting a level, on above-average volume.</li>
+        <li><b>Unmitigated order block</b> — the rejection happens at a bullish order block that has not yet been mitigated.</li>
+        <li><b>Inducement sweep</b> — price sweeps a prior low (liquidity) before reversing.</li>
+        <li><b>4H RSI filter</b> — the resampled 4-hour RSI is below the configured threshold.</li>
+      </ul>
+      <p>Each setup is then <b>confluence-scored</b> (0–100) from independent factors: fresh signal, active zones, structure, fair-value gaps, liquidity, EMA position, volume and RSI. The same function runs live in the scanner and in the backtester, so results are reproducible.</p>
+
+      <h2 id="mtf">Multi-timeframe confirmation</h2>
+      <p>Weekly, daily, 4H and 1H are each reduced to an <code>UP</code> / <code>DOWN</code> / <code>RANGE</code> bias from market structure (BOS/CHoCH) and EMA. The alignment is reported as a weighted score so a trade is only taken when the higher timeframes agree.</p>
+
+      <h2 id="data">Data sources</h2>
+      <table>
+        <thead><tr><th>Data</th><th>Provider</th></tr></thead>
+        <tbody>
+          <tr><td>Quotes &amp; OHLCV candles</td><td>Yahoo Finance</td></tr>
+          <tr><td>Listing masters</td><td>NSE archives (<code>EQUITY_L.csv</code>, <code>fo_mktlots.csv</code>, <code>ind_nifty500list.csv</code>)</td></tr>
+          <tr><td>BSE active scrips</td><td>BSE API</td></tr>
+          <tr><td>Option chain</td><td>NSE public feed (default) or Dhan (when connected)</td></tr>
+        </tbody>
+      </table>
+      <div class="note">If a provider is unreachable the app shows an explicit <b>“unavailable”</b> state. It never substitutes a placeholder or stale value presented as live.</div>
+
+      <h2 id="paper">Paper trading</h2>
+      <p>Paper positions are simulated: entry, stop-loss and take-profit are stored, and <code>Check SL/TP</code> evaluates them against live prices. Realised and unrealised P&amp;L, win rate, profit factor and max drawdown are computed from the paper book only. Paper trading never contacts a broker.</p>
+
+      <h2 id="options">Options analytics</h2>
+      <p>The option chain supports indices (NIFTY, BANKNIFTY, FINNIFTY, MIDCPNIFTY, …) and F&amp;O stocks. Each strike shows LTP, change, open interest, OI change, implied volatility and volume for calls and puts, plus PCR and total OI. Fields the provider does not supply are shown as <b>—</b> rather than guessed. When a Dhan token is saved the Dhan chain is used; otherwise the free NSE feed is used.</p>
+
+      <h2 id="dhan">Dhan live execution (optional)</h2>
+      <p>Create a free DhanHQ account, generate an API access token and client id in the Dhan dashboard, and save them in <b>Settings → Dhan</b>. Credentials are stored server-side and never sent to the browser. Until a valid token is present the app stays in paper mode. The API base is <code>https://api.dhan.co/v2</code>.</p>
+
+      <h2 id="alerts">TradingView alerts</h2>
+      <p>Download the matching Pine Script at <a href="/smc-strategy.pine">/smc-strategy.pine</a> and add it to TradingView. Point the alert webhook at your TradeMind instance to record alerts in the app.</p>
+
+      <h2 id="api">API reference (selected)</h2>
+      <table>
+        <thead><tr><th>Endpoint</th><th>Purpose</th></tr></thead>
+        <tbody>
+          <tr><td><code>GET /api/health</code></td><td>Service health.</td></tr>
+          <tr><td><code>GET /api/market/status</code></td><td>Market state (IST) + index quotes.</td></tr>
+          <tr><td><code>GET /api/universe</code></td><td>Universe counts (NSE/BSE/F&amp;O).</td></tr>
+          <tr><td><code>GET /api/scan/latest</code></td><td>Cached scanner rows.</td></tr>
+          <tr><td><code>GET /api/analysis/:symbol</code></td><td>Full SMC analysis + candles for one symbol.</td></tr>
+          <tr><td><code>GET /api/backtest/:symbol</code></td><td>Historical backtest: equity, drawdown, trades, monthly.</td></tr>
+          <tr><td><code>GET /api/options/:symbol</code></td><td>Live option chain (auth required).</td></tr>
+          <tr><td><code>POST /api/scan/start</code></td><td>Start a background scan.</td></tr>
+        </tbody>
+      </table>
+      <p style="margin-top:18px">Most authenticated endpoints require a session cookie obtained via the OTP sign-in flow.</p>
+    </article>
+  </div>
+</main>
+
+<footer class="foot">
+  <div class="wrap foot-in">
+    <div class="foot-brand"><a class="brand" href="/"><img src="/logo.svg" alt="" width="26" height="26" /><span class="brand-name">TradeMind</span><span class="ver">2.0</span></a><p>Smart Money Concepts analysis for Indian equities, on free public market data.</p></div>
+    <div class="foot-col"><h5>Product</h5><a href="/app/">Dashboard</a><a href="/#scanner">SMC Scanner</a><a href="/#backtesting">Backtesting</a><a href="/#options">Options</a><a href="/nifty">NIFTY 3D</a></div>
+    <div class="foot-col"><h5>Resources</h5><a href="/docs">Documentation</a><a href="/smc-strategy.pine">Pine Script</a><a href="/docs#methodology">Methodology</a><a href="/docs#api">API</a></div>
+    <div class="foot-col"><h5>Legal</h5><a href="/privacy">Privacy policy</a><a href="/terms">Terms of service</a><a href="/terms#risk">Risk disclosure</a><a href="mailto:santhoshkrishna958@gmail.com">Contact</a></div>
+  </div>
+  <div class="wrap foot-bot"><span>© <span id="yr"></span> TradeMind. Prices in ₹ (INR).</span><span>Data: Yahoo Finance · NSE · BSE. Not investment advice.</span></div>
+</footer>
+<script>document.getElementById('yr').textContent=new Date().getFullYear();</script>
+</body>
+</html>

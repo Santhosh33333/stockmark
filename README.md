@@ -1,4 +1,4 @@
-# StockArtha 2.0
+# TradeMind 2.0
 
 **Live NSE & BSE smart-money scanner.** Wick rejection + unmitigated order block + inducement sweep + 4H RSI filter, with explainable scoring, live charts, paper trading, alerts, an owner/admin console and an optional Dhan live-execution bridge.
 
@@ -8,7 +8,7 @@
 
 ## Why it exists
 
-Most "ICT / SMC" scanners are black boxes or need a paid data feed. StockArtha scans the **whole** NSE + BSE universe on **free public data**, prints *exactly* which rules passed on every setup, and never invents a price. If the data provider is unreachable it shows an explicit "unavailable" state rather than a random candle.
+Most "ICT / SMC" scanners are black boxes or need a paid data feed. TradeMind scans the **whole** NSE + BSE universe on **free public data**, prints *exactly* which rules passed on every setup, and never invents a price. If the data provider is unreachable it shows an explicit "unavailable" state rather than a random candle.
 
 The strategy engine exists as **two twins that share identical rules**:
 
@@ -249,7 +249,7 @@ data/                     Runtime DB, cache, logs (git-ignored)
 npm test        # node scripts/selftest.js
 ```
 
-The suite boots a server (or targets `STOCKARTHA_BASE`) and runs the live end-to-end flow: API health, universe, market status, strategy analysis, backtest stats, the full signup → OTP → login → session path, watchlist, settings, profile update, paper open/evaluate/close, a real scan, the **live option chain** (NIFTY strikes/OI/PCR), signal + alert feeds, the Dhan guard, admin gating (non-admin → 403), the owner console, mail status, and the landing/app/manifest/icon assets.
+The suite boots a server (or targets `TRADEMIND_BASE`) and runs the live end-to-end flow: API health, universe, market status, strategy analysis, backtest stats, the full signup → OTP → login → session path, watchlist, settings, profile update, paper open/evaluate/close, a real scan, the **live option chain** (NIFTY strikes/OI/PCR), signal + alert feeds, the Dhan guard, admin gating (non-admin → 403), the owner console, mail status, and the landing/app/manifest/icon assets.
 
 > With a real email provider configured the API returns no dev OTP; the test reads the code from the `email_otps` table in `data/app.db`.
 

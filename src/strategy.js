@@ -413,7 +413,7 @@ function analyze(daily, hourly, opts = {}) {
       bars: exit - s.i,
     });
   }
-  const closed = trades.filter((t) => t.reason !== 'Open (latest bar)' && t.reason !== 'OPEN');
+  const closed = trades.filter((t) => !/^open/i.test(t.reason));
   const wins = closed.filter((t) => t.pct > 0);
   const losses = closed.filter((t) => t.pct <= 0);
   const grossProfit = wins.reduce((a, t) => a + t.pct, 0);
@@ -501,6 +501,10 @@ function analyze(daily, hourly, opts = {}) {
     mtf,
     confluence,
     stats,
+    trades: trades.map((t) => ({
+      entryTs: t.entryTs, exitTs: t.exitTs, entry: +t.entry.toFixed(2), exit: +t.exit.toFixed(2),
+      sl: +t.sl.toFixed(2), tp: +t.tp.toFixed(2), reason: t.reason, pct: +t.pct.toFixed(2), bars: t.bars,
+    })),
     bars: n,
     optsUsed: o,
   };

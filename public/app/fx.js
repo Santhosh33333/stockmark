@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════════════
-   StockArtha 2.0 — fx.js
+   TradeMind 2.0 — fx.js
    Shared 3D + motion layer for the landing page AND the app.
    - Parallax aurora background
    - 3D pointer-tilt on cards / panels

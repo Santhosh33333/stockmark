@@ -31,10 +31,12 @@ async function fetchChart(symbol, { interval = '1d', range = '6mo' } = {}) {
 }
 
 // One symbol = daily (strategy) + hourly (4H RSI aggregation)
-async function fetchSymbolData(symbol) {
+async function fetchSymbolData(symbol, opts = {}) {
+  const dailyRange = opts.dailyRange || config.scan.dailyRange;
+  const hourlyRange = opts.hourlyRange || config.scan.hourlyRange;
   const [daily, hourly] = await Promise.all([
-    fetchChart(symbol, { interval: '1d', range: config.scan.dailyRange }),
-    fetchChart(symbol, { interval: '1h', range: config.scan.hourlyRange }).catch(() => ({ meta: {}, candles: [] })),
+    fetchChart(symbol, { interval: '1d', range: dailyRange }),
+    fetchChart(symbol, { interval: '1h', range: hourlyRange }).catch(() => ({ meta: {}, candles: [] })),
   ]);
   return { daily: daily.candles, hourly: hourly.candles, meta: daily.meta };
 }

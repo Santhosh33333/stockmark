@@ -1,6 +1,6 @@
 {
-  "name": "StockArtha — NSE & BSE Smart-Money Scanner",
-  "short_name": "StockArtha",
+  "name": "TradeMind — NSE & BSE Smart-Money Scanner",
+  "short_name": "TradeMind",
   "description": "Live NSE/BSE scanner: wick rejection + order block + inducement signals with 4H RSI filter, paper trading and Dhan Algo live execution.",
   "id": "/app/",
   "start_url": "/app/",
