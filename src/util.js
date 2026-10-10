@@ -4,15 +4,22 @@ const config = require('../config');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // ── HTTP with retry (free providers are occasionally flaky) ──────────────
-async function httpText(url, { timeoutMs = 20000, retry = 2, retryDelayMs = 700, headers = {} } = {}) {
+async function httpText(url, { timeoutMs = 20000, retry = 2, retryDelayMs = 700, headers = {}, method = 'GET', body } = {}) {
   let lastErr;
   for (let attempt = 0; attempt <= retry; attempt++) {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), timeoutMs);
     try {
       const res = await fetch(url, {
+        method,
+        body,
         signal: ctrl.signal,
-        headers: { 'User-Agent': config.userAgent, Accept: '*/*', ...headers },
+        headers: {
+          'User-Agent': config.userAgent,
+          Accept: '*/*',
+          ...(body != null ? { 'Content-Type': 'application/json' } : {}),
+          ...headers,
+        },
       });
       const text = await res.text();
       if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
