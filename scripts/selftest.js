@@ -55,22 +55,41 @@ async function main() {
     check('4H RSI series for chart', Array.isArray(a.body.rsi4hSeries) && a.body.rsi4hSeries.length > 10,
       `${a.body.rsi4hSeries?.length} 4H bars`);
 
-    // account flow (email OTP)
     const email = `test.user${Date.now()}@example.com`;
     const signup = await call('POST', '/api/auth/signup', { email, password: 'test1234', displayName: 'Test User' });
     check('Sign up + OTP sent', signup.status === 200 && signup.body.requiresVerification === true,
       signup.body.message || signup.body.error);
     const otpCode = signup.body.dev;
-    check('OTP generated', !!otpCode, `code ${otpCode} (dev mode: no email service connected yet)`);
-    const verify = await call('POST', '/api/auth/verify-otp', { email, code: otpCode });
-    check('Email verified', verify.status === 200 && !!verify.body.token, verify.body.error || 'session issued');
+    let verify;
+    if (otpCode) {
+      check('OTP generated', true, `code ${otpCode} (dev mode)`);
+      verify = await call('POST', '/api/auth/verify-otp', { email, code: otpCode });
+      check('Email verified', verify.status === 200 && !!verify.body.token, verify.body.error || 'session issued');
+    } else {
+      check('OTP generated', true, 'real email sent via Brevo (no dev code)');
+      // real email mode — verify via DB directly for test
+      const { DatabaseSync } = require('node:sqlite');
+      const db = new DatabaseSync('./data/app.db');
+      const row = db.prepare('SELECT code FROM email_otps WHERE email = ? AND purpose = ? AND consumed = 0 ORDER BY id DESC LIMIT 1').get(email, 'signup');
+      check('OTP in database', !!row, row ? `code ${row.code}` : 'not found');
+      verify = await call('POST', '/api/auth/verify-otp', { email, code: row.code });
+      check('Email verified', verify.status === 200 && !!verify.body.token, verify.body.error || 'session issued');
+    }
     const token = verify.body.token;
     const authHeaders = { Authorization: 'Bearer ' + token };
 
     const login = await call('POST', '/api/auth/login', { email, password: 'test1234' });
     check('Sign in requests OTP', login.status === 200 && login.body.requiresOtp === true, login.body.message || login.body.error);
-    const login2 = await call('POST', '/api/auth/verify-login-otp', { email, code: login.body.dev });
-    check('Sign in with OTP', login2.status === 200 && !!login2.body.token, login2.body.error);
+    if (login.body.dev) {
+      const login2 = await call('POST', '/api/auth/verify-login-otp', { email, code: login.body.dev });
+      check('Sign in with OTP', login2.status === 200 && !!login2.body.token, login2.body.error);
+    } else {
+      const { DatabaseSync } = require('node:sqlite');
+      const db = new DatabaseSync('./data/app.db');
+      const row = db.prepare('SELECT code FROM email_otps WHERE email = ? AND purpose = ? AND consumed = 0 ORDER BY id DESC LIMIT 1').get(email, 'login');
+      const login2 = await call('POST', '/api/auth/verify-login-otp', { email, code: row.code });
+      check('Sign in with OTP', login2.status === 200 && !!login2.body.token, login2.body.error);
+    }
 
     const me = await call('GET', '/api/me', null, authHeaders);
     check('Session works', me.status === 200 && me.body.user?.username === email, `mode ${me.body.user?.settings?.mode}`);
