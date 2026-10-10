@@ -7,6 +7,7 @@
   const inrC = (v) => { if (v == null || !isFinite(v)) return '—'; const a = Math.abs(v); return (v < 0 ? '-₹' : '₹') + (a >= 1e7 ? (a / 1e7).toFixed(2) + ' Cr' : a >= 1e5 ? (a / 1e5).toFixed(2) + ' L' : a.toLocaleString('en-IN', { maximumFractionDigits: 0 })); };
   const pct = (v) => (v == null || !isFinite(v)) ? '—' : (v > 0 ? '+' : '') + Number(v).toFixed(2) + '%';
   const dt = (t) => t ? new Date(t).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—';
+  const dtDate = (t) => t ? new Date(t).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric' }) : '—';
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
   const state = {
@@ -577,10 +578,29 @@
   /* ── SETTINGS ── */
   function renderSettings() {
     const s = state.user.settings, u = state.user;
+    const initials = (u.displayName || u.username || '?').trim().split(/\s+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase();
+    const joined = u.createdAt ? dtDate(u.createdAt) : '—';
+    const lastLogin = u.lastLogin ? dtDate(u.lastLogin) : '—';
     return `
-    <div class="card" style="margin-top:14px">
-      <div class="row between"><div><b>${esc(u.displayName)}</b><div class="tiny muted">${esc(u.username)}${u.isAdmin ? ' · OWNER' : ''}</div></div>
-        <button class="btn sm" onclick="window.__sa.toast('Signed in as ' + '${esc(u.username)}')">Account</button></div>
+    <div class="profile-card card">
+      <div class="avatar">${esc(initials)}</div>
+      <div class="profile-main">
+        <div class="row between wrap" style="gap:8px">
+          <div>
+            <b style="font-size:17px">${esc(u.displayName)}</b>
+            ${u.isAdmin ? ' <span class="pill buy">OWNER</span>' : ' <span class="pill none">member</span>'}
+            <div class="tiny muted">${esc(u.username)}</div>
+          </div>
+          <button class="btn sm" onclick="window.__sa.signOut()">Sign out</button>
+        </div>
+        <div class="profile-fields">
+          <label class="pf"><span class="tiny muted">Display name</span>
+            <span class="row" style="gap:6px"><input id="pf-name" value="${esc(u.displayName)}" maxlength="40" style="flex:1">
+            <button class="btn sm primary" onclick="window.__sa.saveProfile()">Save</button></span></label>
+          <div class="pf"><span class="tiny muted">Member since</span><b>${joined}</b></div>
+          <div class="pf"><span class="tiny muted">Last sign-in</span><b>${lastLogin}</b></div>
+        </div>
+      </div>
     </div>
 
     <div class="section-title"><h2>Trading mode</h2></div>
@@ -610,10 +630,10 @@
       </select></div>
     </div>
 
-    <div class="section-title"><h2>Email OTP sender</h2></div>
+    ${u.isAdmin ? `
+    <div class="section-title"><h2>Email OTP sender</h2><span class="pill buy">owner only</span></div>
     <div class="card" id="mail-card">
       <div class="set-row"><span class="lbl">Status<small>Free senders: Brevo (300/day) or Gmail app password</small></span><b id="mail-status">…</b></div>
-      ${u.isAdmin ? `
       <div class="set-row"><span class="lbl">Provider</span><select id="mail-provider" onchange="window.__sa.mailProvider(this.value)">
         <option value="dev">None (codes shown in app)</option><option value="gmail">Gmail — free App Password</option><option value="brevo">Brevo — free API</option><option value="smtp">Custom SMTP</option>
       </select></div>
@@ -629,8 +649,8 @@
       <div class="row" style="gap:8px;margin-top:12px">
         <button class="btn sm primary" onclick="window.__sa.mailSave()">Save sender</button>
         <button class="btn sm" onclick="window.__sa.mailTest()">Send test code</button>
-      </div>` : `<p class="tiny muted" style="margin:0">The account owner manages the email sender. Until it is connected, sign-in codes are shown on this screen.</p>`}
-    </div>
+      </div>
+    </div>` : ''}
 
     <div class="section-title"><h2>Alerts</h2></div>
     <div class="card">
@@ -787,6 +807,7 @@
     else if (route === 'alerts') v.innerHTML = await renderAlerts();
     else if (route === 'settings') { v.innerHTML = renderSettings(); setTimeout(actions.mailStatus, 30); }
     else if (route === 'admin') { v.innerHTML = await renderAdmin(); setTimeout(actions.mailStatus, 30); actions.adminJobs(); }
+    applyAdminNav();
     // progress refs
     const bar = $('#scan-bar'); if (bar && state.scanProgress) bar.style.width = state.scanProgress + '%';
   }
@@ -832,6 +853,23 @@
         toast('Saved', 'ok');
         if (k === 'mode') render();
       } catch (e) { toast(e.message, 'err'); }
+    },
+    async saveProfile() {
+      const el = $('#pf-name'); if (!el) return;
+      const name = el.value.trim();
+      if (!name) { toast('Display name cannot be empty', 'err'); return; }
+      try {
+        const j = await api('/me', { method: 'PATCH', body: { displayName: name } });
+        state.user = j.user;
+        toast('Profile saved', 'ok');
+        render();
+      } catch (e) { toast(e.message, 'err'); }
+    },
+    signOut() {
+      try { api('/auth/logout', { method: 'POST' }).catch(() => { }); } catch { }
+      localStorage.removeItem('sa_token'); state.token = null; state.user = null;
+      if (state.es) state.es.close();
+      location.reload();
     },
     async tgTest() {
       try { const j = await api('/alerts/telegram-test', { method: 'POST' }); toast(j.ok ? 'Telegram connected' : (j.error || 'Failed'), j.ok ? 'ok' : 'err'); }

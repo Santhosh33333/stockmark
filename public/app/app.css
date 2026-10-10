@@ -150,6 +150,14 @@ input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(79
 .pill.sell{color:#fca5a5;border-color:rgba(239,68,68,.4);background:rgba(239,68,68,.12)}
 .mtf-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;text-align:center}
 .mtf-tf{padding:8px 4px;border:1px solid var(--line);border-radius:10px;background:rgba(148,163,184,.04)}
+.profile-card{display:flex;gap:16px;align-items:flex-start;margin-top:14px}
+.profile-card .avatar{width:64px;height:64px;border-radius:50%;flex:0 0 64px;display:grid;place-items:center;font-size:22px;font-weight:800;color:#04122a;background:linear-gradient(135deg,#7dd3fc,#22c55e);box-shadow:0 6px 20px rgba(56,189,248,.28)}
+.profile-main{flex:1;min-width:0}
+.profile-fields{display:grid;grid-template-columns:1fr 1fr;gap:10px 18px;margin-top:14px}
+.profile-fields .pf{display:flex;flex-direction:column;gap:4px;min-width:0}
+.profile-fields .pf input{width:100%}
+.profile-fields .pf:first-child{grid-column:1 / -1}
+@media(max-width:560px){.profile-card{flex-direction:column;align-items:stretch}.profile-fields{grid-template-columns:1fr}.profile-card .avatar{width:52px;height:52px;flex-basis:52px}}
 .pill.watch{color:#fcd34d;border-color:rgba(251,191,36,.4);background:rgba(251,191,36,.1)}
 .pill.none{color:var(--dim2);border-color:var(--line);background:rgba(148,163,184,.08)}
 .pill.fno{color:#a5b4fc;border-color:rgba(129,140,248,.4);background:rgba(129,140,248,.12)}

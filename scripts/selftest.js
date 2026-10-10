@@ -155,6 +155,15 @@ async function main() {
     const dhan = await call('POST', '/api/dhan/test', {}, authHeaders);
     check('Dhan guard (no token → clean refusal)', dhan.status === 200 && dhan.body.ok === false, dhan.body.error || '');
 
+    // ── user profile (editable display name) ──
+    const prof = await call('PATCH', '/api/me', { displayName: 'Selftest User' }, authHeaders);
+    check('Update profile (display name)', prof.status === 200 && prof.body.user?.displayName === 'Selftest User',
+      prof.body.user?.displayName || 'no change');
+
+    // ── admin gating (test user is NOT admin yet) ──
+    const nonguard = await call('GET', '/api/admin/overview', null, authHeaders);
+    check('Admin guard (non-admin → 403)', nonguard.status === 403, `status ${nonguard.status}`);
+
     // ── owner / admin console (temporarily promote the test user) ──
     {
       const { DatabaseSync } = require('node:sqlite');

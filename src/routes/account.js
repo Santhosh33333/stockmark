@@ -145,6 +145,19 @@ router.get('/me', (req, res) => {
   res.json({ user: auth.publicUser(req.user) });
 });
 
+// Update profile (display name). Email/username is the login identity and is
+// intentionally not editable here.
+router.patch('/me', requireUser, (req, res) => {
+  const body = req.body || {};
+  if (body.displayName != null) {
+    const name = String(body.displayName).trim().slice(0, 40);
+    if (!name) return res.status(400).json({ error: 'Display name cannot be empty' });
+    stmt.updateDisplayName.run(name, req.user.id);
+  }
+  const fresh = stmt.userById.get(req.user.id);
+  res.json({ user: auth.publicUser(fresh) });
+});
+
 router.put('/me/settings', requireUser, (req, res) => {
   const s = auth.updateSettings(req.user.id, req.body || {});
   res.json({ settings: s });

@@ -108,6 +108,7 @@ const stmt = {
   allUsers: db.prepare(`SELECT id, username, display_name, is_admin, created_at, last_login FROM users ORDER BY id`),
   touchLogin: db.prepare(`UPDATE users SET last_login = ? WHERE id = ?`),
   updateSettings: db.prepare(`UPDATE users SET settings = ? WHERE id = ?`),
+  updateDisplayName: db.prepare(`UPDATE users SET display_name = ? WHERE id = ?`),
   deleteUser: db.prepare(`DELETE FROM users WHERE id = ?`),
   insertSession: db.prepare(`INSERT INTO sessions (token, user_id, created_at, expires_at) VALUES (?,?,?,?)`),
   session: db.prepare(`SELECT * FROM sessions WHERE token = ?`),

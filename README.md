@@ -27,7 +27,8 @@ The strategy engine exists as **two twins that share identical rules**:
 - 📈 **Real charts** — candles, order-block zones (fresh / mitigated / invalidated), FVG bands, BOS/CHoCH markers, BUY markers, 4H RSI series.
 - 💼 **Paper trading** — SL/TP/time exits on live ₹ prices, portfolio stats (win rate, profit factor, drawdown), auto-fill from signals.
 - 🔔 **Alerts** — in-app feed, browser notifications, Telegram bot, and a TradingView webhook endpoint.
-- 🛡️ **Owner console** — overview, users (role toggle + password reset), signals, trades, audit log and system health, all in one tabbed panel.
+- 🛡️ **Owner console** — overview, users (role toggle + password reset), signals, trades, audit log and system health, all in one tabbed panel. Owner-only UI (admin nav, email-sender config, admin console) is rendered **only for the owner**; other users never see it, and every `/admin/*` route is enforced server-side with `403`.
+- 👤 **Profile** — avatar with initials, editable display name, role badge, member-since and last sign-in, plus one-tap sign out. Profile and admin visibility are covered by the live test suite.
 - 🤖 **Optional live execution** — bring your own free DhanHQ API key; risk caps enforced server-side; paper stays fully separate.
 - 📱 **Installable PWA** + a marketing landing page separate from the app.
 - 🎨 **2.0 UI** — desktop sidebar + mobile bottom nav, 3D tilt / parallax / glow motion layer (respects `prefers-reduced-motion`).
@@ -174,7 +175,7 @@ Base: `/api`. Auth via `Authorization: Bearer <token>` (issued by the OTP flows)
 | `POST` | `/auth/signup` \| `/auth/login` | Start email + password (issues OTP) |
 | `POST` | `/auth/verify-otp` \| `/auth/verify-login-otp` | Verify OTP → session token |
 | `POST` | `/auth/resend-otp` \| `/auth/logout` | Resend / end session |
-| `GET` | `/me` · `PUT` `/me/settings` | Profile + settings |
+| `GET` | `/me` · `PUT` `/me/settings` · `PATCH` `/me` | Profile (read / settings / display-name update) |
 | `GET`/`POST`/`DELETE` | `/watchlist[/:symbol]` | Watchlist |
 | `GET` | `/paper/stats` | Portfolio stats |
 | `POST` | `/paper/open` \| `/paper/close` \| `/paper/evaluate` \| `/paper/auto` | Paper trades |
@@ -245,7 +246,7 @@ data/                     Runtime DB, cache, logs (git-ignored)
 npm test        # node scripts/selftest.js
 ```
 
-The suite boots a server (or targets `STOCKARTHA_BASE`) and runs the live end-to-end flow: API health, universe, market status, strategy analysis, backtest stats, the full signup → OTP → login → session path, watchlist, settings, paper open/evaluate/close, a real scan, signal + alert feeds, the Dhan guard, mail status, and the landing/app/manifest/icon assets.
+The suite boots a server (or targets `STOCKARTHA_BASE`) and runs the live end-to-end flow: API health, universe, market status, strategy analysis, backtest stats, the full signup → OTP → login → session path, watchlist, settings, profile update, paper open/evaluate/close, a real scan, signal + alert feeds, the Dhan guard, admin gating (non-admin → 403), the owner console, mail status, and the landing/app/manifest/icon assets.
 
 > With a real email provider configured the API returns no dev OTP; the test reads the code from the `email_otps` table in `data/app.db`.
 
