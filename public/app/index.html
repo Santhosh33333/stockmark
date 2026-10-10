@@ -3,13 +3,14 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
-<title>TradeMind 2.0 — Live NSE &amp; BSE Smart-Money Scanner</title>
+<title>TradeMind — Live NSE &amp; BSE Smart-Money Scanner</title>
 <meta name="description" content="Live NSE/BSE stock scanner: wick rejection + order block + inducement signals with 4H RSI filter, paper trading and Dhan Algo execution." />
 <meta name="theme-color" content="#05070f" />
 <link rel="manifest" href="manifest.webmanifest" />
 <link rel="icon" type="image/svg+xml" href="/logo.svg" />
 <link rel="apple-touch-icon" href="/icons/icon-192.png" />
-<link rel="stylesheet" href="app.css?v=5" />
+<link rel="stylesheet" href="app.css?v=7" />
+<link rel="stylesheet" href="/future.css?v=1" />
 </head>
 <body>
 
@@ -25,7 +26,7 @@
   <div class="auth-card tilt" data-tilt>
     <div class="brand-3d">
       <img src="/assets/trademind-logo.png" alt="TradeMind logo" class="logo-3d" />
-      <h1 class="brand-title">Trade<span>Mind</span> <span class="v2">2.0</span></h1>
+      <h1 class="brand-title">Trade<span>Mind</span> <span class="v2">FUTURE</span></h1>
     </div>
     <p class="tagline">Live NSE &amp; BSE Smart-Money Scanner</p>
 
@@ -77,7 +78,8 @@
       <div class="side-brand">
         <img src="/assets/trademind-logo.png" alt="" />
         <b>TradeMind</b>
-        <span class="v2">2.0</span>
+        <span class="v2">FUTURE</span>
+        <button class="side-collapse" id="side-collapse" title="Collapse sidebar" aria-label="Collapse sidebar" aria-expanded="true">‹</button>
       </div>
       <button class="navbtn active" data-route="dashboard"><span>📊</span>Dashboard</button>
       <button class="navbtn" data-route="scanner"><span>🔎</span>Scanner</button>
@@ -95,11 +97,18 @@
         <div class="topbar-left">
           <img src="/assets/trademind-logo.png" class="topbar-logo" alt="" />
           <div>
-            <div class="app-name">TradeMind<span class="v2">2.0</span></div>
+            <div class="app-name">TradeMind<span class="v2">FUTURE</span></div>
             <div class="market-pill" id="market-pill"><span class="dot"></span><span id="market-text">—</span></div>
           </div>
         </div>
+        <label class="gsearch" id="gsearch" for="gsearch-input" title="Search symbols (Ctrl/Cmd-K)">
+          <span class="ico" aria-hidden="true">⌕</span>
+          <input id="gsearch-input" type="search" placeholder="Search NSE / BSE symbols…" autocomplete="off" aria-label="Search symbols" />
+          <span class="kbd" aria-hidden="true">Ctrl K</span>
+        </label>
         <div class="topbar-right">
+          <div class="fresh" id="fresh" title="Market data freshness" aria-live="polite"><span class="fd"></span><span class="lbl"><b id="fresh-src">—</b> · <span id="fresh-when">—</span></span></div>
+          <button class="icon-btn" id="btn-theme" title="Toggle light / dark theme" aria-label="Toggle theme">◐</button>
           <button class="icon-btn hidden" id="btn-admin" title="Owner console">🛡️</button>
           <button class="icon-btn" id="btn-alerts" title="Alerts">🔔<span class="badge hidden" id="alert-badge"></span></button>
           <button class="icon-btn" id="btn-logout" title="Sign out">⏻</button>
@@ -127,8 +136,27 @@
 </div>
 
 <div id="toast-wrap"></div>
-<script src="chart.js?v=5"></script>
-<script src="app.js?v=5"></script>
-<script src="fx.js?v=5"></script>
+
+<div class="cmdk" id="cmdk" role="dialog" aria-modal="true" aria-label="Command palette" hidden>
+  <div class="cmdk-panel">
+    <div class="cmdk-head">
+      <span class="ico" aria-hidden="true">⌘</span>
+      <input id="cmdk-input" placeholder="Search symbols, pages and actions…" autocomplete="off" spellcheck="false" aria-label="Search" />
+      <span class="kbd" aria-hidden="true">Esc</span>
+    </div>
+    <div class="cmdk-list" id="cmdk-list" role="listbox" aria-label="Results"></div>
+    <div class="cmdk-foot">
+      <span><span class="kbd">↑</span><span class="kbd">↓</span> navigate</span>
+      <span><span class="kbd">↵</span> open</span>
+      <span id="cmdk-src">—</span>
+    </div>
+  </div>
+</div>
+<div class="kbdhint" aria-hidden="true">Press <span class="kbd">Ctrl</span>+<span class="kbd">K</span> to search · <span class="kbd">g</span> then a key to jump</div>
+
+<script src="chart.js?v=7"></script>
+<script src="app.js?v=7"></script>
+<script src="fx.js?v=7"></script>
+<script src="shell.js?v=7"></script>
 </body>
 </html>

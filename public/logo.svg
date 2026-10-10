@@ -1,40 +1,53 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="TradeMind">
+  <!-- Orderly mark: an ascending market-structure line breaking through candles. -->
   <defs>
-    <linearGradient id="bgG" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#061a2b"/>
-      <stop offset=".5" stop-color="#04101f"/>
-      <stop offset="1" stop-color="#03131d"/>
+    <linearGradient id="tmBadge" x1="8" y1="6" x2="56" y2="60" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0d1a2e"/>
+      <stop offset="1" stop-color="#060b16"/>
     </linearGradient>
-    <linearGradient id="ringG" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#00f0b5"/>
-      <stop offset="1" stop-color="#29cfff"/>
+    <linearGradient id="tmLine" x1="12" y1="50" x2="54" y2="16" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#10d98a"/>
+      <stop offset=".55" stop-color="#22d3ee"/>
+      <stop offset="1" stop-color="#38bdf8"/>
     </linearGradient>
-    <linearGradient id="lineG" x1="0" y1="1" x2="1" y2="0">
-      <stop offset="0" stop-color="#00b98a"/>
-      <stop offset="1" stop-color="#5cf0d0"/>
+    <radialGradient id="tmNode" cx=".5" cy=".5" r=".5">
+      <stop offset="0" stop-color="#eafffb"/>
+      <stop offset=".5" stop-color="#22d3ee"/>
+      <stop offset="1" stop-color="#22d3ee" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="tmEdge" x1="6" y1="4" x2="58" y2="62" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#10d98a" stop-opacity=".85"/>
+      <stop offset="1" stop-color="#22d3ee" stop-opacity=".55"/>
     </linearGradient>
-    <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
-      <feGaussianBlur stdDeviation="14" result="b"/>
-      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
-    </filter>
   </defs>
-  <rect width="512" height="512" rx="112" fill="url(#bgG)"/>
-  <rect x="30" y="30" width="452" height="452" rx="92" fill="none" stroke="url(#ringG)" stroke-width="3" opacity=".55"/>
-  <!-- candlesticks -->
-  <g opacity=".45" stroke="#0f7f8f" stroke-width="10" stroke-linecap="round">
-    <line x1="150" y1="300" x2="150" y2="360"/>
-    <line x1="216" y1="266" x2="216" y2="340"/>
-    <line x1="282" y1="232" x2="282" y2="312"/>
-    <line x1="348" y1="196" x2="348" y2="276"/>
+
+  <!-- badge -->
+  <rect x="3" y="3" width="58" height="58" rx="17" fill="url(#tmBadge)" stroke="url(#tmEdge)" stroke-width="1.6"/>
+  <rect x="3" y="3" width="58" height="58" rx="17" fill="none" stroke="#ffffff" stroke-opacity=".06"/>
+
+  <!-- candles: bull, bull, bull — increasing highs -->
+  <g stroke-linecap="round">
+    <g stroke="#10d98a" stroke-width="2" opacity=".9" fill="#10d98a">
+      <line x1="19" y1="30" x2="19" y2="48"/>
+      <rect x="16.4" y="35" width="5.2" height="9" rx="1.4"/>
+    </g>
+    <g stroke="#19c8b0" stroke-width="2" opacity=".95" fill="#19c8b0">
+      <line x1="29" y1="24" x2="29" y2="44"/>
+      <rect x="26.4" y="29" width="5.2" height="10" rx="1.4"/>
+    </g>
+    <g stroke="#22d3ee" stroke-width="2" fill="#22d3ee">
+      <line x1="39" y1="18" x2="39" y2="40"/>
+      <rect x="36.4" y="23" width="5.2" height="11" rx="1.4"/>
+    </g>
   </g>
-  <g fill="#0f8f8f" opacity=".5">
-    <rect x="140" y="316" width="20" height="34" rx="4"/>
-    <rect x="206" y="284" width="20" height="44" rx="4"/>
-    <rect x="272" y="250" width="20" height="52" rx="4"/>
-    <rect x="338" y="212" width="20" height="54" rx="4"/>
-  </g>
-  <!-- upward structure line -->
-  <path d="M120 356 L200 300 L268 322 L392 176" fill="none" stroke="url(#lineG)" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" filter="url(#glow)"/>
-  <path d="M330 176 L392 176 L392 238" fill="none" stroke="url(#lineG)" stroke-width="20" stroke-linecap="round" stroke-linejoin="round"/>
-  <text x="256" y="452" text-anchor="middle" fill="#eaf8ff" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="86" font-weight="800" letter-spacing="1">TradeMind</text>
+
+  <!-- market-structure break line (BOS) sweeping up through the highs -->
+  <path d="M11 47 L22 39 L30 43 L44 21" fill="none" stroke="url(#tmLine)" stroke-width="3"
+        stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- break point -->
+  <path d="M44 21 L52 15" fill="none" stroke="url(#tmLine)" stroke-width="3" stroke-linecap="round" stroke-dasharray="1 5"/>
+
+  <!-- spark node at the break -->
+  <circle cx="44" cy="21" r="6.5" fill="url(#tmNode)"/>
+  <circle cx="44" cy="21" r="2.6" fill="#eafffb"/>
 </svg>

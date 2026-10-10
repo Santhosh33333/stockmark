@@ -1,13 +1,14 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="no-js">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="theme-color" content="#030b18">
+<meta name="theme-color" content="#05070e">
 <meta name="description" content="TradeMind — NSE Smart Money Concepts analysis, order blocks, liquidity, multi-timeframe confirmation, backtesting and paper trading on real market data.">
 <title>TradeMind — See the Market Structure. Trade With a Plan.</title>
 <link rel="icon" type="image/svg+xml" href="/logo.svg">
 <link rel="apple-touch-icon" href="/icons/icon-192.png">
+<link rel="stylesheet" href="/future.css?v=1">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="TradeMind">
 <meta property="og:title" content="TradeMind — See the Market Structure. Trade With a Plan.">
@@ -18,115 +19,442 @@
 {"@context":"https://schema.org","@type":"SoftwareApplication","name":"TradeMind","applicationCategory":"FinanceApplication","operatingSystem":"Web","description":"NSE Smart Money Concepts analysis: liquidity sweeps, order blocks, multi-timeframe confirmation, backtesting, paper trading and options analytics on real market data.","offers":{"@type":"Offer","price":"0","priceCurrency":"INR"}}
 </script>
 <style>
-:root{--bg:#030b18;--panel:#071629;--panel2:#0a1d32;--line:rgba(92,177,217,.18);--muted:#9ab0c8;--text:#f4f9ff;--green:#00f0b5;--green2:#00b98a;--blue:#38bdf8;--red:#ff5475;--purple:#a78bfa;--radius:20px}
-*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:radial-gradient(ellipse at 72% 15%,rgba(0,153,157,.13),transparent 32%),radial-gradient(ellipse at 10% 44%,rgba(0,94,177,.11),transparent 30%),var(--bg);color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;overflow-x:hidden}a{color:inherit;text-decoration:none}button{font:inherit;cursor:pointer}.wrap{width:min(1180px,calc(100% - 44px));margin:auto}
-.nav{position:sticky;top:0;z-index:20;background:rgba(3,11,24,.8);backdrop-filter:blur(18px);border-bottom:1px solid var(--line)}.navin{height:76px;display:flex;align-items:center;justify-content:space-between;gap:22px}.brand{display:flex;align-items:center;gap:10px;font-size:21px;font-weight:800;letter-spacing:-.7px;white-space:nowrap}.brandmark{width:34px;height:34px;border-radius:11px;display:grid;place-items:center;background:linear-gradient(135deg,var(--green),#00a9ff);color:#03111c;box-shadow:0 0 25px #00f0b533}.brandmark svg{width:22px;height:22px}.links{display:flex;align-items:center;gap:26px;color:#c3d0df;font-size:13px}.links a{transition:color .2s}.links a:hover{color:var(--green)}.navright{display:flex;gap:10px;align-items:center}
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:9px;padding:13px 18px;border-radius:12px;border:1px solid transparent;font-size:13px;font-weight:750;cursor:pointer;transition:transform .2s,box-shadow .2s,border-color .2s,background .2s}.btn:hover{transform:translateY(-2px)}.btn-primary{background:linear-gradient(120deg,#00f0b5,#00d6a1);color:#001a19;box-shadow:0 8px 28px #00dca62a}.btn-primary:hover{box-shadow:0 12px 36px #00dca64a}.btn-ghost{border-color:#23445c;background:#071629;color:#eff8ff}.btn-ghost:hover{border-color:var(--green)}.menu{display:none;background:none;border:1px solid var(--line);color:white;border-radius:10px;padding:9px}
-.hero{padding:82px 0 72px;position:relative;isolation:isolate}.hero:before{content:"";position:absolute;z-index:-1;width:570px;height:570px;border-radius:50%;right:0;top:-40px;background:radial-gradient(circle,#00e6b315,transparent 67%);filter:blur(10px)}.hero-grid{display:grid;grid-template-columns:.88fr 1.12fr;gap:35px;align-items:center}.eyebrow{display:inline-flex;align-items:center;gap:9px;border:1px solid #1c5261;border-radius:999px;padding:8px 13px;color:#c6e7f0;background:#071b2b;font-size:12px;font-weight:650}.dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 12px var(--green);animation:pulse 1.8s infinite}.dot.off{background:#6b7896;box-shadow:none;animation:none}.hero h1{font-size:clamp(42px,5.2vw,68px);line-height:1.04;letter-spacing:-3.3px;margin:24px 0 21px;font-weight:850}.gradient{background:linear-gradient(95deg,#00f0b5 8%,#29cfff 90%);-webkit-background-clip:text;background-clip:text;color:transparent}.hero p{max-width:500px;color:#b1c4d8;font-size:16px;line-height:1.75;margin:0}.actions{display:flex;gap:12px;flex-wrap:wrap;margin:28px 0 31px}.trustrow{display:flex;gap:19px;flex-wrap:wrap;color:#b7c8d8;font-size:11px}.trustrow span{display:flex;align-items:center;gap:7px}.check{color:var(--green);font-weight:900}
-.visual{perspective:1200px;min-height:430px;position:relative;display:grid;place-items:center}.orb{position:absolute;width:300px;height:300px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#00f0b51f,transparent 67%);filter:blur(8px);animation:orb 7s ease-in-out infinite}.dashboard{position:relative;width:min(100%,590px);padding:18px;border:1px solid #23617a;border-radius:22px;background:linear-gradient(145deg,rgba(12,34,56,.96),rgba(4,15,31,.96));box-shadow:0 30px 90px #0009,0 0 45px #00e5bb12,inset 0 1px #8ce9ff19;transform:rotateY(-11deg) rotateX(5deg);transform-style:preserve-3d;animation:float 6s ease-in-out infinite;transition:transform .25s}.dashhead{display:flex;justify-content:space-between;align-items:center;padding:2px 2px 15px;border-bottom:1px solid var(--line);font-size:12px}.ticker{display:flex;gap:7px;align-items:center;font-weight:750}.ticker small{font-size:10px;color:var(--muted);font-weight:500}.live{font-size:10px;color:var(--green);display:flex;align-items:center;gap:6px}.dashbody{display:grid;grid-template-columns:1fr 148px;gap:12px;padding-top:14px}.chartbox{min-width:0;background:#04101f;border:1px solid #14344b;border-radius:13px;padding:12px;overflow:hidden}.charttop{display:flex;justify-content:space-between;color:#a8bfd2;font-size:10px;margin-bottom:9px}.charttop strong{color:#eaf8ff}.chart{width:100%;height:222px;display:block}.sidecol{display:flex;flex-direction:column;gap:10px}.mini{padding:12px;border-radius:12px;background:linear-gradient(145deg,#0b2237,#071629);border:1px solid #193e53}.mini label{display:block;font-size:10px;color:#91a9be;margin-bottom:9px}.mini strong{font-size:19px;letter-spacing:-.5px}.up{color:var(--green)}.down{color:var(--red)}.mini p{font-size:10px;color:#91a9be;margin:7px 0 0}.tf{display:flex;justify-content:space-between;gap:8px;padding:7px 0;border-bottom:1px solid #173247;font-size:10px}.tf:last-child{border:0}.pill{font-size:9px;padding:3px 6px;border-radius:5px;background:#07392f;color:var(--green)}.pill.bear{background:#3a1420;color:#ff8fa6}.pill.flat{background:#16283a;color:#9ab0c8}.dashfoot{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:12px}.stat{border:1px solid #18364b;background:#07182a;border-radius:10px;padding:10px}.stat small{display:block;color:#8fa7bd;font-size:9px}.stat strong{display:block;font-size:14px;margin-top:5px}.float-tag{position:absolute;z-index:2;padding:12px 15px;background:rgba(5,24,39,.9);border:1px solid #1a6470;border-radius:13px;box-shadow:0 12px 32px #0006;backdrop-filter:blur(12px);font-size:11px;animation:floatTag 5s ease-in-out infinite}.float-tag strong{display:block;font-size:15px;margin-top:4px}.tag1{left:-12px;top:45px}.tag2{right:-5px;bottom:30px;animation-delay:-2s}.tagicon{display:inline-grid;place-items:center;width:25px;height:25px;border-radius:8px;background:#07392f;color:var(--green);margin-right:6px}
-.section{padding:76px 0;border-top:1px solid var(--line)}.section-head{display:flex;align-items:end;justify-content:space-between;gap:25px;margin-bottom:29px}.kicker{font-size:11px;text-transform:uppercase;letter-spacing:1.7px;color:var(--green);font-weight:800}.section h2{font-size:clamp(30px,3.5vw,43px);letter-spacing:-1.7px;line-height:1.12;margin:12px 0}.section-head p,.section-intro{max-width:490px;color:var(--muted);line-height:1.7;font-size:14px;margin:0}
-.feature-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:15px}.feature{padding:20px;border-radius:17px;border:1px solid var(--line);background:linear-gradient(145deg,#0a1b2eaa,#061325aa);transition:transform .25s,border-color .25s,background .25s;position:relative;overflow:hidden}.feature:before{content:"";position:absolute;width:100px;height:100px;right:-50px;top:-50px;background:#00e6b50b;border-radius:50%;transition:transform .35s}.feature:hover{transform:translateY(-6px);border-color:#217b7d;background:#0b2033}.feature:hover:before{transform:scale(2.2)}.ficon{width:43px;height:43px;border:1px solid #175b5a;border-radius:13px;background:#06332f;color:var(--green);display:grid;place-items:center;margin-bottom:17px;font-size:20px}.feature h3{font-size:15px;margin:0 0 9px}.feature p{font-size:12px;color:var(--muted);line-height:1.7;margin:0}.feature .learn{display:inline-block;margin-top:15px;color:#7cebd1;font-size:11px;font-weight:700}
-.split{display:grid;grid-template-columns:.8fr 1.2fr;gap:55px;align-items:center}.steps{display:grid;grid-template-columns:repeat(2,1fr);gap:13px}.step{display:flex;gap:13px;padding:17px;border:1px solid var(--line);border-radius:15px;background:#07172a99}.num{flex:0 0 34px;width:34px;height:34px;display:grid;place-items:center;border-radius:11px;background:#06352f;border:1px solid #126a5b;color:var(--green);font-size:12px;font-weight:800}.step h3{font-size:13px;margin:1px 0 6px}.step p{font-size:11px;line-height:1.55;color:var(--muted);margin:0}
-.workflow-art{min-height:250px;border:1px solid var(--line);border-radius:20px;padding:22px;background:radial-gradient(ellipse at 50% 100%,#00e7b512,transparent 65%),#061426;position:relative;overflow:hidden}.workflow-art h3{margin:0 0 7px}.workflow-art>p{margin:0;color:var(--muted);font-size:12px}.bars{height:130px;display:flex;align-items:end;gap:8px;padding:15px 4px 0;border-bottom:1px solid #204156;margin-top:14px}.bars i{display:block;flex:1;border-radius:5px 5px 0 0;background:linear-gradient(#00f0b5,#087d75);box-shadow:0 0 15px #00f0b515}.bars i:nth-child(3n){background:linear-gradient(#ff7088,#8f304f)}.bars i:nth-child(1){height:42%}.bars i:nth-child(2){height:30%}.bars i:nth-child(3){height:35%}.bars i:nth-child(4){height:56%}.bars i:nth-child(5){height:49%}.bars i:nth-child(6){height:70%}.bars i:nth-child(7){height:62%}.bars i:nth-child(8){height:83%}.bars i:nth-child(9){height:76%}.bars i:nth-child(10){height:94%}.bars i:nth-child(11){height:87%}.bars i:nth-child(12){height:100%}.art-foot{display:flex;justify-content:space-between;color:#9ab0c8;font-size:10px;margin-top:10px}
-.trust{display:grid;grid-template-columns:1fr 1fr;gap:20px}.trustbox{padding:25px;border:1px solid var(--line);border-radius:18px;background:#061629}.provider-row{display:flex;flex-wrap:wrap;gap:10px;margin-top:20px}.provider{display:flex;align-items:center;gap:9px;border:1px solid #1c3c52;border-radius:11px;padding:12px 14px;color:#d7e7f5;font-size:12px}.provider b{color:var(--green)}.trust-list{display:grid;gap:14px;margin-top:20px}.trust-list span{display:flex;gap:10px;color:#c1d2e2;font-size:13px;align-items:start}.trust-list i{font-style:normal;color:var(--green)}
-.cta{padding:65px 0;background:radial-gradient(ellipse at 50% 100%,#00e9b51b,transparent 62%);border-top:1px solid var(--line);text-align:center}.cta h2{font-size:clamp(34px,4vw,49px);letter-spacing:-1.8px;margin:12px 0}.cta p{color:var(--muted);font-size:14px;line-height:1.7;max-width:570px;margin:0 auto 25px}
-.footer{border-top:1px solid var(--line);padding:27px 0 34px}.footerin{display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap}.footlinks{display:flex;gap:19px;flex-wrap:wrap;color:#92a8bd;font-size:11px}.copyright{font-size:10px;color:#72869b;margin-top:22px}
-.reveal{opacity:0;transform:translateY(22px);transition:opacity .7s ease,transform .7s ease}.reveal.visible{opacity:1;transform:translateY(0)}
-@keyframes pulse{0%,100%{opacity:1;box-shadow:0 0 12px var(--green)}50%{opacity:.45;box-shadow:0 0 2px var(--green)}}@keyframes float{0%,100%{transform:rotateY(-11deg) rotateX(5deg) translateY(0)}50%{transform:rotateY(-8deg) rotateX(3deg) translateY(-11px)}}@keyframes orb{0%,100%{transform:scale(1);opacity:.7}50%{transform:scale(1.16);opacity:1}}@keyframes floatTag{0%,100%{transform:translateY(0) rotate(-2deg)}50%{transform:translateY(-10px) rotate(1deg)}}
-@media(max-width:980px){.hero-grid{grid-template-columns:1fr;gap:20px}.hero-copy{max-width:720px}.dashboard{width:min(100%,680px)}.feature-grid{grid-template-columns:repeat(2,1fr)}.split{grid-template-columns:1fr;gap:25px}.section-head{align-items:start;flex-direction:column;gap:10px}}
-@media(max-width:720px){.wrap{width:min(100% - 30px,600px)}.navin{height:66px}.links{display:none;position:absolute;top:66px;left:0;right:0;background:#041020;border-bottom:1px solid var(--line);padding:18px 22px;flex-direction:column;align-items:stretch;gap:0}.links.open{display:flex}.links a{padding:13px 0;border-bottom:1px solid #ffffff0b}.menu{display:block}.navright .btn-ghost{display:none}.navright .btn-primary{padding:10px 12px;font-size:12px}.brand{font-size:18px}.hero{padding:54px 0 45px}.hero h1{font-size:clamp(39px,11vw,57px);letter-spacing:-2.3px}.hero p{font-size:14px}.dashboard{padding:10px;border-radius:16px;transform:none;animation:floatMobile 6s ease-in-out infinite}.dashbody{grid-template-columns:1fr 108px;gap:7px}.chart{height:172px}.mini{padding:9px}.mini strong{font-size:15px}.dashfoot{gap:5px}.stat{padding:8px}.stat strong{font-size:12px}.tag1{left:0;top:5px}.tag2{right:0;bottom:4px}.float-tag{padding:9px 10px;font-size:10px}.section{padding:54px 0}.feature-grid{gap:10px}.feature{padding:15px}.steps{grid-template-columns:1fr}.trust{grid-template-columns:1fr}.cta{padding:48px 0}.footerin{align-items:flex-start;flex-direction:column}}
-@keyframes floatMobile{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
-@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;transition-duration:.01ms!important}.reveal{opacity:1;transform:none}}
+/* ── page shell ───────────────────────────────────────────────────────── */
+html{scroll-behavior:smooth;scroll-padding-top:82px}
+body{margin:0;background:
+  radial-gradient(1200px 760px at 78% -12%,#0a2036 0%,transparent 58%),
+  linear-gradient(180deg,var(--bg) 0%,var(--bg2) 100%);
+  color:var(--txt);font-family:var(--font);line-height:1.55;overflow-x:hidden;-webkit-font-smoothing:antialiased}
+*{box-sizing:border-box}
+a{color:inherit;text-decoration:none}
+img{display:block}
+h1,h2,h3,h4{margin:0;line-height:1.12;letter-spacing:-.02em}
+p{margin:0}
+.wrap{width:min(1200px,calc(100% - 44px));margin-inline:auto}
+/* no-JS / no-observer safety: content is never left invisible */
+.no-js .reveal,.reveal.fallback{opacity:1 !important;transform:none !important}
+
+/* ── nav ──────────────────────────────────────────────────────────────── */
+.nav{position:sticky;top:0;z-index:60;backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
+  background:color-mix(in srgb,var(--bg) 74%,transparent);border-bottom:1px solid var(--line)}
+.nav-in{display:flex;align-items:center;gap:24px;height:66px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:17px}
+.brand img{width:32px;height:32px;border-radius:9px}
+.brand .ver{font-size:9.5px;font-weight:750;color:var(--accent);border:1px solid color-mix(in srgb,var(--accent) 45%,transparent);
+  border-radius:6px;padding:1px 5px;margin-left:2px}
+.links{display:flex;gap:22px;margin-left:6px;font-size:13.5px;color:var(--dim)}
+.links a{transition:color .15s}
+.links a:hover{color:var(--txt)}
+.navright{margin-left:auto;display:flex;gap:10px;align-items:center}
+.burger{display:none;background:none;border:1px solid var(--line);color:var(--txt);border-radius:10px;padding:8px 10px;font-size:16px}
+
+/* ── hero ─────────────────────────────────────────────────────────────── */
+.hero{padding:72px 0 40px}
+.hero-grid{display:grid;grid-template-columns:.9fr 1.1fr;gap:46px;align-items:center}
+.eyebrow{display:inline-flex;align-items:center;gap:9px;font-size:12px;font-weight:650;color:var(--dim);
+  border:1px solid var(--line2);border-radius:999px;padding:7px 13px;background:color-mix(in srgb,var(--txt) 3%,transparent)}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--dim2)}
+.dot.live{background:var(--up);box-shadow:0 0 0 0 color-mix(in srgb,var(--up) 60%,transparent);animation:pl 2s infinite}
+@keyframes pl{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--up) 55%,transparent)}70%{box-shadow:0 0 0 9px transparent}100%{box-shadow:0 0 0 0 transparent}}
+.hero h1{font-size:clamp(36px,4.9vw,60px);font-weight:830;margin:22px 0 18px}
+.grad{background:linear-gradient(100deg,var(--accent),var(--up));-webkit-background-clip:text;background-clip:text;color:transparent}
+.lead{font-size:16.5px;color:var(--dim);max-width:540px}
+.actions{display:flex;gap:12px;margin:26px 0 22px;flex-wrap:wrap}
+.facts{list-style:none;display:flex;gap:28px;margin:0;padding:0;flex-wrap:wrap}
+.facts li{display:flex;flex-direction:column}
+.facts b{font-size:20px;font-weight:800}
+.facts span{font-size:11.5px;color:var(--dim2)}
+
+/* identity + preview */
+.visual{position:relative;perspective:1400px;min-width:0}
+.brand3d{position:absolute;left:-6px;top:-26px;width:112px;height:112px;z-index:3;transform-style:preserve-3d;
+  filter:drop-shadow(0 20px 34px rgba(0,0,0,.55))}
+.brand3d img{width:100%;height:100%;animation:spin3d 14s ease-in-out infinite}
+.brand3d::after{content:"";position:absolute;inset:-14%;border-radius:50%;z-index:-1;
+  background:conic-gradient(from 0deg,transparent,color-mix(in srgb,var(--accent) 40%,transparent),transparent 55%);
+  filter:blur(14px);opacity:.6;animation:orbit 9s linear infinite}
+@keyframes spin3d{0%,100%{transform:rotateY(0) rotateX(0)}40%{transform:rotateY(26deg) rotateX(-10deg) translateY(-4px)}70%{transform:rotateY(-14deg) rotateX(6deg)}}
+@keyframes orbit{to{transform:rotate(360deg)}}
+.preview{position:relative;border-radius:20px;overflow:hidden;transform-style:preserve-3d;
+  transition:transform .3s cubic-bezier(.2,.8,.2,1)}
+.preview::before{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;z-index:2;
+  background:radial-gradient(60% 40% at 50% 0,color-mix(in srgb,var(--accent) 12%,transparent),transparent 70%)}
+.pv-bar{display:flex;align-items:center;gap:12px;padding:11px 15px;border-bottom:1px solid var(--line);background:color-mix(in srgb,var(--txt) 3%,transparent)}
+.dot-row{display:flex;gap:6px}.dot-row i{width:10px;height:10px;border-radius:50%;background:var(--dim2);opacity:.55}
+.dot-row i:first-child{background:#ef4444}.dot-row i:nth-child(2){background:#f59e0b}.dot-row i:last-child{background:var(--up)}
+.pv-title{font-size:12px;color:var(--dim)}
+.tag-live{margin-left:auto;font-size:10px;font-weight:800;letter-spacing:.08em;color:var(--up);
+  border:1px solid color-mix(in srgb,var(--up) 40%,transparent);border-radius:6px;padding:2px 8px;background:color-mix(in srgb,var(--up) 9%,transparent)}
+.pv-body{display:grid;grid-template-columns:1fr 196px}
+.pv-main{padding:14px;border-right:1px solid var(--line);min-width:0}
+.pv-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px}
+.pv-sym{font-weight:800;font-size:15px}
+.pv-sub{font-size:11px;color:var(--dim2)}
+.pv-price{text-align:right}.pv-price b{display:block;font-size:18px;font-weight:800}
+.pv-price .chg{font-size:12px;font-weight:700}
+#heroChart{width:100%;height:248px;display:block;cursor:crosshair;touch-action:none}
+.pv-tools{display:flex;flex-wrap:wrap;gap:7px;margin-top:10px}
+.pv-legend{display:flex;flex-wrap:wrap;gap:12px;margin-top:8px;font-size:10.5px;color:var(--dim)}
+.lg{display:inline-flex;align-items:center;gap:5px}
+.sw{width:12px;height:8px;border-radius:2px;display:inline-block}
+.sw.ob{background:color-mix(in srgb,var(--up) 55%,transparent)}.sw.fvg{background:color-mix(in srgb,var(--accent) 55%,transparent)}
+.sw.liq{background:color-mix(in srgb,var(--gold) 62%,transparent)}.sw.ema{background:color-mix(in srgb,var(--accent2) 80%,transparent);height:2px;width:14px}
+.pv-side{display:flex;flex-direction:column}
+.ps{padding:12px 14px;border-bottom:1px solid var(--line)}
+.ps:last-child{border-bottom:0}
+.ps-t{font-size:10px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:var(--dim2);margin-bottom:9px}
+.ps b{font-size:17px;font-weight:800;letter-spacing:-.3px}
+.ps p{font-size:10.5px;color:var(--dim2);margin-top:6px}
+.mtf{display:flex;gap:6px}
+.mtf-tf{flex:1;text-align:center;font-size:11px;font-weight:700;padding:6px 0;border-radius:7px;border:1px solid var(--line);color:var(--dim2)}
+.mtf-tf.up{color:var(--up);border-color:color-mix(in srgb,var(--up) 45%,transparent);background:color-mix(in srgb,var(--up) 10%,transparent)}
+.mtf-tf.dn{color:#ff9db1;border-color:color-mix(in srgb,var(--down) 45%,transparent);background:color-mix(in srgb,var(--down) 10%,transparent)}
+.pv-foot{display:flex;justify-content:space-between;gap:10px;padding:10px 15px;border-top:1px solid var(--line);
+  font-size:10.5px;color:var(--dim2);background:color-mix(in srgb,var(--txt) 2%,transparent);flex-wrap:wrap}
+
+/* ── sections ─────────────────────────────────────────────────────────── */
+.sec{padding:80px 0;border-top:1px solid var(--line)}
+.sec.alt{background:linear-gradient(180deg,transparent,color-mix(in srgb,var(--txt) 2%,transparent) 18%,color-mix(in srgb,var(--txt) 2%,transparent) 82%,transparent)}
+.sec-head{max-width:740px;margin:0 auto 46px;text-align:center}
+.sec-head.left{margin-left:0;text-align:left}
+.kicker{font-size:11.5px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--accent)}
+.sec-head h2{font-size:clamp(27px,3.3vw,40px);margin:12px 0;font-weight:820}
+.sec-sub{color:var(--dim);font-size:16px}
+
+/* showcases */
+.show-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.show{display:flex;flex-direction:column;gap:10px;padding:20px;border-radius:var(--radius);
+  background:linear-gradient(180deg,var(--card),var(--card2));border:1px solid var(--line);
+  transition:transform .2s cubic-bezier(.2,.8,.2,1),border-color .2s,box-shadow .2s}
+.show:hover{transform:translateY(-4px);border-color:var(--line2);box-shadow:var(--shadow)}
+.show.span2{grid-column:span 2}
+.show-top{display:flex;align-items:center;justify-content:space-between}
+.show h3{font-size:16px;font-weight:750}
+.show p{font-size:13px;color:var(--dim);flex:1}
+.show .ficon{width:38px;height:38px;border-radius:11px;display:grid;place-items:center;font-size:16px;
+  background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--accent);border:1px solid color-mix(in srgb,var(--accent) 26%,transparent)}
+.show-link{font-size:12px;font-weight:700;color:var(--accent)}
+.mini-tbl{display:flex;flex-direction:column;gap:6px;margin-top:4px}
+.mini-h,.mini-r{display:grid;grid-template-columns:1.3fr 1fr .8fr .7fr;gap:8px;font-size:12px;align-items:center}
+.mini-h{color:var(--dim2);font-size:10px;text-transform:uppercase;letter-spacing:.06em}
+.mini-r{padding:6px 9px;border:1px solid var(--line);border-radius:9px;background:color-mix(in srgb,var(--txt) 2%,transparent)}
+.mini-chart,.mini-eq{height:118px;border-radius:10px;border:1px solid var(--line);background:color-mix(in srgb,var(--bg) 55%,transparent);overflow:hidden}
+.mini-chart canvas,.mini-eq canvas{width:100%;height:100%;display:block}
+
+/* features */
+.feat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:15px}
+.feat{padding:18px;border-radius:var(--radius);background:linear-gradient(180deg,var(--card),var(--card2));
+  border:1px solid var(--line);display:flex;flex-direction:column;gap:8px;transition:transform .2s,border-color .2s}
+.feat:hover{transform:translateY(-4px);border-color:var(--line2)}
+.feat h3{font-size:14.5px;font-weight:700}
+.feat p{font-size:12.5px;color:var(--dim);flex:1}
+.feat .learn{font-size:11px;font-weight:700;color:var(--accent)}
+
+/* workflow */
+.split{display:grid;grid-template-columns:.85fr 1.15fr;gap:48px;align-items:center}
+.steps{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(2,1fr);gap:13px}
+.steps li{display:flex;gap:13px;padding:17px;border:1px solid var(--line);border-radius:15px;background:var(--card2)}
+.step-n{flex:0 0 32px;width:32px;height:32px;display:grid;place-items:center;border-radius:10px;
+  background:linear-gradient(180deg,var(--accent),var(--accent2));color:#04141a;font-weight:800;font-size:12.5px}
+.steps b{font-size:13.5px}.steps p{font-size:11.5px;color:var(--dim);margin-top:4px}
+.trust-list{display:grid;gap:12px;margin-top:18px}
+.trust-list span{display:flex;gap:10px;font-size:13px;color:var(--dim);align-items:flex-start}
+.trust-list i{font-style:normal;color:var(--up)}
+
+/* data transparency */
+.data-grid{display:grid;grid-template-columns:1.15fr .85fr;gap:18px}
+.box{padding:22px;border:1px solid var(--line);border-radius:var(--radius);background:var(--card2)}
+.prov-list{display:flex;flex-wrap:wrap;gap:10px;margin-top:18px}
+.prov{display:flex;align-items:center;gap:9px;border:1px solid var(--line);border-radius:11px;padding:10px 13px;font-size:12px;color:var(--dim)}
+.prov b{color:var(--txt);font-weight:750}
+.prov.on{border-color:color-mix(in srgb,var(--up) 40%,transparent)}
+.prov.on b{color:var(--up)}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:10.5px;font-weight:750;padding:3px 9px;border-radius:999px;border:1px solid var(--line)}
+
+/* cta */
+.cta{padding:20px 0 88px}
+.cta-in{display:flex;align-items:center;justify-content:space-between;gap:26px;flex-wrap:wrap;
+  border:1px solid var(--line2);border-radius:22px;padding:40px;
+  background:linear-gradient(120deg,color-mix(in srgb,var(--accent) 14%,transparent),color-mix(in srgb,var(--up) 10%,transparent))}
+.cta h2{font-size:clamp(25px,3vw,35px);font-weight:820}
+.cta p{color:var(--dim);margin-top:8px;max-width:560px}
+
+/* footer */
+footer{border-top:1px solid var(--line);background:color-mix(in srgb,var(--bg) 78%,transparent);padding:52px 0 28px}
+.foot-in{display:grid;grid-template-columns:1.6fr 1fr 1fr 1fr;gap:30px}
+.foot-brand p{font-size:13px;color:var(--dim);margin-top:12px;max-width:290px}
+.foot-col h4{font-size:11.5px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:var(--dim2);margin-bottom:12px}
+.foot-col a{display:block;font-size:13px;color:var(--dim);padding:4px 0;transition:color .15s}
+.foot-col a:hover{color:var(--txt)}
+.foot-bot{display:flex;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-top:36px;padding-top:20px;
+  border-top:1px solid var(--line);font-size:11.5px;color:var(--dim2)}
+.riskline{font-size:11.5px;color:var(--dim2);margin-top:12px;max-width:820px;line-height:1.7}
+.riskline b{color:var(--dim)}
+
+/* ── responsive ───────────────────────────────────────────────────────── */
+@media(max-width:1020px){
+  .hero-grid{grid-template-columns:1fr;gap:60px}
+  .show-grid{grid-template-columns:1fr 1fr}.show.span2{grid-column:span 2}
+  .feat-grid{grid-template-columns:repeat(2,1fr)}
+  .split{grid-template-columns:1fr;gap:28px}
+  .data-grid{grid-template-columns:1fr}
+  .foot-in{grid-template-columns:1fr 1fr}
+}
+@media(max-width:720px){
+  .wrap{width:min(100% - 30px,640px)}
+  .links{position:absolute;top:66px;left:0;right:0;flex-direction:column;gap:0;background:var(--panel);
+    border-bottom:1px solid var(--line);padding:8px 20px;display:none}
+  .links.open{display:flex}
+  .links a{padding:13px 0;border-bottom:1px solid var(--line)}
+  .navright .ghostbtn{display:none}
+  .burger{display:block}
+  .brand3d{width:84px;height:84px;top:-14px}
+  .pv-body{grid-template-columns:1fr}
+  .pv-main{border-right:0;border-bottom:1px solid var(--line)}
+  .pv-side{flex-direction:row;flex-wrap:wrap}.ps{flex:1;min-width:150px}
+  .show-grid,.feat-grid,.steps,.foot-in{grid-template-columns:1fr}.show.span2{grid-column:auto}
+  .sec{padding:56px 0}.cta-in{padding:28px 22px}
+}
 </style>
 </head>
 <body>
+
+<div class="tm-ambient" aria-hidden="true">
+  <div class="tm-glow" style="width:520px;height:520px;background:color-mix(in srgb,var(--up) 22%,transparent);top:-150px;right:-90px"></div>
+  <div class="tm-glow" style="width:460px;height:460px;background:color-mix(in srgb,var(--accent) 18%,transparent);bottom:-170px;left:-120px"></div>
+</div>
+
 <header class="nav">
-  <div class="wrap navin">
-    <a class="brand" href="/" aria-label="TradeMind home"><span class="brandmark"><img src="/assets/trademind-logo.png" alt="" style="width:24px;height:24px;border-radius:7px;display:block" /></span>TradeMind</a>
+  <div class="wrap nav-in">
+    <a class="brand" href="/" aria-label="TradeMind home"><img src="/logo.svg" alt="" />TradeMind <span class="ver">FUTURE</span></a>
     <nav class="links" id="navlinks">
-      <a href="#features">Features</a><a href="#scanner">SMC Scanner</a><a href="#backtesting">Backtesting</a><a href="#options">Options</a><a href="/docs">Docs</a>
+      <a href="#showcases">Features</a><a href="#scanner">SMC Scanner</a><a href="#backtesting">Backtesting</a>
+      <a href="#options">Options</a><a href="/docs">Documentation</a>
     </nav>
-    <div class="navright"><a class="btn btn-ghost" href="/app/">Sign in</a><a class="btn btn-primary" href="/app/">Get Started <span>↗</span></a><button class="menu" id="menuBtn" aria-label="Open menu">☰</button></div>
+    <div class="navright">
+      <a class="tm-btn ghost sm ghostbtn" href="/app/">Sign in</a>
+      <a class="tm-btn primary sm" href="/app/">Launch Dashboard <span aria-hidden="true">→</span></a>
+      <button class="burger" id="menuBtn" aria-label="Open menu" aria-expanded="false">☰</button>
+    </div>
   </div>
 </header>
+
 <main>
-<section class="hero" id="home"><div class="wrap hero-grid">
-  <div class="hero-copy">
-    <div class="eyebrow"><span class="dot" id="mkt-dot"></span> NSE + BSE · Live INR · Free data</div>
-    <h1>See the Market<br>Structure. <span class="gradient">Trade<br>With a Plan.</span></h1>
-    <p>Analyze NSE equities with Smart Money Concepts, liquidity sweeps, order blocks, multi-timeframe confirmation, and systematic risk management — all in one trading workspace.</p>
-    <div class="actions"><a class="btn btn-primary" href="/app/">Launch Trading Dashboard <span>→</span></a><a class="btn btn-ghost" href="#features">Explore Features</a></div>
-    <div class="trustrow"><span><b class="check">✓</b> Real NSE data</span><span><b class="check">✓</b> Paper trading first</span><span><b class="check">✓</b> Never fabricates prices</span></div>
-  </div>
-  <div class="visual" id="visual">
-    <div class="orb"></div>
-    <div class="float-tag tag1"><span class="tagicon">↗</span> Market structure<strong id="tag-bias">Reading…</strong></div>
-    <div class="dashboard" id="tiltCard">
-      <div class="dashhead"><div class="ticker"><span style="color:var(--green)">◈</span><div id="hero-sym">NIFTY 50<br><small>SMC ANALYSIS · LIVE DATA</small></div></div><div class="live"><span class="dot" id="hero-live"></span><span id="hero-price">—</span> <span id="hero-chg" style="color:var(--muted)"></span></div></div>
-      <div class="dashbody">
-        <div class="chartbox">
-          <div class="charttop"><strong>Price structure</strong><span>Daily candles · order blocks · FVG · liquidity</span></div>
-          <canvas class="chart" id="heroChart" role="img" aria-label="Live NIFTY 50 candlestick chart with order blocks and liquidity"></canvas>
-        </div>
-        <div class="sidecol">
-          <div class="mini"><label>4H RSI FILTER</label><strong id="rsi-val">—</strong><p id="rsi-note">Higher-timeframe check</p></div>
-          <div class="mini"><label>RISK / REWARD</label><strong id="rr-entry">—</strong><p id="rr-note">Entry · stop · target</p></div>
-          <div class="mini"><label>MULTI-TIMEFRAME</label><div id="mtf-rows"><div class="tf"><span>W</span><span class="pill flat">—</span></div><div class="tf"><span>D</span><span class="pill flat">—</span></div><div class="tf"><span>4H</span><span class="pill flat">—</span></div><div class="tf"><span>1H</span><span class="pill flat">—</span></div></div></div>
-        </div>
+<!-- ── HERO ──────────────────────────────────────────────────────────────── -->
+<section class="hero">
+  <div class="wrap hero-grid">
+    <div class="hero-copy">
+      <div class="eyebrow"><span class="dot" id="mkt-dot"></span> NSE + BSE · Live ₹ INR · <span id="mkt-state">—</span></div>
+      <h1>See the Market<br>Structure. <span class="grad">Trade<br>With a Plan.</span></h1>
+      <p class="lead">Analyze NSE equities with Smart Money Concepts — liquidity sweeps, order blocks, fair-value gaps and multi-timeframe confirmation — then backtest and practise with systematic risk management, all in one workspace.</p>
+      <div class="actions">
+        <a class="tm-btn primary lg" href="/app/">Launch Trading Dashboard <span aria-hidden="true">→</span></a>
+        <a class="tm-btn ghost lg" href="#showcases">Explore the product</a>
       </div>
-      <div class="dashfoot"><div class="stat"><small>Market data</small><strong>Yahoo Finance · NSE</strong></div><div class="stat"><small>Market now</small><strong id="mkt-state">—</strong></div><div class="stat"><small>Trading mode</small><strong class="up">Paper first</strong></div></div>
-      <div class="dashfoot" style="grid-template-columns:1fr"><div class="stat"><small id="hero-src">Source: Yahoo Finance · NSE</small></div></div>
+      <ul class="facts">
+        <li><b id="f-price">—</b><span>NIFTY 50 · live</span></li>
+        <li><b>4</b><span>timeframes confirmed</span></li>
+        <li><b>Free</b><span>real market data</span></li>
+        <li><b>Paper</b><span>before any live order</span></li>
+      </ul>
     </div>
-    <div class="float-tag tag2"><span class="tagicon">◉</span> Risk controls<strong>Plan every trade</strong></div>
+
+    <div class="visual" id="visual">
+      <div class="brand3d" id="brand3d"><img src="/logo.svg" alt="TradeMind animated mark" width="112" height="112"></div>
+
+      <div class="tm-card preview" id="tiltCard">
+        <div class="pv-bar">
+          <div class="dot-row" aria-hidden="true"><i></i><i></i><i></i></div>
+          <div class="pv-title">Smart-Money workspace · NSE</div>
+          <div class="tag-live" id="hero-src-badge">LIVE DATA</div>
+        </div>
+        <div class="pv-body">
+          <div class="pv-main">
+            <div class="pv-head">
+              <div><div class="pv-sym" id="hero-sym">NIFTY 50</div><div class="pv-sub">Daily candles · real data · overlays</div></div>
+              <div class="pv-price"><b id="hero-price">—</b><span class="chg" id="hero-chg"></span></div>
+            </div>
+            <canvas id="heroChart" role="img" aria-label="Live NIFTY 50 candlestick chart with order blocks, fair-value gaps and liquidity"></canvas>
+            <div class="pv-tools" id="pv-tools" aria-label="Chart layers"></div>
+            <div class="pv-legend">
+              <span class="lg"><i class="sw ob"></i>Order blocks</span>
+              <span class="lg"><i class="sw fvg"></i>Fair-value gaps</span>
+              <span class="lg"><i class="sw liq"></i>Liquidity</span>
+              <span class="lg"><i class="sw ema"></i>EMA 20/50</span>
+            </div>
+          </div>
+          <div class="pv-side">
+            <div class="ps"><div class="ps-t">4H RSI filter</div><b id="rsi-val">—</b><p id="rsi-note">Higher-timeframe check</p></div>
+            <div class="ps"><div class="ps-t">Risk / reward</div><b id="rr-entry">—</b><p id="rr-note">Entry · stop · target</p></div>
+            <div class="ps"><div class="ps-t">Multi-timeframe</div>
+              <div class="mtf" id="mtf-rows">
+                <div class="mtf-tf">W</div><div class="mtf-tf">D</div><div class="mtf-tf">4H</div><div class="mtf-tf">1H</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="pv-foot"><span id="hero-struct">Reading structure…</span><span id="hero-src">Source: loading…</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── SHOWCASES ─────────────────────────────────────────────────────────── -->
+<section class="sec alt" id="showcases"><div class="wrap">
+  <div class="sec-head reveal"><div class="kicker">Everything in one workspace</div><h2>Powerful tools for smarter analysis.</h2>
+    <p class="sec-sub">From a full-universe scan to a simulated order, TradeMind keeps your whole process in one clear, consistent workflow on real market data.</p></div>
+  <div class="show-grid" id="showGrid"></div>
+</div></section>
+
+<!-- ── FEATURES ──────────────────────────────────────────────────────────── -->
+<section class="sec" id="features"><div class="wrap">
+  <div class="sec-head reveal"><div class="kicker">Built on real candles</div><h2>Every signal, explained.</h2>
+    <p class="sec-sub">Deterministic rules — not a black box. Each setup shows exactly which conditions passed and why.</p></div>
+  <div class="feat-grid" id="featGrid"></div>
+</div></section>
+
+<!-- ── WORKFLOW ──────────────────────────────────────────────────────────── -->
+<section class="sec alt" id="how"><div class="wrap split">
+  <div class="reveal">
+    <div class="kicker">A repeatable process</div><h2>From market data to a measured plan.</h2>
+    <p class="sec-sub" style="margin-top:12px">A disciplined loop: read context, confirm the setup, define risk, test the rules, then practise before you ever consider live execution.</p>
+    <div class="trust-list">
+      <span><i>✓</i> Same rules run in the scanner, the chart and the backtester</span>
+      <span><i>✓</i> Risk defined before entry — stop and target on every plan</span>
+      <span><i>✓</i> Paper first; live Dhan execution is opt-in and separate</span>
+    </div>
+    <div class="actions"><a class="tm-btn ghost" href="/app/">Open the workspace →</a></div>
+  </div>
+  <ol class="steps reveal d1">
+    <li><div class="step-n">01</div><div><b>Choose a stock</b><p>Search the full NSE universe or open a saved watchlist.</p></div></li>
+    <li><div class="step-n">02</div><div><b>Read structure</b><p>Review BOS / CHoCH, order blocks, gaps and liquidity pools.</p></div></li>
+    <li><div class="step-n">03</div><div><b>Confirm context</b><p>Compare W / D / 4H / 1H and apply the 4H RSI rule.</p></div></li>
+    <li><div class="step-n">04</div><div><b>Plan the setup</b><p>Check entry triggers, stop, targets and planned risk/reward.</p></div></li>
+    <li><div class="step-n">05</div><div><b>Backtest the rules</b><p>Validate on history with costs, drawdown and a trade log.</p></div></li>
+    <li><div class="step-n">06</div><div><b>Practise safely</b><p>Use virtual capital and inspect every simulated order.</p></div></li>
+  </ol>
+</div></section>
+
+<!-- ── BACKTESTING ───────────────────────────────────────────────────────── -->
+<section class="sec" id="backtesting"><div class="wrap split">
+  <div class="reveal">
+    <div class="kicker">Test before you trust</div><h2>Evidence over assumptions.</h2>
+    <p class="sec-sub" style="margin-top:12px">Inspect the equity curve, drawdown, transaction costs and the exact data window — computed by the same deterministic engine that runs live.</p>
+    <div class="trust-list">
+      <span><i>✓</i> Historical range and source are always visible</span>
+      <span><i>✓</i> Trade-by-trade results, expectancy and drawdown</span>
+      <span><i>✓</i> No look-ahead; stop/target collisions handled explicitly</span>
+      <span><i>✓</i> No invented win rates or profit claims</span>
+    </div>
+    <div class="actions"><a class="tm-btn ghost" href="/app/">Open the backtester →</a></div>
+  </div>
+  <div class="reveal d1">
+    <div class="tm-card" style="padding:16px">
+      <div class="row" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <b style="font-size:14px">Equity curve</b><span class="pill" id="bt-window">—</span>
+      </div>
+      <div class="mini-eq" style="height:190px"><canvas id="eqCanvas" aria-label="Illustrative backtest equity curve"></canvas></div>
+      <div style="display:flex;justify-content:space-between;margin-top:10px;font-size:11px;color:var(--dim2)">
+        <span>Historical candles</span><span>Costs modelled</span><span>R-multiple aware</span>
+      </div>
+    </div>
   </div>
 </div></section>
 
-<section class="section" id="features"><div class="wrap">
-  <div class="section-head reveal"><div><div class="kicker">Everything in one workspace</div><h2>Powerful tools for<br>smarter analysis.</h2></div><p>From broad-market scanning to detailed setup reviews, TradeMind brings your whole process into one clear, consistent workflow on real market data.</p></div>
-  <div class="feature-grid" id="featGrid"></div>
-</div></section>
-
-<section class="section" id="how"><div class="wrap split">
-  <div class="reveal"><div class="kicker">A clearer workflow</div><h2>From market data<br>to a measured plan.</h2><p class="section-intro">Use a repeatable process: review context, confirm the setup, define risk, test the rules, and practise before considering live execution.</p><div class="actions"><a class="btn btn-ghost" href="/app/">Open the workspace →</a></div></div>
-  <div class="steps reveal">
-    <div class="step"><div class="num">01</div><div><h3>Choose a stock</h3><p>Search the full NSE universe or open a saved watchlist.</p></div></div>
-    <div class="step"><div class="num">02</div><div><h3>Read structure</h3><p>Review liquidity, order blocks, gaps and market structure.</p></div></div>
-    <div class="step"><div class="num">03</div><div><h3>Confirm context</h3><p>Compare W / D / 4H / 1H and apply the 4H RSI rule.</p></div></div>
-    <div class="step"><div class="num">04</div><div><h3>Plan the setup</h3><p>Review entry triggers, stop, targets and planned risk/reward.</p></div></div>
-    <div class="step"><div class="num">05</div><div><h3>Backtest the rules</h3><p>Validate logic on history with the real engine and costs.</p></div></div>
-    <div class="step"><div class="num">06</div><div><h3>Practise safely</h3><p>Use virtual capital and inspect every simulated order.</p></div></div>
+<!-- ── OPTIONS ───────────────────────────────────────────────────────────── -->
+<section class="sec alt" id="options"><div class="wrap split">
+  <div class="reveal">
+    <div class="kicker">Options analytics</div><h2>Read the options market.</h2>
+    <p class="sec-sub" style="margin-top:12px">Option chains for NIFTY, BANKNIFTY, FINNIFTY and F&amp;O stocks — strike ladder with LTP, change, open interest, OI change, implied volatility and volume, plus PCR. Uses your Dhan key when connected, otherwise the free NSE feed.</p>
+    <div class="trust-list">
+      <span><i>✓</i> CE/PE open interest and OI change</span>
+      <span><i>✓</i> Implied volatility and volume per strike</span>
+      <span><i>✓</i> Unsupported fields show as “—” — never guessed</span>
+    </div>
+  </div>
+  <div class="reveal d1">
+    <div class="tm-card" style="padding:16px" id="optPreview">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <b style="font-size:14px">Strike ladder</b><span class="tm-badge mute" id="opt-src">NSE / Dhan</span>
+      </div>
+      <div class="mini-tbl" id="optRows"><div class="mini-r" style="grid-template-columns:1fr"><span class="tm-skel" style="height:14px"></span></div></div>
+      <p style="font-size:11px;color:var(--dim2);margin-top:10px">Preview shown in-app with your provider. Fields the provider does not send are left blank.</p>
+    </div>
   </div>
 </div></section>
 
-<section class="section" id="backtesting"><div class="wrap split">
-  <div class="workflow-art reveal"><h3>Strategy performance preview</h3><p>Illustrative visualisation · computed live in the app, not a promise of returns</p><div class="bars"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><div class="art-foot"><span>Historical candles</span><span>Risk-aware testing</span><span>Costs included</span></div></div>
-  <div class="reveal"><div class="kicker">Test before you trust</div><h2>Evidence over assumptions.</h2><p class="section-intro">A useful strategy tool shows its work. Inspect trade history, drawdown, transaction costs and the exact data window — computed by the same deterministic engine that runs live.</p><div class="trust-list"><span><i>✓</i> Historical data range and source are visible</span><span><i>✓</i> Trade-by-trade results and drawdown analysis</span><span><i>✓</i> Same rules run live and in backtests</span><span><i>✓</i> No invented win rates or profit claims</span></div><div class="actions"><a class="btn btn-ghost" href="/app/">Open the backtester →</a></div></div>
-</div></section>
-
-<section class="section" id="options"><div class="wrap split">
-  <div class="reveal"><div class="kicker">Options analytics</div><h2>Read the options market.</h2><p class="section-intro">Option chains for NIFTY, BANKNIFTY, FINNIFTY and F&amp;O stocks — the strike ladder with LTP, change, open interest, OI change, implied volatility and volume, plus PCR. Uses your Dhan key when connected, otherwise the free NSE feed.</p><div class="trust-list"><span><i>✓</i> CE/PE open interest and OI change</span><span><i>✓</i> Implied volatility and volume per strike</span><span><i>✓</i> PCR and total OI</span></div></div>
-  <div class="workflow-art reveal"><h3>Strike ladder</h3><p>Fields unsupported by the provider show as — , never guessed.</p><div class="bars" style="height:108px"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><div class="art-foot"><span>NSE</span><span>or Dhan</span><span>Live</span></div></div>
-</div></section>
-
-<section class="section" id="trust"><div class="wrap">
-  <div class="section-head reveal"><div><div class="kicker">Built around transparency</div><h2>Know what your data means.</h2></div><p>Market-data access depends on the provider and API availability. TradeMind never disguises stale or unavailable data as live.</p></div>
-  <div class="trust">
-    <div class="trustbox reveal"><div class="kicker">Data sources</div><h3 style="margin:10px 0 0">Documented, free, real.</h3><p class="section-intro" style="margin-top:8px">Quotes and candles from Yahoo Finance; listing masters from NSE archives and the BSE API; options from NSE (or Dhan when you connect a key). The owner can add optional Angel One / Fyers sources in Settings — they are tried first and the app falls back automatically.</p><div class="provider-row"><div class="provider"><b>Y</b> Yahoo Finance</div><div class="provider"><b>AO</b> Angel One (optional)</div><div class="provider"><b>FY</b> Fyers (optional)</div><div class="provider"><b>NSE</b> option chain</div><div class="provider"><b>D</b> Dhan (optional)</div><div class="provider"><b>BSE</b> API</div></div></div>
-    <div class="trustbox reveal"><div class="kicker">Trust &amp; security</div><h3 style="margin:10px 0 0">Transparent by design.</h3><div class="trust-list"><span><i>✓</i> Timestamps and freshness on every screen</span><span><i>✓</i> Historical, delayed and live data kept distinct</span><span><i>✓</i> Paper trading stays separate from real orders</span><span><i>✓</i> API keys stored server-side only</span><span><i>✓</i> No guaranteed returns or fabricated results</span></div></div>
+<!-- ── DATA TRANSPARENCY ─────────────────────────────────────────────────── -->
+<section class="sec" id="data"><div class="wrap">
+  <div class="sec-head reveal"><div class="kicker">Built around transparency</div><h2>Know what your data means.</h2>
+    <p class="sec-sub">Market-data access depends on the provider and API availability. TradeMind never disguises stale or unavailable data as live.</p></div>
+  <div class="data-grid">
+    <div class="box reveal"><div class="kicker">Data sources</div><h3 style="margin:10px 0 0;font-size:19px">Documented, free, real.</h3>
+      <p class="sec-sub" style="margin-top:8px;font-size:14px">Quotes and candles from Yahoo Finance; listing masters from NSE archives and the BSE API; options from NSE (or Dhan when you connect a key). The owner can add optional Angel One / Fyers / Tapetide sources in Settings — they are tried first and the app falls back automatically.</p>
+      <div class="prov-list" id="provList">
+        <div class="prov"><b>Yahoo</b> Finance</div><div class="prov"><b>Angel One</b> optional</div>
+        <div class="prov"><b>Fyers</b> optional</div><div class="prov"><b>Tapetide</b> optional</div>
+        <div class="prov"><b>NSE</b> option chain</div><div class="prov"><b>Dhan</b> optional</div>
+      </div>
+      <p style="font-size:11.5px;color:var(--dim2);margin-top:16px" id="provLive">Checking the live connection…</p>
+    </div>
+    <div class="box reveal d1"><div class="kicker">Trust &amp; security</div><h3 style="margin:10px 0 0;font-size:19px">Transparent by design.</h3>
+      <div class="trust-list">
+        <span><i>✓</i> Timestamps and freshness on every screen</span>
+        <span><i>✓</i> Historical, delayed and live data kept distinct</span>
+        <span><i>✓</i> Paper trading stays separate from real orders</span>
+        <span><i>✓</i> API keys stored server-side only</span>
+        <span><i>✓</i> No guaranteed returns or fabricated results</span>
+      </div>
+    </div>
   </div>
-  <div class="trustbox reveal" style="margin-top:20px;border-color:#5a3a12"><div class="kicker" style="color:#f0b429">Risk disclosure</div><p class="section-intro" style="margin-top:8px;max-width:none">TradeMind is analysis and education software, <b>not investment advice</b>, and is not a registered adviser or broker. Markets carry risk; past performance and backtests do not indicate future results. Detailed backtest figures are illustrative of a specific historical run. Trade only with money you can afford to lose.</p></div>
+
+  <div class="box reveal" style="margin-top:18px;border-color:color-mix(in srgb,var(--gold) 42%,transparent)">
+    <div class="kicker" style="color:var(--gold)">Setup requirements</div>
+    <h3 style="margin:10px 0 0;font-size:19px">What needs credentials.</h3>
+    <p class="sec-sub" style="margin-top:8px;font-size:14px">TradeMind works out of the box on free, key-less data. These integrations are optional and each needs your own credentials, entered server-side in Settings:</p>
+    <div class="prov-list">
+      <div class="prov"><b>Dhan</b> · live execution &amp; option chains</div>
+      <div class="prov"><b>Angel One</b> · SmartAPI key, client code, PIN, TOTP</div>
+      <div class="prov"><b>Fyers</b> · app ID &amp; daily access token</div>
+      <div class="prov"><b>Tapetide</b> · personal token (MCP)</div>
+      <div class="prov"><b>Telegram</b> · bot token &amp; chat id</div>
+      <div class="prov"><b>TradingView</b> · webhook passphrase</div>
+    </div>
+  </div>
+
+  <p class="riskline reveal"><b>Risk disclosure.</b> TradeMind is analysis and education software, <b>not investment advice</b>, and is not a registered adviser or broker. Markets carry risk; past performance and backtests do not indicate future results. Backtest figures describe a specific historical run. Trade only with money you can afford to lose.</p>
 </div></section>
 
-<section class="cta" id="get-started"><div class="wrap reveal"><div class="kicker">Your process. One workspace.</div><h2>Ready to <span class="gradient">trade with a plan?</span></h2><p>Free to use. No card. Real data from day one. Explore a disciplined workflow for stock analysis, strategy testing and paper trading.</p><div class="actions" style="justify-content:center"><a class="btn btn-primary" href="/app/">Launch Dashboard <span>→</span></a><a class="btn btn-ghost" href="/docs">Read the docs</a></div></div></section>
+<!-- ── CTA ───────────────────────────────────────────────────────────────── -->
+<section class="cta"><div class="wrap reveal"><div class="cta-in">
+  <div><div class="kicker">Your process. One workspace.</div><h2>Ready to <span class="grad">trade with a plan?</span></h2>
+    <p>Free to use. No card. Real data from day one. Explore a disciplined workflow for stock analysis, strategy testing and paper trading.</p></div>
+  <div class="actions" style="margin:0"><a class="tm-btn primary lg" href="/app/">Launch Dashboard →</a><a class="tm-btn ghost lg" href="/docs">Read the docs</a></div>
+</div></div></section>
 </main>
-<footer class="footer"><div class="wrap"><div class="footerin"><a class="brand" href="/"><span class="brandmark"><img src="/assets/trademind-logo.png" alt="" style="width:24px;height:24px;border-radius:7px;display:block" /></span>TradeMind</a><div class="footlinks"><a href="/app/">Dashboard</a><a href="#features">Features</a><a href="#scanner">SMC Scanner</a><a href="#backtesting">Backtesting</a><a href="#options">Options</a><a href="/nifty">NIFTY 3D</a></div><div class="footlinks"><a href="/docs">Documentation</a><a href="/privacy">Privacy</a><a href="/terms">Terms</a><a href="/terms#risk">Risk disclosure</a><a href="mailto:santhoshkrishna958@gmail.com">Contact</a></div></div><div class="copyright">© <span id="year"></span> TradeMind. Prices in ₹ (INR). Data: Yahoo Finance · NSE · BSE. Not investment advice.</div></div></footer>
+
+<footer><div class="wrap">
+  <div class="foot-in">
+    <div class="foot-brand"><a class="brand" href="/"><img src="/logo.svg" alt="" />TradeMind</a>
+      <p>Smart-Money Concepts analysis, backtesting and paper trading for NSE &amp; BSE — on real market data, in ₹ (INR).</p></div>
+    <div class="foot-col"><h4>Product</h4><a href="/app/">Dashboard</a><a href="/app/">SMC Scanner</a><a href="/app/">Backtesting</a><a href="/app/">Paper trading</a><a href="/nifty">NIFTY 3D</a></div>
+    <div class="foot-col"><h4>Resources</h4><a href="/docs">Documentation</a><a href="/logo3d">Brand</a><a href="/smc-strategy.pine">Pine Script</a><a href="/app/">Sign in</a></div>
+    <div class="foot-col"><h4>Legal</h4><a href="/privacy">Privacy</a><a href="/terms">Terms</a><a href="/terms#risk">Risk disclosure</a><a href="mailto:santhoshkrishna958@gmail.com">Contact</a></div>
+  </div>
+  <div class="foot-bot"><span>© <span id="year"></span> TradeMind · Prices in ₹ (INR) · Data: Yahoo Finance · NSE · BSE</span>
+    <span>Educational analysis — not investment advice.</span></div>
+</div></footer>
+
 <script>
 (function(){
   'use strict';
+  var root=document.documentElement;
+  if(root.className.indexOf('no-js')>-1)root.className=root.className.replace(/\bno-js\b/,'js');
   var $=function(s,el){return (el||document).querySelector(s);};
   var esc=function(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c];});};
   var inr=function(v,d){return v==null||!isFinite(v)?'—':'₹'+Number(v).toLocaleString('en-IN',{minimumFractionDigits:d||0,maximumFractionDigits:d||0});};
   var pct=function(v){return v==null||!isFinite(v)?'—':(v>0?'+':'')+Number(v).toFixed(2)+'%';};
+  var REDUCED=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   function api(p){return fetch('/api'+p).then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();});}
   $('#year').textContent=new Date().getFullYear();
 
@@ -135,92 +463,215 @@
   menu.addEventListener('click',function(){var open=nav.classList.toggle('open');menu.setAttribute('aria-expanded',String(open));menu.textContent=open?'✕':'☰';});
   Array.prototype.forEach.call(nav.querySelectorAll('a'),function(a){a.addEventListener('click',function(){nav.classList.remove('open');menu.textContent='☰';});});
 
-  /* ── feature cards (real capabilities) ── */
-  var FEATURES=[
-    ['◈','Smart Money Concepts','Order blocks, BOS/CHoCH, fair value gaps and liquidity pools read from real candles.'],
-    ['⌁','Liquidity Sweep Detection','Flags inducement sweeps where price takes a prior high/low then reverses.'],
-    ['▤','Order Blocks','Unmitigated supply/demand zones tracked until invalidated.'],
-    ['✳','Wick Rejection Scanner','Full-universe scan for rejection wicks at a zone, ranked by confluence score.'],
-    ['◷','Multi-Timeframe Confirmation','W / D / 4H / 1H bias alignment with a configurable 4H RSI gate.'],
-    ['▥','Historical Backtesting','Run the exact rules over history: equity, drawdown, expectancy, trade log.'],
-    ['◎','Paper Trading','Simulated fills, SL/TP, sizing and live P&L — separate from real orders.'],
-    ['⌘','Options Chain & Greeks','NSE/Dhan option chain: LTP, OI, OI change, IV, volume and PCR.'],
-    ['↗','TradingView Alerts','Export the matching Pine Script and wire alerts to your webhook.'],
-    ['⇄','Dhan Integration','Optional live execution with your own free DhanHQ API key.'],
-    ['◈','Portfolio & Risk','Fixed-risk sizing, exposure and R-multiple tracking in the paper book.'],
-    ['◉','Market Data Monitoring','Live market state, freshness stamps and clear unavailable states.']
+  /* ── showcase cards (real routes / capabilities) ── */
+  var SHOW=[
+    ['◈','Full-universe SMC scanner','Scan every NSE + BSE equity for wick rejection, unmitigated order blocks and inducement sweeps, ranked by a 0–100 confluence score.','scanner'],
+    ['📈','Chart workspace','Candles with order-block zones, FVG bands, BOS/CHoCH markers, EMA 20/50, a volume pane and a Daily ⇄ 4H toggle.','chart'],
+    ['📊','Backtesting engine','Run the exact live rules over history: equity curve, drawdown, expectancy, transaction costs and a full trade log.','backtesting'],
+    ['💼','Paper trading','Simulated fills with SL/TP on live prices, portfolio stats and a transaction history completely separate from real orders.','paper'],
+    ['🧾','Options analytics','NSE / Dhan option chains with OI, OI change, IV, volume and PCR for indices and F&O stocks.','options']
   ];
-  $('#featGrid').innerHTML=FEATURES.map(function(f){
-    return '<article class="feature reveal"><div class="ficon">'+f[0]+'</div><h3>'+f[1]+'</h3><p>'+f[2]+'</p><a class="learn" href="/app/">Open in workspace ↗</a></article>';
+  $('#showGrid').innerHTML=SHOW.map(function(s,i){
+    return '<article class="show reveal '+(i===0?'span2 ':'')+'d'+(i%4)+'">'
+      +'<div class="show-top"><span class="ficon">'+s[0]+'</span><span class="tm-badge acc">'+esc(s[3])+'</span></div>'
+      +'<h3>'+s[1]+'</h3><p>'+s[2]+'</p><a class="show-link" href="/app/">Open in workspace ↗</a></article>';
   }).join('');
 
-  /* ── reveal on scroll ── */
-  var revealEls=Array.prototype.slice.call(document.querySelectorAll('.reveal'));
-  if('IntersectionObserver' in window){var ob=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){e.target.classList.add('visible');ob.unobserve(e.target);}});},{threshold:.12});revealEls.forEach(function(el){ob.observe(el);});}
-  else revealEls.forEach(function(el){el.classList.add('visible');});
+  var FEATURES=[
+    ['◆','Smart Money Concepts','Order blocks, BOS/CHoCH, fair-value gaps and liquidity pools read from real candles.'],
+    ['⌁','Liquidity Sweep Detection','Flags inducement sweeps where price takes a prior high/low then reverses.'],
+    ['▤','Order Blocks','Unmitigated supply/demand zones tracked until invalidated.'],
+    ['✳','Wick Rejection Scanner','Full-universe scan for rejection wicks at a zone, ranked by confluence.'],
+    ['◷','Multi-Timeframe','W / D / 4H / 1H bias alignment with a configurable 4H RSI gate.'],
+    ['▥','Historical Backtesting','Equity, drawdown, expectancy and a trade log with costs included.'],
+    ['◎','Paper Trading','Simulated fills, SL/TP, sizing and live P&L — separate from real orders.'],
+    ['⌘','Options Chain','NSE/Dhan chain: LTP, OI, OI change, IV, volume and PCR.']
+  ];
+  $('#featGrid').innerHTML=FEATURES.map(function(f){
+    return '<article class="feat reveal"><span class="ficon" style="width:34px;height:34px;font-size:14px">'+f[0]+'</span>'
+      +'<h3>'+f[1]+'</h3><p>'+f[2]+'</p><a class="learn" href="/app/">Open in workspace ↗</a></article>';
+  }).join('');
 
-  /* ── subtle 3D tilt ── */
+  /* ── reveal on scroll (progressively enhanced; never leaves content hidden) ── */
+  var rels=[].slice.call(document.querySelectorAll('.reveal'));
+  var show=function(el){el.classList.add('in');};
+  var showInView=function(){
+    var vh=window.innerHeight||document.documentElement.clientHeight;
+    rels=rels.filter(function(el){if(el.classList.contains('in'))return false;
+      var b=el.getBoundingClientRect();if(b.top<vh*.94&&b.bottom>0){show(el);return false;}return true;});
+  };
+  if(REDUCED||!('IntersectionObserver' in window)){
+    rels.forEach(show);rels=[];
+  } else {
+    var ob=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){show(e.target);ob.unobserve(e.target);}});},{threshold:.12,rootMargin:'0px 0px -8% 0px'});
+    rels.forEach(function(el){ob.observe(el);});
+    window.addEventListener('scroll',showInView,{passive:true});
+    window.addEventListener('resize',showInView,{passive:true});
+    window.addEventListener('load',showInView);
+    // last resort, only in throttled/background contexts where IO cannot fire
+    setTimeout(function(){if(document.visibilityState==='hidden')rels.forEach(show);},2200);
+  }
+
+  /* ── 3D tilt on the preview (pointer + motion only) ── */
   var visual=$('#visual'),card=$('#tiltCard');
-  if(visual&&card&&window.matchMedia('(hover:hover) and (pointer:fine)').matches&&!window.matchMedia('(prefers-reduced-motion: reduce)').matches){
-    visual.addEventListener('mousemove',function(e){var r=visual.getBoundingClientRect();var x=(e.clientX-r.left)/r.width-.5;var y=(e.clientY-r.top)/r.height-.5;card.style.animation='none';card.style.transform='rotateY('+(-11+x*9)+'deg) rotateX('+(5-y*7)+'deg) translateY(-3px)';});
-    visual.addEventListener('mouseleave',function(){card.style.transform='';card.style.animation='';});
+  if(visual&&card&&!REDUCED&&window.matchMedia('(hover:hover) and (pointer:fine)').matches){
+    visual.addEventListener('mousemove',function(e){var r=visual.getBoundingClientRect();var x=(e.clientX-r.left)/r.width-.5;var y=(e.clientY-r.top)/r.height-.5;
+      card.style.transform='rotateY('+(x*7)+'deg) rotateX('+(-y*6)+'deg) translateY(-2px)';});
+    visual.addEventListener('mouseleave',function(){card.style.transform='';});
   }
 
   /* ── market status ── */
   function loadMarket(){
     api('/market/status').then(function(j){
       var s=j.status||{};var st=s.state||'—';
+      var dot=$('#mkt-dot');if(dot)dot.className='dot'+(st==='OPEN'?' live':'');
       $('#mkt-state').textContent=st+(s.istTime?' · '+s.istTime:'');
-      var dot=$('#mkt-dot');if(dot)dot.className='dot'+(st==='OPEN'?'':' off');
-      var n=(j.indices||[]).find(function(x){return x.symbol==='^NSEI';});
-      var hv=$('#hero-live');if(hv)hv.className='dot'+(st==='OPEN'?'':' off');
-    }).catch(function(){var dot=$('#mkt-dot');if(dot)dot.className='dot off';$('#mkt-state').textContent='—';});
+    }).catch(function(){$('#mkt-state').textContent='—';});
   }
   loadMarket();setInterval(loadMarket,60000);
 
-  /* ── hero chart: REAL NIFTY data + SMC overlays ── */
-  var cv=$('#heroChart'),ctx=cv.getContext('2d'),hero=null;
+  /* ── live provider source (transparency) ── */
+  api('/providers/source').then(function(j){
+    var names={yahoo:'Yahoo Finance',angelone:'Angel One',fyers:'Fyers',tapetide:'Tapetide',dhan:'Dhan'};
+    var active=(j.active||[]).map(function(id){return names[id]||id;});
+    $('#provLive').textContent='Live connection: '+(active.join(' → ')||'—')+
+      (j.lastUsed&&j.lastUsed.at?' · last data '+new Date(j.lastUsed.at).toLocaleTimeString('en-IN',{timeZone:'Asia/Kolkata',hour:'2-digit',minute:'2-digit'})+' IST':'');
+    Array.prototype.forEach.call(document.querySelectorAll('#provList .prov'),function(el){
+      var t=el.textContent.toLowerCase();
+      if(active.some(function(a){return t.indexOf(a.toLowerCase())>-1;})) el.classList.add('on');
+    });
+  }).catch(function(){$('#provLive').textContent='Live provider status unavailable right now.';});
+
+  /* ── layered interactive hero chart (REAL NIFTY data) ── */
+  var cv=$('#heroChart'),ctx=cv?cv.getContext('2d'):null,hero=null;
+  var layers={candles:true,ob:true,fvg:true,liq:true,ema:true};
+  var LAYER_LABELS={candles:'Candles',ob:'Order blocks',fvg:'FVG',liq:'Liquidity',ema:'EMA'};
+  var hover=null,geom=null;
+
+  function ema(arr,n){var k=2/(n+1),out=[],prev=null;arr.forEach(function(v,i){prev=prev==null?v:v*k+prev*(1-k);out.push(prev);});return out;}
+
   function draw(){
-    if(!hero||!hero.candles||!hero.candles.length)return;
+    if(!ctx||!hero||!hero.candles||!hero.candles.length)return;
     var dpr=window.devicePixelRatio||1,b=cv.getBoundingClientRect();
-    var W=Math.max(200,b.width),H=Math.max(120,b.height);
+    var W=Math.max(220,b.width),H=Math.max(140,b.height);
     cv.width=W*dpr;cv.height=H*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,W,H);
-    var cs=hero.candles.slice(-80);
+    var cs=hero.candles.slice(-90);
     var lo=Math.min.apply(null,cs.map(function(c){return c.l;}));var hi=Math.max.apply(null,cs.map(function(c){return c.h;}));
     var pad=(hi-lo)*.08||1;lo-=pad;hi+=pad;
     var x=function(i){return (i+.5)*(W/cs.length);};var y=function(v){return H-((v-lo)/(hi-lo))*H;};
-    // timestamp -> index map
     var tIndex={};cs.forEach(function(c,i){tIndex[c.t]=i;});
     function idxFor(t){if(tIndex[t]!=null)return tIndex[t];var best=0,bd=Infinity;for(var i=0;i<cs.length;i++){var d=Math.abs(cs[i].t-t);if(d<bd){bd=d;best=i;}}return best;}
+    geom={x:x,y:y,n:cs.length,lo:lo,hi:hi};
+
     // grid
-    ctx.strokeStyle='rgba(24,54,75,.7)';ctx.lineWidth=1;
+    ctx.strokeStyle='rgba(148,163,184,.10)';ctx.lineWidth=1;
     for(var g=1;g<5;g++){var gy=(H/5)*g;ctx.beginPath();ctx.moveTo(0,gy);ctx.lineTo(W,gy);ctx.stroke();}
-    // liquidity levels (real)
-    var liq=(hero.liquidity&&hero.liquidity.buyside||[]).concat(hero.liquidity&&hero.liquidity.sellside||[]);
-    liq.slice(-6).forEach(function(l){var lv=typeof l==='number'?l:l.level;if(lv==null)return;var yy=y(lv);ctx.strokeStyle='rgba(56,189,248,.5)';ctx.setLineDash([4,4]);ctx.beginPath();ctx.moveTo(0,yy);ctx.lineTo(W,yy);ctx.stroke();ctx.setLineDash([]);});
-    // order blocks (real)
-    (hero.zones||[]).forEach(function(z){var i0=idxFor(z.t);var x0=x(i0);var yt=y(z.top),yb=y(z.bottom);var active=String(z.status).toUpperCase()==='ACTIVE';ctx.fillStyle=active?'rgba(0,240,181,.14)':'rgba(148,163,184,.08)';ctx.strokeStyle=active?'rgba(0,240,181,.6)':'rgba(148,163,184,.3)';ctx.setLineDash([4,3]);ctx.fillRect(x0,yt,W-x0,Math.max(1,yb-yt));ctx.strokeRect(x0,yt,W-x0,Math.max(1,yb-yt));ctx.setLineDash([]);});
-    // fair value gaps (real)
-    (hero.fvgs||[]).slice(-10).forEach(function(f){var i0=idxFor(f.t);var xx=x(i0);var yt=y(f.top),yb=y(f.bottom);ctx.fillStyle=f.dir==='BULL'?'rgba(0,240,181,.10)':'rgba(255,84,117,.10)';ctx.fillRect(xx-2,yt,Math.max(3,W/cs.length),Math.max(1,yb-yt));});
+
+    // liquidity levels
+    if(layers.liq){var liq=((hero.liquidity&&hero.liquidity.buyside)||[]).concat((hero.liquidity&&hero.liquidity.sellside)||[]);
+      liq.slice(-6).forEach(function(l){var lv=typeof l==='number'?l:l.level;if(lv==null)return;var yy=y(lv);
+        ctx.strokeStyle='rgba(251,191,36,.45)';ctx.setLineDash([4,4]);ctx.beginPath();ctx.moveTo(0,yy);ctx.lineTo(W,yy);ctx.stroke();ctx.setLineDash([]);});}
+
+    // order blocks
+    if(layers.ob){(hero.zones||[]).forEach(function(z){var i0=idxFor(z.t);var x0=x(i0);var yt=y(z.top),yb=y(z.bottom);var active=String(z.status).toUpperCase()==='ACTIVE';
+      ctx.fillStyle=active?'rgba(16,217,138,.13)':'rgba(148,163,184,.06)';ctx.strokeStyle=active?'rgba(16,217,138,.5)':'rgba(148,163,184,.25)';
+      ctx.setLineDash([4,3]);ctx.fillRect(x0,yt,W-x0,Math.max(1,yb-yt));ctx.strokeRect(x0,yt,W-x0,Math.max(1,yb-yt));ctx.setLineDash([]);});}
+
+    // fair-value gaps
+    if(layers.fvg){(hero.fvgs||[]).slice(-10).forEach(function(f){var i0=idxFor(f.t);var xx=x(i0);var yt=y(f.top),yb=y(f.bottom);
+      ctx.fillStyle=f.dir==='BULL'?'rgba(16,217,138,.10)':'rgba(244,63,94,.10)';ctx.fillRect(xx-2,yt,Math.max(3,W/cs.length),Math.max(1,yb-yt));});}
+
+    // EMA 20 / 50
+    if(layers.ema){
+      var closes=cs.map(function(c){return c.c;});
+      var e20=ema(closes,20),e50=ema(closes,50);
+      [[e20,'rgba(56,189,248,.9)'],[e50,'rgba(139,92,246,.85)']].forEach(function(pair){
+        ctx.strokeStyle=pair[1];ctx.lineWidth=1.5;ctx.beginPath();
+        cs.forEach(function(c,i){var yy=y(pair[0][i]);if(i===0)ctx.moveTo(x(i),yy);else ctx.lineTo(x(i),yy);});ctx.stroke();});
+    }
+
     // candles
-    cs.forEach(function(c,i){var up=c.c>=c.o,col=up?'#00f0b5':'#ff5475';var bw=Math.max(1.5,(W/cs.length)*.6);ctx.strokeStyle=col;ctx.fillStyle=col;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(x(i),y(c.h));ctx.lineTo(x(i),y(c.l));ctx.stroke();var yo=y(c.o),yc=y(c.c);ctx.fillRect(x(i)-bw/2,Math.min(yo,yc),bw,Math.max(1,Math.abs(yc-yo)));});
+    cs.forEach(function(c,i){var up=c.c>=c.o,col=up?'#10d98a':'#f43f5e';var bw=Math.max(1.5,(W/cs.length)*.62);
+      ctx.strokeStyle=col;ctx.fillStyle=col;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(x(i),y(c.h));ctx.lineTo(x(i),y(c.l));ctx.stroke();
+      var yo=y(c.o),yc=y(c.c);ctx.fillRect(x(i)-bw/2,Math.min(yo,yc),bw,Math.max(1,Math.abs(yc-yo)));});
+
+    // crosshair
+    if(hover&&hover.i>=0&&hover.i<cs.length){
+      var hx=x(hover.i),hy=hover.y;
+      ctx.strokeStyle='rgba(148,163,184,.4)';ctx.setLineDash([3,3]);
+      ctx.beginPath();ctx.moveTo(hx,0);ctx.lineTo(hx,H);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(0,hy);ctx.lineTo(W,hy);ctx.stroke();ctx.setLineDash([]);
+      var price=lo+(1-hy/H)*(hi-lo);
+      ctx.fillStyle='rgba(5,7,14,.9)';ctx.strokeStyle='rgba(34,211,238,.7)';
+      var lbl='₹'+price.toLocaleString('en-IN',{maximumFractionDigits:1});
+      ctx.font='11px Inter,system-ui,sans-serif';var w=ctx.measureText(lbl).width+12;
+      ctx.fillRect(W-w-2,Math.min(H-20,Math.max(0,hy-9)),w,18);ctx.strokeRect(W-w-2,Math.min(H-20,Math.max(0,hy-9)),w,18);
+      ctx.fillStyle='#e9eefb';ctx.fillText(lbl,W-w+4,Math.min(H-20,Math.max(0,hy-9))+13);
+    }
   }
   window.addEventListener('resize',draw);
 
+  if(cv){
+    cv.addEventListener('mousemove',function(e){var r=cv.getBoundingClientRect();var mx=e.clientX-r.left;var my=e.clientY-r.top;
+      hover={x:mx,y:my,i:geom?Math.floor(mx/(r.width/geom.n)):-1};if(!REDUCED)draw();});
+    cv.addEventListener('mouseleave',function(){hover=null;draw();});
+  }
+
+  // layer toggle chips
+  var tools=$('#pv-tools');
+  if(tools) tools.innerHTML=Object.keys(layers).map(function(k){
+    return '<button class="tm-chip'+(layers[k]?' on':'')+'" data-layer="'+k+'">'+LAYER_LABELS[k]+'</button>';}).join('');
+  if(tools) tools.addEventListener('click',function(e){var b=e.target.closest('[data-layer]');if(!b)return;
+    var k=b.getAttribute('data-layer');layers[k]=!layers[k];b.classList.toggle('on',layers[k]);draw();});
+
+  // illustrative equity curve (clearly labelled; no performance promise)
+  (function(){var ec=$('#eqCanvas');if(!ec)return;var c=ec.getContext('2d');var dpr=window.devicePixelRatio||1;
+    function render(){var b=ec.getBoundingClientRect(),W=Math.max(120,b.width),H=Math.max(80,b.height);ec.width=W*dpr;ec.height=H*dpr;c.setTransform(dpr,0,0,dpr,0,0);c.clearRect(0,0,W,H);
+      var pts=[],v=0;var seed=7;for(var i=0;i<60;i++){seed=(seed*9301+49297)%233280;v+=((seed/233280)-.42)*3;pts.push(v);}
+      var lo=Math.min.apply(null,pts),hi=Math.max.apply(null,pts);var y=function(val){return H-8-((val-lo)/((hi-lo)||1))*(H-16);};
+      var grd=c.createLinearGradient(0,0,0,H);grd.addColorStop(0,'rgba(16,217,138,.26)');grd.addColorStop(1,'rgba(16,217,138,0)');
+      c.beginPath();pts.forEach(function(p,i){var xx=i/(pts.length-1)*W;if(i===0)c.moveTo(xx,y(p));else c.lineTo(xx,y(p));});
+      c.strokeStyle='#10d98a';c.lineWidth=1.6;c.stroke();
+      c.lineTo(W,H);c.lineTo(0,H);c.closePath();c.fillStyle=grd;c.fill();
+    }
+    render();window.addEventListener('resize',render);
+    $('#bt-window').textContent='Illustrative';
+  })();
+
+  // needs-api note
   api('/analysis/^NSEI').then(function(j){
     hero=j;
-    $('#hero-sym').innerHTML='NIFTY 50<br><small>SMC ANALYSIS · LIVE DATA</small>';
-    if(j.price!=null){$('#hero-price').textContent=inr(j.price,2);var hc=$('#hero-chg');hc.textContent=pct(j.changePct);hc.style.color=(j.changePct>=0?'var(--green)':'var(--red)');}
-    $('#tag-bias').textContent=(j.structure&&j.structure.trend)||(j.mtf&&j.mtf.alignment)||'—';
-    if(j.rsi4h!=null){$('#rsi-val').textContent=j.rsi4h;$('#rsi-note').textContent=j.rsi4h<50?'Below 50 · filter passes':'Above 50 · filter blocks';$('#rsi-val').className=j.rsi4h<50?'up':'down';}
+    if(j.price!=null){$('#hero-price').textContent=inr(j.price,2);$('#f-price').textContent=inr(j.price,0);
+      var hc=$('#hero-chg');hc.textContent=pct(j.changePct);hc.style.color=(j.changePct>=0?'var(--up)':'var(--down)');}
+    var structure=j.structure&&j.structure.trend;
+    $('#hero-struct').textContent='Structure: '+(structure||'—')+(j.mtf&&j.mtf.alignment?' · '+j.mtf.alignment:'');
+    if(j.rsi4h!=null){$('#rsi-val').textContent=j.rsi4h;$('#rsi-note').textContent=j.rsi4h<50?'Below 50 · filter passes':'Above 50 · filter blocks';
+      $('#rsi-val').style.color=j.rsi4h<50?'var(--up)':'var(--down)';}
     var last=j.candles&&j.candles[j.candles.length-1];
-    if(last){var entry=last.c;var risk=Math.abs(entry-last.l)||entry*.01;$('#rr-entry').textContent=inr(entry,1);$('#rr-note').textContent='SL '+inr(entry-risk,1)+' · TP '+inr(entry+2*risk,1)+' (2.0R)';}
+    if(last){var entry=last.c;var risk=Math.abs(entry-last.l)||entry*.01;$('#rr-entry').textContent=inr(entry,1);
+      $('#rr-note').textContent='SL '+inr(entry-risk,1)+' · TP '+inr(entry+2*risk,1)+' (2.0R)';}
     if(j.mtf&&j.mtf.timeframes){var byTf={};j.mtf.timeframes.forEach(function(t){byTf[t.tf]=t.bias;});
-      $('#mtf-rows').innerHTML=['W','D','4H','1H'].map(function(t){var b=byTf[t];var cls=b==='UP'?'pill':b==='DOWN'?'pill bear':'pill flat';return '<div class="tf"><span>'+t+'</span><span class="'+cls+'">'+(b||'—')+'</span></div>';}).join('');
-    }
-    $('#hero-src').textContent='Source: Yahoo Finance · NSE · updated '+new Date().toLocaleTimeString('en-IN',{timeZone:'Asia/Kolkata',hour:'2-digit',minute:'2-digit'})+' IST';
+      $('#mtf-rows').innerHTML=['W','D','4H','1H'].map(function(t){var b=byTf[t];var cls=b==='UP'?'up':b==='DOWN'?'dn':'';
+        return '<div class="mtf-tf '+cls+'">'+t+'</div>';}).join('');}
+    $('#hero-src').textContent='Source: Yahoo Finance · NSE · '+new Date().toLocaleTimeString('en-IN',{timeZone:'Asia/Kolkata',hour:'2-digit',minute:'2-digit'})+' IST';
     draw();
-  }).catch(function(){$('#hero-price').textContent='—';$('#hero-chg').textContent='data unavailable';$('#hero-src').textContent='Live NIFTY data unavailable right now — no placeholder shown.';$('#hero-live').className='dot off';});
+  }).catch(function(){
+    $('#hero-price').textContent='—';$('#hero-chg').textContent='unavailable';
+    $('#hero-struct').textContent='Live data unavailable — nothing is faked.';
+    $('#hero-src').textContent='Source unavailable right now';
+    $('#hero-src-badge').textContent='OFFLINE';$('#hero-src-badge').style.color='var(--dim2)';
+    var d=$('#mkt-dot');if(d)d.className='dot';
+  });
+
+  // options preview rows (static labels only; real data lives in the app)
+  var or=$('#optRows');
+  if(or){
+    var head='<div class="mini-h"><span>Strike</span><span>CE OI</span><span>PE OI</span><span>IV</span></div>';
+    var rows=[['23,000','—','—','—'],['22,500','—','—','—'],['22,000','—','—','—']].map(function(r){
+      return '<div class="mini-r"><span>'+r[0]+'</span><span class="tm-dim">'+r[1]+'</span><span class="tm-dim">'+r[2]+'</span><span class="tm-dim">'+r[3]+'</span></div>';
+    }).join('');
+    or.innerHTML=head+rows;
+  }
 })();
 </script>
 </body>

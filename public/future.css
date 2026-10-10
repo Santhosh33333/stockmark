@@ -1,0 +1,112 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   TradeMind Future — design system (tokens + shared components)
+   Loaded by BOTH the marketing landing page and the /app workspace.
+
+   Direction: premium institutional terminal × futuristic SaaS.
+   Surfaces: near-black, graphite, deep navy.
+   Signals: emerald bullish · restrained red bearish.
+   Interaction: cyan accents.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── tokens ──────────────────────────────────────────────────────────────── */
+:root{
+  /* surfaces */
+  --bg:#05070e; --bg2:#080c16;
+  --panel:#0c1322; --panel2:#0a1020;
+  --card:rgba(13,19,34,.72); --card2:rgba(19,27,48,.6);
+  --line:rgba(148,163,184,.13); --line2:rgba(148,163,184,.24);
+  /* type */
+  --txt:#e9eefb; --dim:#93a1bd; --dim2:#6b7896;
+  /* signals */
+  --up:#10d98a; --down:#f43f5e;
+  /* interaction */
+  --accent:#22d3ee; --accent2:#38bdf8; --cyan:#22d3ee; --gold:#fbbf24;
+  /* shape */
+  --radius:16px; --radius-sm:11px;
+  --shadow:0 22px 55px -30px rgba(0,0,0,.9);
+  --shadow-sm:0 10px 30px -18px rgba(0,0,0,.8);
+  --sidebar:236px; --sidebar-collapsed:76px;
+  --font:'Inter','Segoe UI',system-ui,-apple-system,'Segoe UI',Roboto,Ubuntu,sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,'SF Mono',Consolas,monospace;
+}
+:root[data-theme="light"]{
+  --bg:#f5f7fb; --bg2:#eef2f8;
+  --panel:#ffffff; --panel2:#f8fafc;
+  --card:rgba(255,255,255,.9); --card2:rgba(255,255,255,.72);
+  --line:rgba(15,23,42,.12); --line2:rgba(15,23,42,.2);
+  --txt:#0f172a; --dim:#475569; --dim2:#64748b;
+  --up:#059669; --down:#e11d48;
+  --accent:#0e7490; --accent2:#0284c7; --cyan:#0891b2; --gold:#b45309;
+  --shadow:0 22px 55px -32px rgba(15,23,42,.35);
+}
+@media (prefers-color-scheme:light){
+  :root:not([data-theme="dark"]){ /* opt-in only via data-theme */ }
+}
+
+/* ── base helpers ────────────────────────────────────────────────────────── */
+.tm-mono,.num{font-variant-numeric:tabular-nums;font-feature-settings:"tnum"}
+.tm-up{color:var(--up)} .tm-dn{color:var(--down)} .tm-dim{color:var(--dim)} .tm-dim2{color:var(--dim2)}
+.tm-wrap{width:min(1180px,calc(100% - 44px));margin-inline:auto}
+
+/* ── ambient lighting ────────────────────────────────────────────────────── */
+.tm-ambient{position:fixed;inset:0;z-index:-1;pointer-events:none;overflow:hidden}
+.tm-ambient::after{content:"";position:absolute;inset:0;background:
+  radial-gradient(900px 620px at 82% -10%,color-mix(in srgb,var(--accent) 16%,transparent),transparent 60%),
+  radial-gradient(780px 560px at -8% 12%,color-mix(in srgb,var(--up) 10%,transparent),transparent 58%),
+  radial-gradient(700px 620px at 52% 108%,color-mix(in srgb,var(--accent2) 12%,transparent),transparent 62%)}
+.tm-glow{position:absolute;border-radius:50%;filter:blur(90px);opacity:.42;mix-blend-mode:screen}
+:root[data-theme="light"] .tm-glow{mix-blend-mode:multiply;opacity:.25}
+
+/* ── buttons ─────────────────────────────────────────────────────────────── */
+.tm-btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:42px;padding:0 18px;
+  border-radius:11px;border:1px solid var(--line2);background:color-mix(in srgb,var(--txt) 4%,transparent);
+  color:var(--txt);font:inherit;font-weight:650;font-size:14px;cursor:pointer;white-space:nowrap;
+  transition:transform .16s cubic-bezier(.2,.8,.2,1),border-color .16s,background .16s,box-shadow .16s}
+.tm-btn:hover{transform:translateY(-1px);border-color:var(--line2);background:color-mix(in srgb,var(--txt) 8%,transparent)}
+.tm-btn:active{transform:translateY(0) scale(.98)}
+.tm-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.tm-btn.primary{background:linear-gradient(180deg,color-mix(in srgb,var(--accent) 92%,#fff),var(--accent));
+  border-color:transparent;color:#04141a;box-shadow:0 12px 30px -14px color-mix(in srgb,var(--accent) 80%,transparent)}
+.tm-btn.primary:hover{box-shadow:0 16px 36px -14px color-mix(in srgb,var(--accent) 90%,transparent)}
+.tm-btn.ghost{background:transparent}
+.tm-btn.lg{height:50px;padding:0 24px;font-size:15px;border-radius:13px}
+.tm-btn.sm{height:34px;padding:0 13px;font-size:12.5px;border-radius:9px}
+
+/* ── surfaces ────────────────────────────────────────────────────────────── */
+.tm-card{background:linear-gradient(180deg,var(--card),var(--card2));border:1px solid var(--line);
+  border-radius:var(--radius);box-shadow:var(--shadow);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
+.tm-chip{display:inline-flex;align-items:center;gap:6px;padding:5px 11px;border-radius:999px;font-size:11.5px;
+  font-weight:650;border:1px solid var(--line);color:var(--dim);background:color-mix(in srgb,var(--txt) 4%,transparent);
+  cursor:pointer;user-select:none;transition:.15s}
+.tm-chip:hover{color:var(--txt);border-color:var(--line2)}
+.tm-chip.on{color:#04141a;border-color:transparent;background:linear-gradient(120deg,var(--accent),var(--accent2))}
+.tm-badge{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:750;letter-spacing:.04em;
+  padding:3px 8px;border-radius:999px;border:1px solid var(--line)}
+.tm-badge.bull{color:var(--up);border-color:color-mix(in srgb,var(--up) 42%,transparent);background:color-mix(in srgb,var(--up) 12%,transparent)}
+.tm-badge.bear{color:#ff9db1;border-color:color-mix(in srgb,var(--down) 42%,transparent);background:color-mix(in srgb,var(--down) 12%,transparent)}
+.tm-badge.acc{color:var(--accent);border-color:color-mix(in srgb,var(--accent) 42%,transparent);background:color-mix(in srgb,var(--accent) 10%,transparent)}
+.tm-badge.mute{color:var(--dim2)}
+.tm-input{width:100%;padding:11px 13px;border-radius:11px;border:1px solid var(--line);
+  background:color-mix(in srgb,var(--bg) 70%,transparent);color:var(--txt);font:inherit;font-size:14px;outline:none;transition:.18s}
+.tm-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 18%,transparent)}
+
+/* ── skeleton / empty ────────────────────────────────────────────────────── */
+.tm-skel{border-radius:10px;background:linear-gradient(100deg,color-mix(in srgb,var(--accent) 6%,transparent),
+  color-mix(in srgb,var(--accent) 16%,transparent),color-mix(in srgb,var(--accent) 6%,transparent));
+  background-size:200% 100%;animation:tm-shimmer 1.4s linear infinite}
+@keyframes tm-shimmer{to{background-position:-200% 0}}
+
+/* ── scroll reveal ───────────────────────────────────────────────────────── */
+.reveal{opacity:0;transform:translateY(22px);transition:opacity .7s cubic-bezier(.2,.8,.2,1),transform .7s cubic-bezier(.2,.8,.2,1)}
+.reveal.in{opacity:1;transform:none}
+.reveal.d1{transition-delay:.06s}.reveal.d2{transition-delay:.12s}.reveal.d3{transition-delay:.18s}.reveal.d4{transition-delay:.24s}
+
+/* ── keyboard focus ──────────────────────────────────────────────────────── */
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:6px}
+
+/* ── reduced motion ──────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.001ms !important;animation-iteration-count:1 !important;
+    transition-duration:.001ms !important;scroll-behavior:auto !important}
+  .reveal{opacity:1 !important;transform:none !important}
+}
