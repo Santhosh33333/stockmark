@@ -1,7 +1,7 @@
 // Background scanner: walks the whole Indian universe with the SMC strategy.
 const { stmt, now } = require('./db');
 const { getSymbolList } = require('./providers/symbols');
-const yahoo = require('./providers/yahoo');
+const market = require('./providers');
 const strategy = require('./strategy');
 const config = require('../config');
 const { marketStatus } = require('./util');
@@ -34,7 +34,7 @@ function getLatestSymbols() {
 function getSymbolRow(symbol) { return latestBySymbol.get(symbol) || null; }
 
 async function analyzeOne(entry, opts) {
-  const data = await yahoo.fetchSymbolData(entry.yahoo);
+  const data = await market.fetchSymbolData(entry.yahoo);
   const a = strategy.analyze(data.daily, data.hourly, opts);
   if (!a.ok) return null;
   const row = {

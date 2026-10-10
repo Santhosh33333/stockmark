@@ -1,12 +1,13 @@
 // Public read-only API: market status, live quotes, scanner control, signal feed.
 const express = require('express');
 const { getSymbolList, buildUniverse, INDICES } = require('../providers/symbols');
-const yahoo = require('../providers/yahoo');
+const market = require('../providers');
 const scanner = require('../scanner');
 const strategy = require('../strategy');
 const auth = require('../auth');
 const { stmt, now } = require('../db');
 const { marketStatus } = require('../util');
+const config = require('../../config');
 
 const router = express.Router();
 
@@ -14,7 +15,7 @@ router.get('/health', (_req, res) => res.json({ ok: true, ts: now(), service: 'T
 
 router.get('/market/status', async (_req, res) => {
   const status = marketStatus();
-  const quotes = await yahoo.fetchQuotes(INDICES.map((i) => i.symbol), { concurrency: 8 });
+  const quotes = await market.fetchQuotes(INDICES.map((i) => i.symbol), { concurrency: 8 });
   const indices = INDICES.map((i) => {
     const q = quotes[i.symbol] || {};
     return {
@@ -74,7 +75,7 @@ router.get('/analysis/:symbol', async (req, res) => {
   const raw = String(req.params.symbol || '').toUpperCase();
   const yahooSym = raw.endsWith('.NS') || raw.endsWith('.BO') || raw.startsWith('^') ? raw : `${raw}.NS`;
   try {
-    const data = await yahoo.fetchSymbolData(yahooSym);
+    const data = await market.fetchSymbolData(yahooSym);
     const a = strategy.analyze(data.daily, data.hourly, strategy.DEFAULTS);
     if (!a.ok) return res.status(422).json({ error: a.reason });
     res.json({
@@ -127,13 +128,13 @@ router.get('/backtest/:symbol', async (req, res) => {
   const tpPct = num(req.query.tpPct); if (tpPct != null) opts.tpPct = tpPct;
   const maxBars = num(req.query.maxBars); if (maxBars != null) opts.maxBars = Math.max(1, Math.floor(maxBars));
   try {
-    const data = await yahoo.fetchSymbolData(yahooSym, {
+    const data = await market.fetchSymbolData(yahooSym, {
       dailyRange: config.backtest.dailyRange,
       hourlyRange: config.backtest.hourlyRange,
     });
     const a = strategy.analyze(data.daily, data.hourly, opts);
     if (!a.ok) return res.status(422).json({ error: a.reason });
-    const trades = (a.trades || []).filter((t) => t.reason !== 'OPEN (latest bar)' && t.reason !== 'OPEN');
+    const trades = (a.trades || []).filter((t) => !/^open/i.test(t.reason || ''));
     res.json({
       symbol: raw, yahoo: yahooSym, preset,
       engine: 'SMC wick-rejection + order block + inducement (with 4H RSI gate)',

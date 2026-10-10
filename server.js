@@ -35,6 +35,18 @@ app.get('/', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'landing
 // ── NIFTY 50 live 3D page ──────────────────────────────────────────────
 app.get('/nifty', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'nifty.html')));
 
+// ── 3D animated brand mark ─────────────────────────────────────────────
+app.get('/logo3d', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'logo3d.html')));
+
+// ── Brand logo: serve the generated PNG when present, else the SVG mark ──
+// Avoids a 404 (and a broken-image flash) before the PNG is dropped in.
+app.get('/assets/trademind-logo.png', (_req, res) => {
+  res.setHeader('Cache-Control', 'no-cache');
+  const png = path.join(__dirname, 'public', 'assets', 'trademind-logo.png');
+  if (fs.existsSync(png)) return res.sendFile(png);
+  res.type('image/svg+xml').sendFile(path.join(__dirname, 'public', 'logo.svg'));
+});
+
 // ── Static content pages (docs / legal) ────────────────────────────────
 app.get('/docs', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'docs.html')));
 app.get('/privacy', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'privacy.html')));

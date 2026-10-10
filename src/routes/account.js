@@ -5,7 +5,7 @@ const { stmt, now, config } = require('../db');
 const paper = require('../paper');
 const dhan = require('../dhan');
 const options = require('../providers/options');
-const yahoo = require('../providers/yahoo');
+const market = require('../providers');
 const notify = require('../notify');
 const scanner = require('../scanner');
 const { inr, marketStatus } = require('../util');
@@ -169,7 +169,7 @@ router.get('/watchlist', requireUser, async (req, res) => {
   const rows = stmt.watchlist.all(req.user.id).map((r) => r.symbol);
   // Yahoo needs the exchange suffix; key the response back by the bare symbol.
   const yahooSyms = rows.map((s) => (s.includes('.') ? s : `${s}.NS`));
-  const quotes = rows.length ? await yahoo.fetchQuotes(yahooSyms, { concurrency: 6 }) : {};
+  const quotes = rows.length ? await market.fetchQuotes(yahooSyms, { concurrency: 6 }) : {};
   const list = rows.map((sym, i) => {
     const yahooSym = yahooSyms[i];
     const q = quotes[yahooSym] || quotes[sym] || {};
@@ -201,7 +201,7 @@ router.get('/paper/stats', requireUser, async (req, res) => {
   const stats = paper.portfolioStats(req.user.id);
   const settings = auth.getSettings(req.user);
   const open = stmt.openTrades.all(req.user.id);
-  const quotes = open.length ? await yahoo.fetchQuotes(open.map((t) => (t.symbol.includes('.') ? t.symbol : `${t.symbol}.NS`)), { concurrency: 6 }) : {};
+  const quotes = open.length ? await market.fetchQuotes(open.map((t) => (t.symbol.includes('.') ? t.symbol : `${t.symbol}.NS`)), { concurrency: 6 }) : {};
   const positions = open.map((t) => {
     const ySym = t.symbol.includes('.') ? t.symbol : `${t.symbol}.NS`;
     const q = quotes[ySym] || quotes[t.symbol] || {};
@@ -242,7 +242,7 @@ router.post('/paper/close', requireUser, (req, res) => {
 
 router.post('/paper/evaluate', requireUser, async (_req, res) => {
   const closed = await paper.evaluateOpenPositions(async (sym) => {
-    const q = await yahoo.fetchQuote(sym);
+    const q = await market.fetchQuote(sym);
     return q.price;
   });
   res.json({ ok: true, closed: closed.map((c) => ({ ...c, pnlFmt: inr(c.pnl, true) })) });
@@ -449,13 +449,57 @@ router.get('/admin/health', requireAdmin, async (_req, res) => {
   const t0 = Date.now();
   let provider;
   try {
-    const q = await yahoo.fetchQuote('^NSEI');
-    provider = { ok: q.price != null, name: 'Yahoo Finance', probe: '^NSEI', price: q.price, currency: q.currency, latencyMs: Date.now() - t0 };
+    const q = await market.fetchQuote('^NSEI');
+    const src = q.source || market.providerStatus().lastUsed.quote || 'yahoo';
+    provider = { ok: q.price != null, name: src, probe: '^NSEI', price: q.price, currency: q.currency, latencyMs: Date.now() - t0 };
   } catch (e) {
-    provider = { ok: false, name: 'Yahoo Finance', probe: '^NSEI', error: e.message, latencyMs: Date.now() - t0 };
+    provider = { ok: false, name: 'none', probe: '^NSEI', error: e.message, latencyMs: Date.now() - t0 };
   }
   const mailer = require('../mailer');
   res.json({ provider, market: marketStatus(), mail: mailer.status(), checkedAt: now() });
+});
+
+// ── data providers (owner only): free sources + credential management ─────
+router.get('/providers/status', requireAdmin, (_req, res) => {
+  try { res.json(market.providerStatus()); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+router.put('/providers/credentials', requireAdmin, (req, res) => {
+  const body = req.body || {};
+  const patch = {};
+  if (body.order) patch.order = body.order;
+  if (body.angelone) {
+    const a = body.angelone;
+    patch.angelone = {};
+    for (const k of ['enabled', 'apiKey', 'clientCode', 'pin', 'totpSecret', 'totp']) {
+      if (k in a) patch.angelone[k] = a[k];
+    }
+  }
+  if (body.fyers) {
+    const f = body.fyers;
+    patch.fyers = {};
+    for (const k of ['enabled', 'appId', 'accessToken']) {
+      if (k in f) patch.fyers[k] = f[k];
+    }
+  }
+  try {
+    const store = require('../providers/store');
+    store.save(patch);
+    res.json({ ok: true, status: market.providerStatus() });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+router.post('/providers/test', requireAdmin, async (req, res) => {
+  const id = String(req.body?.id || '');
+  try { res.json(await market.testProvider(id)); }
+  catch (e) { res.status(400).json({ ok: false, error: e.message }); }
+});
+
+// Public freshness/source indicator (no secrets) for the topbar.
+router.get('/providers/source', (_req, res) => {
+  const s = market.providerStatus();
+  res.json({ active: s.active, order: s.order, lastUsed: s.lastUsed, checkedAt: now() });
 });
 
 router.post('/admin/scan', requireAdmin, async (req, res) => {

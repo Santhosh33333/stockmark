@@ -17,6 +17,7 @@
     scanTimer: null, es: null, alerts: [], universe: null, watchlist: [],
     symbols: [], selected: null, detail: null, chart: null, paper: null, alertCount: 0,
     options: { symbol: 'NIFTY', expiry: null, data: null, loading: false, error: null, source: null },
+    backtest: { symbol: 'RELIANCE', preset: 'improved', slPct: 1.5, tpPct: 3, maxBars: 25, data: null, loading: false, error: null },
   };
 
   /* ── API ── */
@@ -273,6 +274,7 @@
       <button class="btn sm" onclick="window.__sa.startScan('fno')">Scan F&amp;O</button>
       <button class="btn sm" onclick="window.__sa.startScan('nse')">Scan all NSE</button>
       <button class="btn sm" onclick="window.__sa.startScan('all')">Scan NSE+BSE</button>
+      <button class="btn sm" onclick="window.__sa.go('backtest')">Backtest a symbol</button>
       <button class="btn sm" onclick="window.__sa.go('paper')">Paper trades</button>
     </div>`;
   }
@@ -397,6 +399,7 @@
         <button class="btn sm primary" onclick="window.__sa.paperOpen('${esc(d.symbol)}',${d.price})">📄 Paper buy</button>
         <button class="btn sm" onclick="window.__sa.addWatch('${esc(d.symbol)}')">★ Watchlist</button>
         <button class="btn sm" onclick="window.__sa.tvAlert('${esc(d.symbol)}')">🔔 TV alert</button>
+        <button class="btn sm" onclick="window.__sa.openBacktest('${esc(d.symbol)}')">📈 Backtest</button>
       </div>
     </div>
 
@@ -774,6 +777,37 @@
       <div class="set-row"><span class="lbl">Enable live orders</span><label class="switch"><input type="checkbox" ${s.dhanEnabled ? 'checked' : ''} onchange="window.__sa.setSetting('dhanEnabled',this.checked)"><i></i></label></div>
       <div class="set-row"><span class="lbl">Test connection</span><button class="btn sm" onclick="window.__sa.dhanTest()">Test</button></div>
     </div>
+
+    ${u.isAdmin ? `
+    <div class="section-title"><h2>Market data sources</h2><span class="pill buy">owner only</span></div>
+    <div class="card" id="prov-card">
+      <div class="set-row"><span class="lbl">Active chain<small>Tried in order · falls back automatically</small></span><b id="prov-active">…</b></div>
+
+      <div style="border-top:1px solid var(--line);margin:12px 0"></div>
+      <div class="set-row"><span class="lbl"><b>Angel One</b> SmartAPI<small>Free NSE/BSE data · needs an Angel One account</small></span>
+        <label class="switch"><input type="checkbox" id="ao-enabled" ${state.prov?.angelone?.enabled ? 'checked' : ''}><i></i></label></div>
+      <div class="set-row"><span class="lbl">API key<small>SmartAPI app key</small></span><input type="password" id="ao-apiKey" placeholder="${esc(state.prov?.angelone?.apiKey || 'SmartAPI key')}"></div>
+      <div class="set-row"><span class="lbl">Client code</span><input type="text" id="ao-clientCode" value="${esc(state.prov?.angelone?.clientCode || '')}" placeholder="e.g. A123456"></div>
+      <div class="set-row"><span class="lbl">PIN<small>${state.prov?.angelone?.hasPin ? 'saved — leave blank to keep' : '4-digit PIN'}</small></span><input type="password" id="ao-pin" placeholder="••••"></div>
+      <div class="set-row"><span class="lbl">TOTP secret<small>${state.prov?.angelone?.hasTotpSecret ? 'saved — leave blank to keep' : 'base32 secret from your authenticator setup'}</small></span><input type="password" id="ao-totpSecret" placeholder="JBSWY3DPEHPK3PXP"></div>
+      <div class="row" style="gap:8px;margin-bottom:14px">
+        <button class="btn sm primary" onclick="window.__sa.provSave('angelone')">Save</button>
+        <button class="btn sm" onclick="window.__sa.provTest('angelone')">Test login</button>
+      </div>
+
+      <div style="border-top:1px solid var(--line);margin:12px 0"></div>
+      <div class="set-row"><span class="lbl"><b>Fyers</b> API v3<small>Free data · access token expires daily</small></span>
+        <label class="switch"><input type="checkbox" id="fy-enabled" ${state.prov?.fyers?.enabled ? 'checked' : ''}><i></i></label></div>
+      <div class="set-row"><span class="lbl">App ID</span><input type="text" id="fy-appId" value="${esc(state.prov?.fyers?.appId || '')}" placeholder="XXXXXXXX-100"></div>
+      <div class="set-row"><span class="lbl">Access token<small>${state.prov?.fyers?.hasAccessToken ? 'saved — paste a fresh one each day' : 'from Fyers auth redirect'}</small></span><input type="password" id="fy-accessToken" placeholder="eyJ0…"></div>
+      <div class="row" style="gap:8px;margin-bottom:14px">
+        <button class="btn sm primary" onclick="window.__sa.provSave('fyers')">Save</button>
+        <button class="btn sm" onclick="window.__sa.provTest('fyers')">Test auth</button>
+      </div>
+
+      <div class="set-row"><span class="lbl">Yahoo Finance<small>Always on · no key needed</small></span><b class="u">Active</b></div>
+      <div class="tiny muted" style="margin-top:8px">Add credentials and enable a source to try it first. The app always falls back to Yahoo, so it never goes dark.</div>
+    </div>` : ''}
     <div style="height:24px"></div>`;
   }
 
@@ -901,17 +935,119 @@
     <div class="card" id="admin-jobs"><div class="tiny muted">Loading…</div></div>`;
   }
 
+  /* ── BACKTEST WORKSPACE ── */
+  function renderBacktest() {
+    const b = state.backtest;
+    const d = b.data;
+    return `
+    <div class="section-title"><h2>Backtesting workspace</h2><span class="tiny muted">Same engine that runs live · historical NSE data</span></div>
+    <div class="card">
+      <div class="row wrap" style="gap:10px;align-items:flex-end">
+        <label style="flex:1 1 150px;min-width:140px">Symbol<input id="bt-symbol" value="${esc(b.symbol)}" placeholder="RELIANCE / NIFTY / ^NSEI" /></label>
+        <label style="flex:0 0 120px">Preset<select id="bt-preset">
+          <option value="improved"${b.preset === 'improved' ? ' selected' : ''}>Improved</option>
+          <option value="strict"${b.preset === 'strict' ? ' selected' : ''}>Strict</option>
+        </select></label>
+        <label style="flex:0 0 92px">SL %<input id="bt-sl" type="number" step="0.1" min="0.1" value="${esc(b.slPct)}" /></label>
+        <label style="flex:0 0 92px">TP %<input id="bt-tp" type="number" step="0.1" min="0.1" value="${esc(b.tpPct)}" /></label>
+        <label style="flex:0 0 92px">Max bars<input id="bt-bars" type="number" step="1" min="1" value="${esc(b.maxBars)}" /></label>
+        <button class="btn primary" id="btn-bt" onclick="window.__sa.runBacktest()" ${b.loading ? 'disabled' : ''}>${b.loading ? 'Running…' : '▶ Run backtest'}</button>
+      </div>
+      <div class="tiny muted" style="margin-top:8px">Daily candles drive the setup; 1h/4H bars drive the 4H-RSI gate. Yahoo serves ≈2 years of 1h data, so the window is capped there and reported exactly below — never extended or invented.</div>
+    </div>
+    ${b.loading ? `<div class="card empty"><div class="big">⏳</div>Running the engine over history…</div>` : ''}
+    ${b.error ? `<div class="card empty"><div class="big">⚠️</div>${esc(b.error)}</div>` : ''}
+    ${d ? btResults(d) : (!b.loading && !b.error ? `<div class="card empty"><div class="big">📈</div>Enter a symbol and run a backtest.<br>Results come from the deterministic SMC engine — not a curve-fit model.</div>` : '')}`;
+  }
+
+  function btResults(d) {
+    const s = d.stats || {};
+    const trades = d.trades || [];
+    const curve = d.equityCurve || [];
+    const monthly = d.monthly || [];
+    const noTrades = !s.trades;
+    return `
+    <div class="section-title"><h2>${esc(d.symbol)} — results</h2><span class="pill ${noTrades ? 'none' : 'buy'}">${s.trades} trades</span></div>
+    <div class="card">
+      <div class="row between tiny muted"><span>Window: <b style="color:var(--txt)">${d.dataFrom ? dtDate(d.dataFrom) : '—'} → ${d.dataTo ? dtDate(d.dataTo) : '—'}</b></span><span>${d.bars} daily bars · preset ${esc(d.preset)}</span></div>
+      <div class="row between tiny muted" style="margin-top:5px"><span>SL ${esc(d.params.slPct)}% · TP ${esc(d.params.tpPct)}% · max ${esc(d.params.maxBars)} bars</span><span>Generated ${dt(d.generatedAt)}</span></div>
+    </div>
+    <div class="stats-grid">
+      ${stat('Trades', s.trades)}
+      ${stat('Win rate', s.winRate + '%', s.trades && s.winRate >= 50 ? 'u' : s.trades ? 'd' : '')}
+      ${stat('Profit factor', s.profitFactor, s.profitFactor >= 1.5 ? 'u' : '')}
+      ${stat('Net %', pct(s.netProfitPct), s.netProfitPct >= 0 ? 'u' : 'd')}
+      ${stat('Max DD %', s.maxDrawdownPct + '%', s.maxDrawdownPct > 0 ? 'd' : '')}
+      ${stat('Avg trade %', pct(s.avgTradePct))}
+      ${stat('Best %', pct(s.bestTradePct), 'u')}
+      ${stat('Worst %', pct(s.worstTradePct), 'd')}
+      ${stat('Bars', d.bars)}
+    </div>
+    ${noTrades ? `<div class="card empty"><div class="big">🔍</div>No closed trades in this window.<br>The SMC rules are selective — 4H RSI gate + wick rejection + unmitigated order block. Try another symbol, a wider window, or a different preset.</div>` : ''}
+    <div class="section-title"><h2>Equity curve</h2><span class="tiny muted">Cumulative % per closed trade · ${curve.length} points</span></div>
+    <div class="card"><canvas id="bt-equity" style="width:100%;height:220px;display:block"></canvas></div>
+    <div class="section-title"><h2>Monthly returns</h2><span class="tiny muted">IST buckets</span></div>
+    <div class="tbl-wrap"><table><thead><tr><th>Month</th><th>Trades</th><th>Win%</th><th>Return</th></tr></thead><tbody>
+      ${monthly.map((m) => `<tr><td>${esc(m.month)}</td><td>${m.trades}</td><td>${m.winRate}%</td><td class="${m.pct >= 0 ? 'u' : 'd'}">${pct(m.pct)}</td></tr>`).join('') || '<tr><td colspan="4" class="empty">No closed months</td></tr>'}
+    </tbody></table></div>
+    <div class="section-title"><h2>Trade history</h2><span class="tiny muted">${trades.length} closed</span></div>
+    <div class="tbl-wrap"><table><thead><tr><th>Entry</th><th>Exit</th><th>In</th><th>Out</th><th>Bars</th><th>Reason</th><th>P&amp;L</th></tr></thead><tbody>
+      ${trades.map((t) => `<tr><td>${dt(t.entryTs)}</td><td>${dt(t.exitTs)}</td><td>${inr(t.entry, 2)}</td><td>${inr(t.exit, 2)}</td><td>${t.bars}</td><td>${esc(t.reason)}</td><td class="${t.pct >= 0 ? 'u' : 'd'}">${pct(t.pct)}</td></tr>`).join('') || '<tr><td colspan="7" class="empty">No trades</td></tr>'}
+    </tbody></table></div>`;
+  }
+
+  function drawBacktest() {
+    const cv = $('#bt-equity'); if (!cv) return;
+    const d = state.backtest.data;
+    const curve = (d && d.equityCurve) || [];
+    const dpr = window.devicePixelRatio || 1;
+    const W = cv.clientWidth || 320, H = cv.clientHeight || 220;
+    cv.width = W * dpr; cv.height = H * dpr;
+    const ctx = cv.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, W, H);
+    ctx.strokeStyle = 'rgba(148,163,184,.14)'; ctx.lineWidth = 1;
+    for (let g = 1; g < 4; g++) { const y = (H / 4) * g; ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+    if (curve.length < 2) {
+      ctx.fillStyle = '#6b7896'; ctx.font = '12px Segoe UI,system-ui'; ctx.textAlign = 'center';
+      ctx.fillText(curve.length ? 'Single trade — need ≥2 to plot a curve' : 'No trades to plot', W / 2, H / 2);
+      return;
+    }
+    const pts = [0, ...curve];
+    let lo = Math.min(...pts, 0), hi = Math.max(...pts, 0);
+    if (hi === lo) { hi += 1; lo -= 1; }
+    const pad = (hi - lo) * 0.08; lo -= pad; hi += pad;
+    const x = (i) => (i / (pts.length - 1)) * W;
+    const y = (v) => H - ((v - lo) / (hi - lo)) * H;
+    // zero baseline
+    ctx.strokeStyle = 'rgba(148,163,184,.35)'; ctx.setLineDash([4, 4]);
+    ctx.beginPath(); ctx.moveTo(0, y(0)); ctx.lineTo(W, y(0)); ctx.stroke(); ctx.setLineDash([]);
+    const up = pts[pts.length - 1] >= 0;
+    const col = up ? '#22c55e' : '#f43f5e';
+    const grad = ctx.createLinearGradient(0, 0, 0, H);
+    grad.addColorStop(0, up ? 'rgba(34,197,94,.28)' : 'rgba(244,63,94,.28)');
+    grad.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.beginPath(); ctx.moveTo(x(0), y(pts[0]));
+    pts.forEach((v, i) => ctx.lineTo(x(i), y(v)));
+    ctx.lineTo(W, H); ctx.lineTo(0, H); ctx.closePath(); ctx.fillStyle = grad; ctx.fill();
+    ctx.beginPath(); pts.forEach((v, i) => i ? ctx.lineTo(x(i), y(v)) : ctx.moveTo(x(i), y(v)));
+    ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.stroke();
+    ctx.fillStyle = '#93a1bd'; ctx.font = '10px Segoe UI,system-ui'; ctx.textAlign = 'left';
+    ctx.fillText(pct(hi).replace('%', '') + '%', 4, 12); ctx.textAlign = 'left';
+    ctx.fillText(pct(lo).replace('%', '') + '%', 4, H - 4);
+  }
+
   /* ── RENDER ── */
   async function render() {
     const v = $('#view');
     const route = state.route;
     if (route === 'dashboard') v.innerHTML = renderDashboard();
     else if (route === 'scanner') v.innerHTML = renderScanner();
+    else if (route === 'backtest') { v.innerHTML = renderBacktest(); if (state.backtest.data) setTimeout(drawBacktest, 20); }
     else if (route === 'options') { v.innerHTML = renderOptions(); if (!state.options.data && !state.options.loading && !state.options.error) setTimeout(actions.loadOptions, 20); }
     else if (route === 'stock') v.innerHTML = renderStock();
     else if (route === 'paper') v.innerHTML = await renderPaper();
     else if (route === 'alerts') v.innerHTML = await renderAlerts();
-    else if (route === 'settings') { v.innerHTML = renderSettings(); setTimeout(actions.mailStatus, 30); }
+    else if (route === 'settings') { v.innerHTML = renderSettings(); setTimeout(actions.mailStatus, 30); if (state.user.isAdmin) setTimeout(actions.provLoad, 30); }
     else if (route === 'admin') { v.innerHTML = await renderAdmin(); setTimeout(actions.mailStatus, 30); actions.adminJobs(); }
     applyAdminNav();
     // progress refs
@@ -1066,6 +1202,35 @@
       try { const j = await api('/dhan/test', { method: 'POST' }); toast(j.ok ? 'Dhan connected · funds loaded' : (j.error || 'Failed'), j.ok ? 'ok' : 'err'); }
       catch (e) { toast(e.message, 'err'); }
     },
+    async provLoad() {
+      try {
+        const j = await api('/providers/status');
+        state.prov = j.credentials || {};
+        const el = $('#prov-active');
+        if (el) el.innerHTML = (j.active || []).map((id) => `<span class="pill buy" style="margin-left:4px">${esc(id === 'yahoo' ? 'Yahoo Finance' : id === 'angelone' ? 'Angel One' : 'Fyers')}</span>`).join('') || '<span class="tiny muted">none</span>';
+      } catch { }
+    },
+    async provSave(which) {
+      const body = {};
+      if (which === 'angelone') {
+        const a = { enabled: $('#ao-enabled')?.checked };
+        const set = (k, id) => { const v = $('#' + id)?.value; if (v) a[k] = v; };
+        set('apiKey', 'ao-apiKey'); set('clientCode', 'ao-clientCode'); set('pin', 'ao-pin'); set('totpSecret', 'ao-totpSecret');
+        body.angelone = a;
+      } else {
+        const f = { enabled: $('#fy-enabled')?.checked };
+        const av = $('#fy-appId')?.value; if (av) f.appId = av;
+        const tv = $('#fy-accessToken')?.value; if (tv) f.accessToken = tv;
+        body.fyers = f;
+      }
+      try { const j = await api('/providers/credentials', { method: 'PUT', body }); state.prov = j.status.credentials; toast('Saved · active: ' + ((j.status.active || []).join(', ') || 'none'), 'ok'); render(); }
+      catch (e) { toast(e.message, 'err'); }
+    },
+    async provTest(id) {
+      toast('Testing ' + id + '…', 'ok');
+      try { const j = await api('/providers/test', { method: 'POST', body: { id } }); toast(j.ok ? (id + ' OK' + (j.profile ? ' · ' + j.profile : '')) : (id + ': ' + (j.error || 'failed')), j.ok ? 'ok' : 'err'); }
+      catch (e) { toast(e.message, 'err'); }
+    },
     async adminScan(preset) {
       try { const j = await api('/admin/scan', { method: 'POST', body: { preset } }); toast('Owner scan started · ' + j.total + ' symbols', 'ok'); setProgress(1, '0/' + j.total); }
       catch (e) { toast(e.message, 'err'); }
@@ -1128,6 +1293,30 @@
       toast(txt.slice(0, 120) + '…', 'ok');
       console.log(txt);
     },
+    async runBacktest() {
+      const b = state.backtest;
+      const symEl = $('#bt-symbol');
+      b.symbol = String((symEl && symEl.value) || b.symbol || '').trim().toUpperCase();
+      const pEl = $('#bt-preset'); if (pEl) b.preset = pEl.value;
+      const slEl = $('#bt-sl'); if (slEl && slEl.value !== '') b.slPct = slEl.value;
+      const tpEl = $('#bt-tp'); if (tpEl && tpEl.value !== '') b.tpPct = tpEl.value;
+      const mbEl = $('#bt-bars'); if (mbEl && mbEl.value !== '') b.maxBars = mbEl.value;
+      if (!b.symbol) { toast('Enter a symbol', 'err'); return; }
+      b.loading = true; b.error = null; b.data = null;
+      render(); setTimeout(drawBacktest, 20);
+      try {
+        const q = new URLSearchParams({ preset: b.preset, slPct: b.slPct, tpPct: b.tpPct, maxBars: b.maxBars }).toString();
+        const d = await api('/backtest/' + encodeURIComponent(b.symbol) + '?' + q);
+        b.data = d;
+        if (!d.stats.trades) toast('No closed trades for ' + d.symbol + ' in this window');
+        else toast(d.stats.trades + ' trade(s) · win ' + d.stats.winRate + '% · net ' + pct(d.stats.netProfitPct), 'ok');
+      } catch (e) { b.error = e.message; toast(e.message, 'err'); }
+      finally { b.loading = false; render(); setTimeout(drawBacktest, 30); }
+    },
+    openBacktest(sym) {
+      if (sym) state.backtest.symbol = String(sym).toUpperCase();
+      go('backtest');
+    },
   };
   window.__sa = actions;
 
@@ -1149,7 +1338,7 @@
       if (state.route === 'dashboard') await loadWatchlist();
       if (state.route === 'paper') render();
       if (state.route === 'stock' && state.detail) openStock(state.detail);
-      render();
+      if (state.route !== 'backtest') render();
     }, state.market?.state === 'OPEN' ? 30000 : 180000);
     // count alerts
     setInterval(async () => {

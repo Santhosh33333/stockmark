@@ -9,7 +9,7 @@
 <link rel="manifest" href="manifest.webmanifest" />
 <link rel="icon" type="image/svg+xml" href="/logo.svg" />
 <link rel="apple-touch-icon" href="/icons/icon-192.png" />
-<link rel="stylesheet" href="app.css" />
+<link rel="stylesheet" href="app.css?v=4" />
 </head>
 <body>
 
@@ -24,7 +24,7 @@
 <section id="auth-screen" class="screen auth hidden">
   <div class="auth-card tilt" data-tilt>
     <div class="brand-3d">
-      <img src="/logo.svg" alt="TradeMind logo" class="logo-3d" />
+      <img src="/assets/trademind-logo.png" alt="TradeMind logo" class="logo-3d" />
       <h1 class="brand-title">Trade<span>Mind</span> <span class="v2">2.0</span></h1>
     </div>
     <p class="tagline">Live NSE &amp; BSE Smart-Money Scanner</p>
@@ -75,12 +75,13 @@
 
     <aside class="sidebar glass">
       <div class="side-brand">
-        <img src="/logo.svg" alt="" />
+        <img src="/assets/trademind-logo.png" alt="" />
         <b>TradeMind</b>
         <span class="v2">2.0</span>
       </div>
       <button class="navbtn active" data-route="dashboard"><span>📊</span>Dashboard</button>
       <button class="navbtn" data-route="scanner"><span>🔎</span>Scanner</button>
+      <button class="navbtn" data-route="backtest"><span>📈</span>Backtest</button>
       <button class="navbtn" data-route="options"><span>🧾</span>Options</button>
       <button class="navbtn" data-route="paper"><span>💼</span>Paper</button>
       <button class="navbtn" data-route="alerts"><span>🔔</span>Alerts</button>
@@ -92,7 +93,7 @@
     <div class="app-main">
       <header class="topbar glass">
         <div class="topbar-left">
-          <img src="/logo.svg" class="topbar-logo" alt="" />
+          <img src="/assets/trademind-logo.png" class="topbar-logo" alt="" />
           <div>
             <div class="app-name">TradeMind<span class="v2">2.0</span></div>
             <div class="market-pill" id="market-pill"><span class="dot"></span><span id="market-text">—</span></div>
@@ -116,6 +117,7 @@
   <nav class="bottomnav glass">
     <button class="navbtn active" data-route="dashboard"><span>📊</span>Home</button>
     <button class="navbtn" data-route="scanner"><span>🔎</span>Scan</button>
+    <button class="navbtn" data-route="backtest"><span>📈</span>Backtest</button>
     <button class="navbtn" data-route="options"><span>🧾</span>Options</button>
     <button class="navbtn" data-route="paper"><span>💼</span>Paper</button>
     <button class="navbtn" data-route="alerts"><span>🔔</span>Alerts</button>
@@ -125,8 +127,8 @@
 </div>
 
 <div id="toast-wrap"></div>
-<script src="chart.js"></script>
-<script src="app.js"></script>
-<script src="fx.js"></script>
+<script src="chart.js?v=4"></script>
+<script src="app.js?v=4"></script>
+<script src="fx.js?v=4"></script>
 </body>
 </html>

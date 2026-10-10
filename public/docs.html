@@ -33,7 +33,7 @@
 
 <header class="nav">
   <div class="wrap nav-in">
-    <a class="brand" href="/"><img src="/logo.svg" alt="" width="28" height="28" /><span class="brand-name">TradeMind</span><span class="ver">2.0</span></a>
+    <a class="brand" href="/"><img src="/assets/trademind-logo.png" alt="" width="28" height="28" /><span class="brand-name">TradeMind</span><span class="ver">2.0</span></a>
     <nav class="nav-links" id="navLinks">
       <a href="/#features">Features</a>
       <a href="/docs">Docs</a>
@@ -85,13 +85,15 @@
       <table>
         <thead><tr><th>Data</th><th>Provider</th></tr></thead>
         <tbody>
-          <tr><td>Quotes &amp; OHLCV candles</td><td>Yahoo Finance</td></tr>
+          <tr><td>Quotes &amp; OHLCV candles</td><td><b>Yahoo Finance</b> (default, free, no key). The owner may additionally configure <b>Angel One SmartAPI</b> or <b>Fyers</b> in Settings → Market data sources; configured sources are tried first and the app falls back automatically, so it never goes dark.</td></tr>
           <tr><td>Listing masters</td><td>NSE archives (<code>EQUITY_L.csv</code>, <code>fo_mktlots.csv</code>, <code>ind_nifty500list.csv</code>)</td></tr>
           <tr><td>BSE active scrips</td><td>BSE API</td></tr>
           <tr><td>Option chain</td><td>NSE public feed (default) or Dhan (when connected)</td></tr>
+          <tr><td>Live order execution</td><td>Dhan (optional, only in LIVE mode with your own free API key)</td></tr>
         </tbody>
       </table>
-      <div class="note">If a provider is unreachable the app shows an explicit <b>“unavailable”</b> state. It never substitutes a placeholder or stale value presented as live.</div>
+      <div class="note">Every source is free to use. Yahoo Finance is unofficial and may throttle, so Angel One / Fyers can be added as faster primary sources. If a provider is unreachable the app shows an explicit <b>“unavailable”</b> state — it never substitutes a placeholder or stale value presented as live.</div>
+      <div class="note">Credentials for the optional sources are stored server-side in <code>data/providers.json</code> (never committed, never sent to the browser). Only the owner can view or change them.</div>
 
       <h2 id="paper">Paper trading</h2>
       <p>Paper positions are simulated: entry, stop-loss and take-profit are stored, and <code>Check SL/TP</code> evaluates them against live prices. Realised and unrealised P&amp;L, win rate, profit factor and max drawdown are computed from the paper book only. Paper trading never contacts a broker.</p>
@@ -126,7 +128,7 @@
 
 <footer class="foot">
   <div class="wrap foot-in">
-    <div class="foot-brand"><a class="brand" href="/"><img src="/logo.svg" alt="" width="26" height="26" /><span class="brand-name">TradeMind</span><span class="ver">2.0</span></a><p>Smart Money Concepts analysis for Indian equities, on free public market data.</p></div>
+    <div class="foot-brand"><a class="brand" href="/"><img src="/assets/trademind-logo.png" alt="" width="26" height="26" /><span class="brand-name">TradeMind</span><span class="ver">2.0</span></a><p>Smart Money Concepts analysis for Indian equities, on free public market data.</p></div>
     <div class="foot-col"><h5>Product</h5><a href="/app/">Dashboard</a><a href="/#scanner">SMC Scanner</a><a href="/#backtesting">Backtesting</a><a href="/#options">Options</a><a href="/nifty">NIFTY 3D</a></div>
     <div class="foot-col"><h5>Resources</h5><a href="/docs">Documentation</a><a href="/smc-strategy.pine">Pine Script</a><a href="/docs#methodology">Methodology</a><a href="/docs#api">API</a></div>
     <div class="foot-col"><h5>Legal</h5><a href="/privacy">Privacy policy</a><a href="/terms">Terms of service</a><a href="/terms#risk">Risk disclosure</a><a href="mailto:santhoshkrishna958@gmail.com">Contact</a></div>
