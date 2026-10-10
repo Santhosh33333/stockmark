@@ -15,7 +15,7 @@
     constructor(canvas, opts = {}) {
       this.c = canvas;
       this.ctx = canvas.getContext('2d');
-      this.opts = Object.assign({ padding: { top: 16, right: 62, bottom: 22, left: 8 }, rsiPane: true, rsiH: 64, volPane: false, rsiLabel: 'RSI' }, opts);
+      this.opts = Object.assign({ padding: { top: 16, right: 62, bottom: 22, left: 8 }, rsiPane: true, rsiH: 64, volPane: true, volH: 46, rsiLabel: 'RSI', emaPeriods: [20, 50], show: { ob: true, fvg: true, ema: true, vol: true, rsi: true } }, opts);
       this.candles = [];
       this.zones = [];
       this.signals = [];
@@ -23,6 +23,7 @@
       this.fvgs = [];
       this.structure = null;
       this.rsi = [];
+      this.emas = [];
       this.view = { from: 0, to: 0 };
       this.hover = null;
       this.animT = 0;
@@ -46,6 +47,7 @@
       this.fvgs = fvgs;
       this.structure = structure;
       this.rsi = (rsi || []).slice().sort((a, b) => a.t - b.t);
+      this._computeEma();
       const n = candles.length;
       const show = Math.min(n, 110);
       this.view.from = Math.max(0, n - show);
@@ -53,6 +55,18 @@
       this.animT = 1;
       this.render();
       this._animate();
+    }
+
+    _computeEma() {
+      const periods = this.opts.emaPeriods || [20, 50];
+      const colors = { 9: '#f472b6', 20: '#fbbf24', 50: '#e879f9', 200: '#60a5fa' };
+      const closes = this.candles.map((c) => c.c);
+      this.emas = periods.map((p) => {
+        const k = 2 / (p + 1);
+        let e = null;
+        const v = closes.map((x) => { e = e == null ? x : x * k + e * (1 - k); return e; });
+        return { period: p, color: colors[p] || '#94a3b8', v };
+      });
     }
 
     resetView() {
@@ -150,8 +164,15 @@
     render() {
       const ctx = this.ctx, W = this.w, H = this.h;
       const P = this.opts.padding;
-      const rsiH = this.opts.rsiPane ? this.opts.rsiH : 0;
-      const priceTop = P.top, priceBottom = H - P.bottom - rsiH - (rsiH ? 8 : 0);
+      const show = this.opts.show || {};
+      const rsiH = (this.opts.rsiPane && show.rsi !== false) ? this.opts.rsiH : 0;
+      const volH = (this.opts.volPane && show.vol) ? this.opts.volH : 0;
+      const priceTop = P.top;
+      let bottomY = H - P.bottom;
+      let rsiRect = null, volRect = null;
+      if (rsiH) { rsiRect = { y0: bottomY - rsiH, y1: bottomY }; bottomY -= rsiH + 8; }
+      if (volH) { volRect = { y0: bottomY - volH, y1: bottomY }; bottomY -= volH + 6; }
+      const priceBottom = bottomY;
       const priceH = priceBottom - priceTop;
       ctx.clearRect(0, 0, W, H);
 
@@ -161,6 +182,11 @@
       // ── scales ──
       let hi = -Infinity, lo = Infinity;
       for (const c of view) { hi = Math.max(hi, c.h); lo = Math.min(lo, c.l); }
+      if (show.ema !== false) {
+        for (const line of this.emas) {
+          for (let i = 0; i < view.length; i++) { const val = line.v[this.view.from + i]; if (val != null) { hi = Math.max(hi, val); lo = Math.min(lo, val); } }
+        }
+      }
       for (const z of this.zones) {
         const inView = z.t >= view[0].t && z.t <= view[view.length - 1].t;
         if (inView) { hi = Math.max(hi, z.top); lo = Math.min(lo, z.bottom); }
@@ -191,7 +217,7 @@
 
       // ── order block zones ──
       const zoneA = Math.max(0.25, this.animT);
-      for (const z of this.zones) {
+      if (show.ob !== false) for (const z of this.zones) {
         const i0 = view.findIndex((c) => c.t >= z.t);
         if (i0 < 0) continue;
         const yT = yP(z.top), yB = yP(z.bottom);
@@ -210,7 +236,7 @@
       }
 
       // ── fair value gaps (imbalance) ──
-      for (const f of this.fvgs) {
+      if (show.fvg !== false) for (const f of this.fvgs) {
         const i0 = view.findIndex((c) => c.t >= f.t);
         if (i0 < 0) continue;
         const yT = yP(f.top), yB = yP(f.bottom);
@@ -249,6 +275,21 @@
         const yo = yP(c.o), yc = yP(c.c);
         ctx.fillRect(x - bodyW / 2, Math.min(yo, yc), bodyW, Math.max(1, Math.abs(yc - yo)));
         ctx.globalAlpha = 1;
+      }
+
+      // ── EMA overlays ──
+      if (show.ema !== false && this.emas.length) {
+        for (const line of this.emas) {
+          ctx.strokeStyle = line.color; ctx.lineWidth = 1.3; ctx.beginPath();
+          let started = false;
+          for (let i = 0; i < n; i++) {
+            const val = line.v[this.view.from + i];
+            if (val == null) continue;
+            const x = xI(i), y = yP(val);
+            if (!started) { ctx.moveTo(x, y); started = true; } else ctx.lineTo(x, y);
+          }
+          ctx.stroke();
+        }
       }
 
       // ── last price line ──
@@ -330,9 +371,24 @@
         ctx.fillText(label, xI(i) - 12, H - 8);
       }
 
+      // ── volume pane ──
+      if (volRect) {
+        let vmax = 0;
+        for (const c of view) vmax = Math.max(vmax, c.v || 0);
+        const vTop = volRect.y0 + 2, vBase = volRect.y1 - 2, vh = vBase - vTop;
+        ctx.fillStyle = TEXT; ctx.font = '9px system-ui';
+        ctx.fillText('Volume', x0 + 4, vTop + 8);
+        for (let i = 0; i < n; i++) {
+          const c = view[i];
+          const bh = vmax ? ((c.v || 0) / vmax) * vh : 0;
+          ctx.fillStyle = c.c >= c.o ? 'rgba(34,197,94,.5)' : 'rgba(239,68,68,.5)';
+          ctx.fillRect(xI(i) - bodyW / 2, vBase - bh, bodyW, Math.max(0.5, bh));
+        }
+      }
+
       // ── RSI pane ──
-      if (this.opts.rsiPane) {
-        const ry0 = priceBottom + 10, ry1 = ry0 + rsiH - 12;
+      if (rsiRect) {
+        const ry0 = rsiRect.y0 + 8, ry1 = rsiRect.y1 - 10;
         ctx.strokeStyle = GRID;
         ctx.strokeRect(x0, ry0, x1 - x0, ry1 - ry0);
         const yR = (v) => ry1 - (v / 100) * (ry1 - ry0);

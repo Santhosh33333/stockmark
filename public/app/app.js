@@ -411,13 +411,20 @@
         </span>
       </div>
       <canvas id="chart"></canvas>
+      <div class="chart-tools">
+        <span class="tiny muted">Show</span>
+        ${[['ob', 'Order blocks'], ['fvg', 'FVG'], ['ema', 'EMA 20/50'], ['vol', 'Volume']]
+      .map(([k, l]) => `<span class="chip ${state.chartOpts[k] ? 'on' : ''}" onclick="window.__sa.chartToggle('${k}')">${l}</span>`).join('')}
+      </div>
       <div class="legend">
         <span><i style="background:rgba(59,130,246,.45)"></i>Order block</span>
         <span><i style="background:rgba(100,116,139,.35)"></i>Mitigated OB</span>
         <span><i style="background:rgba(34,197,94,.4)"></i>Bull FVG</span>
         <span><i style="background:rgba(239,68,68,.35)"></i>Bear FVG</span>
+        <span><i style="background:#fbbf24"></i>EMA 20</span>
+        <span><i style="background:#e879f9"></i>EMA 50</span>
         <span><i style="background:var(--buy,#22c55e)"></i>BUY signal</span>
-        <span><i style="background:var(--gold,#fbbf24)"></i>Inducement (filtered)</span>
+        <span><i style="background:var(--gold,#fbbf24)"></i>Inducement</span>
         <span><i style="background:#a855f7"></i>Wick rejection</span>
       </div>
       <div class="tiny muted" style="padding:0 13px 10px">${tf === '4H' ? '4H view · daily OB / FVG overlays hidden · drag to pan · scroll or ＋/－ to zoom' : 'Daily view · drag to pan · scroll, double-click or ⟳ to reset zoom'}</div>
@@ -509,6 +516,8 @@
     const candles = ((is4h ? d.candles4h : d.candles) || []).filter((c) => c && isFinite(c.c));
     const start = candles[0]?.t ?? 0;
     state.chart.opts.rsiLabel = is4h ? 'RSI (4H)' : 'RSI (Daily)';
+    state.chart.opts.volPane = state.chartOpts.vol;
+    state.chart.opts.show = { ...state.chartOpts, rsi: true };
     state.chart.setData({
       candles,
       // OB zones / FVG / structure are computed on daily bars — only overlay them on the daily view
@@ -829,11 +838,17 @@
   /* ══════════════ ACTIONS ══════════════ */
   state.scanFilter = { q: '', exch: 'ALL', buy: false, fno: false, mtf: false };
   state.scanProgress = 0;
+  state.chartOpts = state.chartOpts || { ob: true, fvg: true, ema: true, vol: true };
 
   const actions = {
     go, toast, openStock,
     setChartTf(tf) {
       state.chartTf = tf;
+      render();
+      setTimeout(drawDetail, 20);
+    },
+    chartToggle(k) {
+      state.chartOpts[k] = !state.chartOpts[k];
       render();
       setTimeout(drawDetail, 20);
     },
