@@ -66,8 +66,20 @@ const config = {
   },
 
   // Dhan (optional, live execution). Free API keys from https://dhanhq.co -> DhanHQ APIs
+  // Base is the host root; code appends /v2/... so accept either "https://api.dhan.co"
+  // or "https://api.dhan.co/v2" without doubling the version segment.
   dhan: {
-    baseUrl: process.env.DHAN_BASE_URL || 'https://api.dhan.co',
+    baseUrl: (process.env.DHAN_BASE_URL || 'https://api.dhan.co')
+      .trim().replace(/\/+$/, '').replace(/\/v2$/i, ''),
+  },
+
+  // NSE public option chain (free fallback when no Dhan key is configured).
+  // Requires a homepage cookie bootstrap + browser-like headers.
+  nseOptionChain: {
+    base: 'https://www.nseindia.com',
+    contractInfo: 'https://www.nseindia.com/api/option-chain-contract-info',
+    chain: 'https://www.nseindia.com/api/option-chain-v3',
+    referer: 'https://www.nseindia.com/option-chain',
   },
 };
 

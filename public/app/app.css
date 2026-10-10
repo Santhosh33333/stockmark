@@ -177,6 +177,18 @@ tbody tr:hover{background:rgba(79,140,255,.07)}
 tr:last-child td{border-bottom:0}
 td.u{color:var(--up)}td.d{color:var(--down)}td.a{color:var(--accent);font-weight:700}
 
+/* option chain */
+.opt-tbl{min-width:820px}
+.opt-tbl th,.opt-tbl td{text-align:right;padding:8px 9px}
+.opt-tbl .opt-grp th{text-align:center;font-size:10px;letter-spacing:1px;border-bottom:1px solid var(--line)}
+.opt-tbl .ce-head{color:#86efac;background:rgba(34,197,94,.08)}
+.opt-tbl .pe-head{color:#fda4af;background:rgba(244,63,94,.08)}
+.opt-tbl td.opt-k,.opt-tbl th:nth-child(7){text-align:center;font-weight:700;color:var(--txt);background:rgba(148,163,184,.06);position:sticky;left:0}
+.opt-tbl td.num{font-variant-numeric:tabular-nums;font-feature-settings:"tnum"}
+.opt-tbl tr.opt-atm td{background:rgba(79,140,255,.14)}
+.opt-tbl tr.opt-atm td.opt-k{color:var(--accent)}
+.opt-tbl tr.opt-atm td.opt-k .tiny{color:var(--accent);font-size:9px;border:1px solid rgba(79,140,255,.4);border-radius:6px;padding:1px 4px;margin-left:4px}
+
 /* chart */
 .chart-box{margin:12px 14px;border-radius:18px;border:1px solid var(--line);background:linear-gradient(180deg,rgba(6,12,26,.94),rgba(4,8,18,.95));overflow:hidden}
 .chart-head{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;padding:11px 13px;border-bottom:1px solid var(--line)}

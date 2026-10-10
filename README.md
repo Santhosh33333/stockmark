@@ -27,6 +27,7 @@ The strategy engine exists as **two twins that share identical rules**:
 - 📈 **Real charts** — candles with order-block zones (fresh / mitigated / invalidated), FVG bands, BOS/CHoCH markers, BUY markers, **EMA 20/50 overlays**, a **volume pane**, a **Daily ⇄ 4H timeframe toggle**, a timeframe-matched **RSI pane**, per-layer toggles, and **drag-to-pan + wheel/button zoom** (double-click or ⟳ to reset).
 - 💼 **Paper trading** — SL/TP/time exits on live ₹ prices, portfolio stats (win rate, profit factor, drawdown), auto-fill from signals.
 - 🔔 **Alerts** — in-app feed, browser notifications, Telegram bot, and a TradingView webhook endpoint.
+- 🧾 **Option chain** — live NSE option chains for indices (NIFTY, BANKNIFTY, FINNIFTY, MIDCPNIFTY…) and F&O stocks: strike ladder with **LTP, change, OI, OI change, IV and volume** for calls & puts, plus **PCR** and total CE/PE OI. Uses your **Dhan** account when a key is saved, otherwise the **free public NSE** feed — real data only, with an explicit "unavailable" state if the source blocks.
 - 🛡️ **Owner console** — overview, users (role toggle + password reset), signals, trades, audit log and system health, all in one tabbed panel. Owner-only UI (admin nav, email-sender config, admin console) is rendered **only for the owner**; other users never see it, and every `/admin/*` route is enforced server-side with `403`.
 - 👤 **Profile** — avatar with initials, editable display name, role badge, member-since and last sign-in, plus one-tap sign out. Profile and admin visibility are covered by the live test suite.
 - 🤖 **Optional live execution** — bring your own free DhanHQ API key; risk caps enforced server-side; paper stays fully separate.
@@ -182,6 +183,7 @@ Base: `/api`. Auth via `Authorization: Bearer <token>` (issued by the OTP flows)
 | `GET` | `/alerts/history` · `POST` `/alerts/telegram-test` | Alerts |
 | `POST` | `/webhook/tradingview` | TradingView alert ingest |
 | `POST` | `/dhan/test` \| `/dhan/order` | Optional Dhan live execution |
+| `GET` | `/options/:symbol` | Live option chain (`?expiry=DD-Mon-YYYY`) — Dhan if a key is set, else NSE |
 | `GET` | `/mail/status` | Email-sender status |
 
 ### Admin (owner only)
@@ -225,6 +227,7 @@ src/
   routes/account.js       Auth / watchlist / paper / alerts / dhan / admin
   providers/yahoo.js      Free quotes + candles
   providers/symbols.js    NSE + BSE symbol masters
+  providers/options.js    Option chain (Dhan primary, free NSE fallback)
   otp/                    OTP generate / validate / spam-guard
 public/
   landing.html landing.css
@@ -246,7 +249,7 @@ data/                     Runtime DB, cache, logs (git-ignored)
 npm test        # node scripts/selftest.js
 ```
 
-The suite boots a server (or targets `STOCKARTHA_BASE`) and runs the live end-to-end flow: API health, universe, market status, strategy analysis, backtest stats, the full signup → OTP → login → session path, watchlist, settings, profile update, paper open/evaluate/close, a real scan, signal + alert feeds, the Dhan guard, admin gating (non-admin → 403), the owner console, mail status, and the landing/app/manifest/icon assets.
+The suite boots a server (or targets `STOCKARTHA_BASE`) and runs the live end-to-end flow: API health, universe, market status, strategy analysis, backtest stats, the full signup → OTP → login → session path, watchlist, settings, profile update, paper open/evaluate/close, a real scan, the **live option chain** (NIFTY strikes/OI/PCR), signal + alert feeds, the Dhan guard, admin gating (non-admin → 403), the owner console, mail status, and the landing/app/manifest/icon assets.
 
 > With a real email provider configured the API returns no dev OTP; the test reads the code from the `email_otps` table in `data/app.db`.
 
@@ -257,6 +260,8 @@ The suite boots a server (or targets `STOCKARTHA_BASE`) and runs the live end-to
 - **Yahoo Finance** — quotes and candles (`dailyRange` / `hourlyRange`).
 - **NSE archives** — `EQUITY_L.csv`, `fo_mktlots.csv`, `ind_nifty500list.csv`.
 - **BSE API** — active equity scrip list.
+- **NSE option chain** — free public feed (`option-chain-contract-info` + `option-chain-v3`) for the index/stock strike ladder. Needs a homepage cookie bootstrap and browser-like headers; if NSE blocks the network the app shows an explicit "unavailable" state.
+- **Dhan option chain** — used instead when you save a Dhan access token + client id (better rate limits and OI detail). See https://api.dhan.co/v2 — exports are client-authenticated.
 
 ---
 

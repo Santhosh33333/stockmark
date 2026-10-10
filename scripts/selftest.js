@@ -155,6 +155,16 @@ async function main() {
     const dhan = await call('POST', '/api/dhan/test', {}, authHeaders);
     check('Dhan guard (no token → clean refusal)', dhan.status === 200 && dhan.body.ok === false, dhan.body.error || '');
 
+    // ── option chain (real NSE data; Dhan when the user has a key) ──
+    const oc = await call('GET', '/api/options/NIFTY', null, authHeaders);
+    const ocOk = oc.status === 200 && oc.body.ok === true && Array.isArray(oc.body.strikes) && oc.body.strikes.length > 5
+      && ['NSE', 'Dhan'].includes(oc.body.source) && typeof oc.body.pcr === 'number';
+    check('Option chain (live NSE/Dhan)',
+      ocOk,
+      oc.status === 200
+        ? `${oc.body.source} · ${oc.body.symbol} ${oc.body.expiry} · ${oc.body.strikes?.length} strikes · PCR ${oc.body.pcr} · und ₹${oc.body.underlyingValue}`
+        : (oc.body.error || `status ${oc.status}`));
+
     // ── user profile (editable display name) ──
     const prof = await call('PATCH', '/api/me', { displayName: 'Selftest User' }, authHeaders);
     check('Update profile (display name)', prof.status === 200 && prof.body.user?.displayName === 'Selftest User',

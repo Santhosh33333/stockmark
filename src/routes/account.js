@@ -4,6 +4,7 @@ const auth = require('../auth');
 const { stmt, now, config } = require('../db');
 const paper = require('../paper');
 const dhan = require('../dhan');
+const options = require('../providers/options');
 const yahoo = require('../providers/yahoo');
 const notify = require('../notify');
 const scanner = require('../scanner');
@@ -298,6 +299,19 @@ router.post('/webhook/tradingview', (req, res) => {
     notify.sendTelegram(s, notify.formatSignalMessage(body)).catch(() => { });
   }
   res.json({ ok: true });
+});
+
+// ── Option chain (Dhan when configured, else free NSE fallback) ──────────
+router.get('/options/:symbol', requireUser, async (req, res) => {
+  try {
+    const settings = auth.getSettings(req.user);
+    const out = await options.getOptionChain({
+      settings, symbol: req.params.symbol, expiry: req.query.expiry,
+    });
+    res.json({ ok: true, ...out });
+  } catch (e) {
+    res.status(502).json({ ok: false, error: e.message, attempts: e.attempts || [] });
+  }
 });
 
 // ── Dhan live execution ─────────────────────────────────────────────────

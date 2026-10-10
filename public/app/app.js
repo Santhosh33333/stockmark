@@ -16,6 +16,7 @@
     scanRows: [], scanJob: null, scanPreset: 'fno', scanOpts: {},
     scanTimer: null, es: null, alerts: [], universe: null, watchlist: [],
     symbols: [], selected: null, detail: null, chart: null, paper: null, alertCount: 0,
+    options: { symbol: 'NIFTY', expiry: null, data: null, loading: false, error: null, source: null },
   };
 
   /* ── API ── */
@@ -598,6 +599,87 @@
     <div style="height:20px"></div>`;
   }
 
+  /* ── OPTIONS CHAIN ── */
+  const OPT_QUICK = ['NIFTY', 'BANKNIFTY', 'FINNIFTY', 'MIDCPNIFTY'];
+  function oiFmt(v) {
+    if (v == null || !isFinite(v)) return '—';
+    const a = Math.abs(v);
+    if (a >= 1e7) return (v / 1e7).toFixed(2) + 'Cr';
+    if (a >= 1e5) return (v / 1e5).toFixed(2) + 'L';
+    if (a >= 1e3) return (v / 1e3).toFixed(1) + 'K';
+    return String(Math.round(v));
+  }
+  function renderOptions() {
+    const o = state.options;
+    return `
+    <div class="card" style="margin-top:14px">
+      <div class="row between wrap" style="gap:10px">
+        <div><b>Option chain</b><div class="tiny muted">Real NSE data — Dhan when you add a key, otherwise the free public NSE feed</div></div>
+        <span class="pill ${o.source === 'Dhan' ? 'fno' : 'none'}" id="opt-src">${o.data ? 'source: ' + o.data.source : 'source: —'}</span>
+      </div>
+      <div class="row wrap" style="gap:8px;margin-top:12px;align-items:center">
+        <input id="opt-sym" list="opt-syms" placeholder="Index or F&O stock (e.g. NIFTY, RELIANCE)" style="flex:1;min-width:180px" value="${esc(o.symbol)}" onkeydown="if(event.key==='Enter')window.__sa.loadOptions()">
+        <datalist id="opt-syms">${OPT_QUICK.concat(['SENSEX', 'BANKBARODA', 'TCS', 'INFY', 'SBIN', 'HDFCBANK']).map((s) => `<option>${s}</option>`).join('')}</datalist>
+        ${OPT_QUICK.map((s) => `<button class="btn sm ${o.symbol === s ? 'primary' : ''}" onclick="window.__sa.setOptSymbol('${s}')">${s}</button>`).join('')}
+        <button class="btn sm" onclick="window.__sa.loadOptions()">⟳ Load</button>
+      </div>
+      ${o.data ? `<div class="row wrap" style="gap:8px;margin-top:10px;align-items:center">
+        <span class="tiny muted">Expiry</span>
+        <select style="width:auto" onchange="window.__sa.setOptExpiry(this.value)">
+          ${(o.data.expiries || []).map((e) => `<option ${o.data.expiry === e ? 'selected' : ''}>${e}</option>`).join('')}
+        </select>
+        <span class="tiny muted">· ${o.data.strikes.length} strikes</span>
+      </div>` : ''}
+    </div>
+    <div id="opt-body">${o.loading ? `<div class="card empty"><div class="big">🧾</div>Loading live option chain…</div>` : o.error ? `<div class="card empty"><div class="big">⚠️</div>${esc(o.error)}</div>` : o.data ? optChainHtml(o.data) : `<div class="card empty"><div class="big">🧾</div>Pick an underlying and tap Load.</div>`}</div>
+    <div style="height:20px"></div>`;
+  }
+
+  function optChainHtml(d) {
+    const rows = d.strikes;
+    const atm = d.atm;
+    const cells = rows.map((s) => {
+      const isAtm = s.strike === atm;
+      const ce = s.ce || {}, pe = s.pe || {};
+      const chg = (v) => v == null ? '—' : `<span class="${v >= 0 ? 'u' : 'd'}">${v >= 0 ? '+' : ''}${Number(v).toFixed(1)}</span>`;
+      const oic = (v) => v == null ? '—' : `<span class="${v >= 0 ? 'u' : 'd'}">${v >= 0 ? '+' : ''}${oiFmt(v)}</span>`;
+      return `<tr class="${isAtm ? 'opt-atm' : ''}">
+        <td class="num">${inr(ce.ltp, 2)}</td>
+        <td class="num">${chg(ce.changePct)}</td>
+        <td class="num">${oiFmt(ce.oi)}</td>
+        <td class="num">${oic(ce.oiChange)}</td>
+        <td class="num">${ce.iv != null ? Number(ce.iv).toFixed(1) : '—'}</td>
+        <td class="num">${oiFmt(ce.volume)}</td>
+        <td class="opt-k">${s.strike.toLocaleString('en-IN')}${isAtm ? ' <span class="tiny">ATM</span>' : ''}</td>
+        <td class="num">${inr(pe.ltp, 2)}</td>
+        <td class="num">${chg(pe.changePct)}</td>
+        <td class="num">${oiFmt(pe.oi)}</td>
+        <td class="num">${oic(pe.oiChange)}</td>
+        <td class="num">${pe.iv != null ? Number(pe.iv).toFixed(1) : '—'}</td>
+        <td class="num">${oiFmt(pe.volume)}</td>
+      </tr>`;
+    }).join('');
+    const t = d.totals;
+    return `
+    <div class="card">
+      <div class="row wrap between" style="gap:10px">
+        <div><div class="tiny muted">Underlying</div><b style="font-size:20px">${d.underlyingValue != null ? inr(d.underlyingValue, 2) : '—'}</b></div>
+        <div><div class="tiny muted">PCR (OI)</div><b style="font-size:20px" class="${d.pcr != null ? (d.pcr >= 1 ? 'u' : 'd') : ''}">${d.pcr ?? '—'}</b></div>
+        <div><div class="tiny muted">Total CE OI</div><b>${oiFmt(t.ceOi)}</b></div>
+        <div><div class="tiny muted">Total PE OI</div><b>${oiFmt(t.peOi)}</b></div>
+        <div><div class="tiny muted">Updated</div><b class="tiny">${dt(d.updatedAt)}</b></div>
+      </div>
+      <div class="tiny muted" style="margin-top:8px">PCR &gt; 1 = more put writing (often supportive); &lt; 1 = more call writing. OI in contracts. This is analysis, not advice.</div>
+    </div>
+    <div class="tbl-wrap"><table class="opt-tbl">
+      <thead>
+        <tr class="opt-grp"><th colspan="6" class="ce-head">CALLS (CE)</th><th></th><th colspan="6" class="pe-head">PUTS (PE)</th></tr>
+        <tr><th>LTP</th><th>Chg%</th><th>OI</th><th>OI chg</th><th>IV</th><th>Vol</th><th>Strike</th><th>LTP</th><th>Chg%</th><th>OI</th><th>OI chg</th><th>IV</th><th>Vol</th></tr>
+      </thead>
+      <tbody>${cells || `<tr><td colspan="13" class="empty">No strikes.</td></tr>`}</tbody>
+    </table></div>`;
+  }
+
   /* ── SETTINGS ── */
   function renderSettings() {
     const s = state.user.settings, u = state.user;
@@ -825,6 +907,7 @@
     const route = state.route;
     if (route === 'dashboard') v.innerHTML = renderDashboard();
     else if (route === 'scanner') v.innerHTML = renderScanner();
+    else if (route === 'options') { v.innerHTML = renderOptions(); if (!state.options.data && !state.options.loading && !state.options.error) setTimeout(actions.loadOptions, 20); }
     else if (route === 'stock') v.innerHTML = renderStock();
     else if (route === 'paper') v.innerHTML = await renderPaper();
     else if (route === 'alerts') v.innerHTML = await renderAlerts();
@@ -857,6 +940,36 @@
       if (dir < 0) state.chart.zoomIn(); else state.chart.zoomOut();
     },
     chartReset() { if (state.chart) state.chart.resetView(); },
+    setOptSymbol(sym) {
+      state.options.symbol = String(sym || '').toUpperCase();
+      state.options.expiry = null;
+      state.options.data = null;
+      actions.loadOptions();
+    },
+    setOptExpiry(e) { state.options.expiry = e; actions.loadOptions(); },
+    async loadOptions() {
+      if (state.options.loading) return;
+      const el = $('#opt-sym');
+      const sym = String((el && el.value) || state.options.symbol || 'NIFTY').trim().toUpperCase();
+      if (!sym) return;
+      state.options.symbol = sym;
+      state.options.loading = true;
+      state.options.error = null;
+      render();
+      try {
+        const q = state.options.expiry ? '?expiry=' + encodeURIComponent(state.options.expiry) : '';
+        const d = await api('/options/' + encodeURIComponent(sym) + q);
+        state.options.data = d;
+        state.options.source = d.source;
+        state.options.expiry = d.expiry;
+      } catch (e) {
+        state.options.data = null;
+        state.options.error = e.message;
+      } finally {
+        state.options.loading = false;
+        render();
+      }
+    },
     setPreset(p) { state.scanPreset = p; render(); },
     filter(patch) { Object.assign(state.scanFilter, patch); render(); },
     async startScan(preset, useCache = true) {
