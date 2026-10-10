@@ -382,6 +382,7 @@
     if (state.detailError) return `<div class="card empty"><div class="big">⚠️</div>${esc(state.detailError)}</div>`;
     if (!d) return `<div class="card empty">No data</div>`;
     const st = d.stats;
+    const tf = state.chartTf || 'D';
     const zones = d.zones.slice().reverse().slice(0, 8);
     return `
     <div class="card" style="margin-top:14px">
@@ -399,7 +400,16 @@
     </div>
 
     <div class="chart-box">
-      <div class="chart-head"><b>Candles + OB zones</b><span class="tiny muted">4H RSI pane · pinch/scroll to zoom</span></div>
+      <div class="chart-head">
+        <b>Candles + OB zones</b>
+        <span class="row" style="gap:5px;align-items:center">
+          <span class="seg-tab ${tf === 'D' ? 'active' : ''}" onclick="window.__sa.setChartTf('D')">Daily</span>
+          <span class="seg-tab ${tf === '4H' ? 'active' : ''}" onclick="window.__sa.setChartTf('4H')">4H</span>
+          <button class="btn sm" style="padding:4px 9px" onclick="window.__sa.chartZoom(-1)" title="Zoom in">＋</button>
+          <button class="btn sm" style="padding:4px 9px" onclick="window.__sa.chartZoom(1)" title="Zoom out">－</button>
+          <button class="btn sm" style="padding:4px 9px" onclick="window.__sa.chartReset()" title="Reset zoom">⟳</button>
+        </span>
+      </div>
       <canvas id="chart"></canvas>
       <div class="legend">
         <span><i style="background:rgba(59,130,246,.45)"></i>Order block</span>
@@ -410,6 +420,7 @@
         <span><i style="background:var(--gold,#fbbf24)"></i>Inducement (filtered)</span>
         <span><i style="background:#a855f7"></i>Wick rejection</span>
       </div>
+      <div class="tiny muted" style="padding:0 13px 10px">${tf === '4H' ? '4H view · daily OB / FVG overlays hidden · drag to pan · scroll or ＋/－ to zoom' : 'Daily view · drag to pan · scroll, double-click or ⟳ to reset zoom'}</div>
     </div>
 
     <div class="stats-grid">
@@ -489,27 +500,30 @@
     const d = state.detailData;
     const canvas = $('#chart');
     if (!canvas || !d) return;
+    // The canvas element is recreated every time the view renders, so a chart
+    // bound to a stale (detached) canvas must be torn down and rebuilt.
+    if (state.chart && state.chart.c !== canvas) { state.chart.destroy(); state.chart = null; }
     if (!state.chart) state.chart = new window.CandleChart(canvas, {});
-    // map daily bars to RSI series by time
-    const rsiSeries = [];
+    const tf = state.chartTf || 'D';
+    const is4h = tf === '4H';
+    const candles = ((is4h ? d.candles4h : d.candles) || []).filter((c) => c && isFinite(c.c));
+    const start = candles[0]?.t ?? 0;
+    state.chart.opts.rsiLabel = is4h ? 'RSI (4H)' : 'RSI (Daily)';
     state.chart.setData({
-      candles: d.candles,
-      zones: d.zones.filter((z) => z.t >= (d.candles[0]?.t ?? 0)),
-      signals: d.signals.filter((s) => s.t >= (d.candles[0]?.t ?? 0)),
-      inducements: d.inducements.filter((s) => s.t >= (d.candles[0]?.t ?? 0)),
-      fvgs: (d.fvgs || []).filter((f) => f.t >= (d.candles[0]?.t ?? 0)),
-      structure: d.structure || null,
-      rsi: state.detailData.rsi4hSeries || buildRsiSeries(d),
+      candles,
+      // OB zones / FVG / structure are computed on daily bars — only overlay them on the daily view
+      zones: is4h ? [] : d.zones.filter((z) => z.t >= start),
+      signals: is4h ? [] : d.signals.filter((s) => s.t >= start),
+      inducements: is4h ? [] : (d.inducements || []).filter((s) => s.t >= start),
+      fvgs: is4h ? [] : (d.fvgs || []).filter((f) => f.t >= start),
+      structure: is4h ? null : (d.structure || null),
+      rsi: is4h ? (d.rsi4hSeries || []) : (d.rsiDailySeries || []),
     });
-    // wick marks
+    // wick rejection mark (daily only)
     const marks = [];
-    if (d.wickLastIdx != null && d.candles[d.wickLastIdx]) marks.push({ t: d.candles[d.wickLastIdx].t });
+    if (!is4h && d.wickLastIdx != null && d.candles[d.wickLastIdx]) marks.push({ t: d.candles[d.wickLastIdx].t });
     state.chart.opts.marks = marks;
     state.chart.render();
-  }
-  function buildRsiSeries(d) {
-    // approximate daily RSI trace is unavailable; draw 4H RSI line from hourly close history
-    return (d.candles4h || []).slice(-60).map((c) => ({ t: c.t, v: null }));
   }
 
   /* ── PAPER ── */
@@ -818,6 +832,16 @@
 
   const actions = {
     go, toast, openStock,
+    setChartTf(tf) {
+      state.chartTf = tf;
+      render();
+      setTimeout(drawDetail, 20);
+    },
+    chartZoom(dir) {
+      if (!state.chart) return;
+      if (dir < 0) state.chart.zoomIn(); else state.chart.zoomOut();
+    },
+    chartReset() { if (state.chart) state.chart.resetView(); },
     setPreset(p) { state.scanPreset = p; render(); },
     filter(patch) { Object.assign(state.scanFilter, patch); render(); },
     async startScan(preset, useCache = true) {

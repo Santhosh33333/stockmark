@@ -9,12 +9,13 @@
     if (n == null || !isFinite(n)) return '—';
     return n.toLocaleString('en-IN', { maximumFractionDigits: 2 });
   }
+  const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 
   class CandleChart {
     constructor(canvas, opts = {}) {
       this.c = canvas;
       this.ctx = canvas.getContext('2d');
-      this.opts = Object.assign({ padding: { top: 16, right: 62, bottom: 22, left: 8 }, rsiPane: true, rsiH: 64, volPane: false }, opts);
+      this.opts = Object.assign({ padding: { top: 16, right: 62, bottom: 22, left: 8 }, rsiPane: true, rsiH: 64, volPane: false, rsiLabel: 'RSI' }, opts);
       this.candles = [];
       this.zones = [];
       this.signals = [];
@@ -25,9 +26,16 @@
       this.view = { from: 0, to: 0 };
       this.hover = null;
       this.animT = 0;
+      this._geom = null;
+      this.drag = null;
+      this._handlers = [];
       this._bind();
       this._resize();
-      window.addEventListener('resize', () => this._resize());
+    }
+
+    destroy() {
+      for (const [el, ev, fn, opt] of this._handlers) el.removeEventListener(ev, fn, opt);
+      this._handlers = [];
     }
 
     setData({ candles = [], zones = [], signals = [], inducements = [], fvgs = [], structure = null, rsi = [] }) {
@@ -37,7 +45,7 @@
       this.inducements = inducements;
       this.fvgs = fvgs;
       this.structure = structure;
-      this.rsi = rsi;
+      this.rsi = (rsi || []).slice().sort((a, b) => a.t - b.t);
       const n = candles.length;
       const show = Math.min(n, 110);
       this.view.from = Math.max(0, n - show);
@@ -46,6 +54,29 @@
       this.render();
       this._animate();
     }
+
+    resetView() {
+      const n = this.candles.length;
+      const show = Math.min(n, 110);
+      this.view.from = Math.max(0, n - show);
+      this.view.to = n;
+      this.render();
+    }
+
+    // factor < 1 zooms in, > 1 zooms out. anchorFrac (0..1) is the x-position kept fixed.
+    zoom(factor, anchorFrac = 0.5) {
+      const n = Math.max(1, this.view.to - this.view.from);
+      const total = this.candles.length;
+      const newN = Math.round(clamp(n * factor, Math.min(20, total), total));
+      const anchor = this.view.from + anchorFrac * n;
+      let from = Math.round(anchor - anchorFrac * newN);
+      from = clamp(from, 0, Math.max(0, total - newN));
+      this.view.from = from;
+      this.view.to = from + newN;
+      this.render();
+    }
+    zoomIn() { this.zoom(0.7); }
+    zoomOut() { this.zoom(1.4); }
 
     _animate() {
       const step = () => {
@@ -68,29 +99,52 @@
       this.render();
     }
 
+    _on(el, ev, fn, opt) {
+      el.addEventListener(ev, fn, opt);
+      this._handlers.push([el, ev, fn, opt]);
+    }
+
     _bind() {
-      const move = (e) => {
+      const local = (e) => {
         const rect = this.c.getBoundingClientRect();
-        const x = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
-        const y = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
-        this.hover = { x, y };
-        this.render();
+        const pt = e.touches ? e.touches[0] : e;
+        return { x: pt.clientX - rect.left, y: pt.clientY - rect.top };
       };
-      const leave = () => { this.hover = null; this.render(); };
-      this.c.addEventListener('mousemove', move);
-      this.c.addEventListener('mouseleave', leave);
-      this.c.addEventListener('touchstart', move, { passive: true });
-      this.c.addEventListener('touchmove', move, { passive: true });
-      this.c.addEventListener('touchend', leave);
-      this.c.addEventListener('wheel', (e) => {
-        e.preventDefault();
-        const n = this.view.to - this.view.from;
-        const shift = e.deltaY > 0 ? Math.ceil(n * 0.12) : -Math.ceil(n * 0.12);
-        this.view.from = Math.max(0, this.view.from + shift);
-        this.view.to = Math.min(this.candles.length, this.view.to + shift);
-        if (this.view.to - this.view.from < 20) { this.view.to = this.view.from + 20; }
+      this._on(this.c, 'mousemove', (e) => {
+        if (this.drag) {
+          const { x } = local(e);
+          const n = this.drag.to - this.drag.from;
+          const P = this.opts.padding;
+          const per = (this.w - P.left - P.right) / Math.max(1, n) || 1;
+          const shift = Math.round((this.drag.x - x) / per);
+          const from = clamp(this.drag.from + shift, 0, Math.max(0, this.candles.length - n));
+          this.view.from = from; this.view.to = from + n;
+          this.render();
+          return;
+        }
+        this.hover = local(e);
         this.render();
+      });
+      this._on(this.c, 'mouseleave', () => { if (!this.drag) { this.hover = null; this.render(); } });
+      this._on(this.c, 'mousedown', (e) => {
+        const { x } = local(e);
+        this.drag = { x, from: this.view.from, to: this.view.to };
+        this.c.style.cursor = 'grabbing';
+      });
+      this._on(window, 'mouseup', () => { if (this.drag) { this.drag = null; this.c.style.cursor = 'crosshair'; } });
+      this._on(this.c, 'touchstart', (e) => { this.hover = local(e); this.render(); }, { passive: true });
+      this._on(this.c, 'touchmove', (e) => { this.hover = local(e); this.render(); }, { passive: true });
+      this._on(this.c, 'touchend', () => { this.hover = null; this.render(); });
+      this._on(this.c, 'dblclick', () => this.resetView());
+      this._on(this.c, 'wheel', (e) => {
+        e.preventDefault();
+        const { x } = local(e);
+        const P = this.opts.padding;
+        const frac = clamp((x - P.left) / Math.max(1, this.w - P.left - P.right), 0, 1);
+        this.zoom(e.deltaY > 0 ? 1.16 : 0.86, frac);
       }, { passive: false });
+      this._on(window, 'resize', () => this._resize());
+      this.c.style.cursor = 'crosshair';
     }
 
     render() {
@@ -121,6 +175,7 @@
       const x0 = P.left, x1 = W - P.right;
       const n = view.length;
       const cw = Math.max(2, (x1 - x0) / n);
+      this._geom = { x0, x1, n, cw };
       const bodyW = Math.max(1.5, cw * 0.62);
       const yP = (p) => priceTop + ((hi - p) / (hi - lo)) * priceH;
       const xI = (i) => x0 + i * cw + cw / 2;
@@ -289,19 +344,19 @@
         });
         if (this.rsi.length) {
           ctx.strokeStyle = ACCENT; ctx.lineWidth = 1.4; ctx.beginPath();
-          let started = false;
+          let started = false, ri = 0, lastV = null;
           for (let i = 0; i < n; i++) {
-            const c = view[i];
-            const val = this.rsi.find((r) => r && r.t <= c.t);
-            const v = val ? val.v : null;
-            if (v == null) continue;
-            const x = xI(i), y = yR(v);
+            // advance the pointer to the most recent RSI reading at or before this bar
+            while (ri < this.rsi.length && this.rsi[ri].t <= view[i].t) { lastV = this.rsi[ri].v; ri++; }
+            if (lastV == null) continue;
+            const x = xI(i), y = yR(lastV);
             if (!started) { ctx.moveTo(x, y); started = true; } else ctx.lineTo(x, y);
           }
           ctx.stroke();
         }
         ctx.fillStyle = TEXT; ctx.font = '9px system-ui';
-        ctx.fillText('4H RSI', x0 + 4, ry0 + 10);
+        const lastRsi = this.rsi.length ? this.rsi[this.rsi.length - 1].v : null;
+        ctx.fillText((this.opts.rsiLabel || 'RSI') + (lastRsi != null ? '  ' + lastRsi : ''), x0 + 4, ry0 + 10);
       }
 
       // ── crosshair tooltip ──
@@ -311,21 +366,33 @@
         const x = xI(i);
         ctx.strokeStyle = 'rgba(226,232,240,.25)'; ctx.setLineDash([2, 3]);
         ctx.beginPath(); ctx.moveTo(x, priceTop); ctx.lineTo(x, priceBottom); ctx.stroke(); ctx.setLineDash([]);
-        const boxW = 150, boxH = 66;
-        let bx = Math.min(x + 10, W - boxW - 4);
-        let by = Math.max(priceTop + 4, Math.min(this.hover.y - 20, priceBottom - boxH));
+        const d = new Date(c.t);
+        const prev = i > 0 ? view[i - 1].c : null;
+        const chg = prev ? ((c.c - prev) / prev) * 100 : null;
+        let rv = null;
+        for (let k = this.rsi.length - 1; k >= 0; k--) { if (this.rsi[k].t <= c.t) { rv = this.rsi[k].v; break; } }
+        const boxW = 158, boxH = rv != null ? 82 : 68;
+        const bx = Math.min(x + 10, W - boxW - 4);
+        const by = Math.max(priceTop + 4, Math.min(this.hover.y - 20, priceBottom - boxH));
         ctx.fillStyle = 'rgba(2,16,34,.94)';
         ctx.strokeStyle = 'rgba(56,189,248,.35)';
         ctx.beginPath(); ctx.roundRect(bx, by, boxW, boxH, 8); ctx.fill(); ctx.stroke();
-        ctx.fillStyle = '#e2e8f0'; ctx.font = '10px system-ui';
-        const d = new Date(c.t);
-        const lines = [
-          `${d.getUTCDate()}/${d.getUTCMonth() + 1}/${String(d.getUTCFullYear()).slice(2)}`,
-          `O ${fmt(c.o)}  H ${fmt(c.h)}`,
-          `L ${fmt(c.l)}  C ${fmt(c.c)}`,
-          `Vol ${c.v >= 1e5 ? (c.v / 1e5).toFixed(1) + 'L' : fmt(c.v)}`,
-        ];
-        lines.forEach((l, k) => ctx.fillText(l, bx + 8, by + 14 + k * 13));
+        ctx.font = '10px system-ui';
+        ctx.fillStyle = '#e2e8f0';
+        ctx.fillText(`${d.getUTCDate()}/${d.getUTCMonth() + 1}/${String(d.getUTCFullYear()).slice(2)}${chg != null ? '  ' : ''}`, bx + 8, by + 14);
+        if (chg != null) {
+          ctx.fillStyle = chg >= 0 ? '#86efac' : '#fca5a5';
+          ctx.fillText(`${chg >= 0 ? '+' : ''}${chg.toFixed(2)}%`, bx + 70, by + 14);
+        }
+        ctx.fillStyle = '#e2e8f0';
+        ctx.fillText(`O ${fmt(c.o)}   H ${fmt(c.h)}`, bx + 8, by + 28);
+        ctx.fillText(`L ${fmt(c.l)}   C ${fmt(c.c)}`, bx + 8, by + 42);
+        ctx.fillStyle = TEXT;
+        ctx.fillText(`Vol ${c.v >= 1e5 ? (c.v / 1e5).toFixed(1) + 'L' : fmt(c.v)}`, bx + 8, by + 56);
+        if (rv != null) {
+          ctx.fillStyle = rv >= 70 ? '#fca5a5' : rv <= 30 ? '#86efac' : ACCENT;
+          ctx.fillText(`${(this.opts.rsiLabel || 'RSI')} ${rv.toFixed(1)}`, bx + 8, by + 72);
+        }
       }
     }
   }

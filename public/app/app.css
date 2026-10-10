@@ -179,7 +179,8 @@ td.u{color:var(--up)}td.d{color:var(--down)}td.a{color:var(--accent);font-weight
 
 /* chart */
 .chart-box{margin:12px 14px;border-radius:18px;border:1px solid var(--line);background:linear-gradient(180deg,rgba(6,12,26,.94),rgba(4,8,18,.95));overflow:hidden}
-.chart-head{display:flex;align-items:center;justify-content:space-between;padding:11px 13px;border-bottom:1px solid var(--line)}
+.chart-head{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;padding:11px 13px;border-bottom:1px solid var(--line)}
+.chart-head .seg-tab{padding:5px 11px;font-size:12px}
 canvas#chart{width:100%;height:340px;display:block}
 .legend{display:flex;gap:12px;flex-wrap:wrap;padding:9px 13px;border-top:1px solid var(--line);font-size:10.5px;color:var(--dim)}
 .legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}

@@ -24,7 +24,7 @@ The strategy engine exists as **two twins that share identical rules**:
 - 🔎 **Full-universe scanner** — every NSE + BSE equity, F&O tag, indices; parallel, cached, resumable.
 - 🕯️ **Explainable setups** — wick rejection, order block, inducement sweep, 4H RSI; every pass/fail reason is surfaced.
 - 🧭 **SMC context** — market-structure breaks (**BOS / CHoCH**), **fair-value gaps** (filled/unfilled), equal-high/low **liquidity pools** with sweep status, a 0–100% confluence score, and **multi-timeframe alignment** (Weekly · Daily · 4H · 1H) on every symbol.
-- 📈 **Real charts** — candles, order-block zones (fresh / mitigated / invalidated), FVG bands, BOS/CHoCH markers, BUY markers, 4H RSI series.
+- 📈 **Real charts** — candles with order-block zones (fresh / mitigated / invalidated), FVG bands, BOS/CHoCH markers, BUY markers, a **Daily ⇄ 4H timeframe toggle**, a timeframe-matched **RSI pane**, and **drag-to-pan + wheel/button zoom** (double-click or ⟳ to reset).
 - 💼 **Paper trading** — SL/TP/time exits on live ₹ prices, portfolio stats (win rate, profit factor, drawdown), auto-fill from signals.
 - 🔔 **Alerts** — in-app feed, browser notifications, Telegram bot, and a TradingView webhook endpoint.
 - 🛡️ **Owner console** — overview, users (role toggle + password reset), signals, trades, audit log and system health, all in one tabbed panel. Owner-only UI (admin nav, email-sender config, admin console) is rendered **only for the owner**; other users never see it, and every `/admin/*` route is enforced server-side with `403`.

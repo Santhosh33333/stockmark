@@ -82,6 +82,7 @@ router.get('/analysis/:symbol', async (req, res) => {
       candles: compressCandles(data.daily),
       candles4h: compressCandles(data.hourly),
       ...fourHourSeries(data.hourly),
+      rsiDailySeries: dailyRsiSeries(data.daily),
     });
   } catch (e) {
     res.status(502).json({ error: `Data fetch failed: ${e.message}` });
@@ -98,6 +99,13 @@ function fourHourSeries(hourly) {
     rsi4hSeries: series.slice(-140),
     candles4h: c4h.slice(-120).map((c) => ({ t: c.t, o: +c.o.toFixed(2), h: +c.h.toFixed(2), l: +c.l.toFixed(2), c: +c.c.toFixed(2), v: c.v })),
   };
+}
+
+// Daily RSI(14) series aligned to the daily candles drawn on the chart
+function dailyRsiSeries(daily) {
+  const { rsi } = require('../indicators');
+  const r = rsi((daily || []).map((c) => c.c), 14);
+  return (daily || []).map((c, i) => ({ t: c.t, v: r[i] != null ? +r[i].toFixed(1) : null })).filter((x) => x.v != null).slice(-170);
 }
 
 // Lightweight candles for the chart (last N daily bars)
