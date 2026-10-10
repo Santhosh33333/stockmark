@@ -4,11 +4,16 @@
 //  Net Profit, Win Rate, Profit Factor, Max Drawdown, trades, avg trade.
 //
 //  Usage:
-//    node scripts/backtest.js                       # NIFTY 50, strict rules
-//    node scripts/backtest.js --range=10y           # longer daily window
-//    node scripts/backtest.js --no-htf              # drop the 4H RSI filter
+//    node scripts/backtest.js                                   # NIFTY 50 · strict preset (≈0 trades)
+//    node scripts/backtest.js --preset=improved                 # relaxed engine preset
+//    node scripts/backtest.js --universe=fno --preset=improved  # 213 F&O names
+//    node scripts/backtest.js --no-htf --range=10y              # full daily window, no 4H RSI filter
 //    node scripts/backtest.js --symbols=RELIANCE,TCS,INFY
-//    node scripts/backtest.js --limit=80            # N largest F&O names
+//    node scripts/backtest.js --limit=80                        # 80 largest F&O names
+//
+//  Notes:
+//   • Yahoo symbol drift is handled: TATAMOTORS → TMCV/TMPV (2025 demerger),
+//     LTIM → LTM (2026 rename). The live universe (data/universe.json) is already current.
 //
 //  Notes:
 //   • Daily candles come from Yahoo Finance using --range (default 10y).
@@ -25,10 +30,10 @@ const NIFTY50 = [
   'RELIANCE', 'TCS', 'HDFCBANK', 'ICICIBANK', 'INFY', 'HINDUNILVR', 'ITC', 'SBIN',
   'BHARTIARTL', 'KOTAKBANK', 'LT', 'AXISBANK', 'ASIANPAINT', 'MARUTI', 'BAJFINANCE',
   'HCLTECH', 'SUNPHARMA', 'TITAN', 'ULTRACEMCO', 'WIPRO', 'NESTLEIND', 'ONGC',
-  'NTPC', 'POWERGRID', 'M&M', 'TATAMOTORS', 'TATASTEEL', 'JSWSTEEL', 'ADANIENT',
+  'NTPC', 'POWERGRID', 'M&M', 'TMCV', 'TMPV', 'TATASTEEL', 'JSWSTEEL', 'ADANIENT',
   'ADANIPORTS', 'COALINDIA', 'BAJAJFINSV', 'GRASIM', 'HINDALCO', 'TECHM', 'INDUSINDBK',
   'DRREDDY', 'CIPLA', 'BRITANNIA', 'EICHERMOT', 'BPCL', 'DIVISLAB', 'APOLLOHOSP',
-  'HEROMOTOCO', 'BAJAJ-AUTO', 'SBILIFE', 'HDFCLIFE', 'TATACONSUM', 'LTIM', 'SHRIRAMFIN',
+  'HEROMOTOCO', 'BAJAJ-AUTO', 'SBILIFE', 'HDFCLIFE', 'TATACONSUM', 'LTM', 'SHRIRAMFIN',
 ];
 
 function arg(name, def) {
