@@ -805,8 +805,17 @@
         <button class="btn sm" onclick="window.__sa.provTest('fyers')">Test auth</button>
       </div>
 
+      <div style="border-top:1px solid var(--line);margin:12px 0"></div>
+      <div class="set-row"><span class="lbl"><b>Tapetide</b> MCP<small>Research/fundamentals · free ~50 calls/day</small></span>
+        <label class="switch"><input type="checkbox" id="tp-enabled" ${state.prov?.tapetide?.enabled ? 'checked' : ''}><i></i></label></div>
+      <div class="set-row"><span class="lbl">Personal token<small>${state.prov?.tapetide?.hasToken ? 'saved — leave blank to keep' : 'from tapetide.com/settings/tokens (tpt_rt_…)'}</small></span><input type="password" id="tp-token" placeholder="tpt_rt_…"></div>
+      <div class="row" style="gap:8px;margin-bottom:14px">
+        <button class="btn sm primary" onclick="window.__sa.provSave('tapetide')">Save</button>
+        <button class="btn sm" onclick="window.__sa.provTest('tapetide')">Test</button>
+      </div>
+
       <div class="set-row"><span class="lbl">Yahoo Finance<small>Always on · no key needed</small></span><b class="u">Active</b></div>
-      <div class="tiny muted" style="margin-top:8px">Add credentials and enable a source to try it first. The app always falls back to Yahoo, so it never goes dark.</div>
+      <div class="tiny muted" style="margin-top:8px">Add credentials and enable a source to try it first. The app always falls back to Yahoo, so it never goes dark. Tapetide is best for research (its ~50 free calls/day suits occasional lookups, not bulk scanning).</div>
     </div>` : ''}
     <div style="height:24px"></div>`;
   }
@@ -1208,7 +1217,7 @@
         state.prov = j.credentials || {};
         const c = state.prov;
         const el = $('#prov-active');
-        if (el) el.innerHTML = (j.active || []).map((id) => `<span class="pill buy" style="margin-left:4px">${esc(id === 'yahoo' ? 'Yahoo Finance' : id === 'angelone' ? 'Angel One' : 'Fyers')}</span>`).join('') || '<span class="tiny muted">none</span>';
+        if (el) el.innerHTML = (j.active || []).map((id) => `<span class="pill buy" style="margin-left:4px">${esc({ yahoo: 'Yahoo Finance', angelone: 'Angel One', fyers: 'Fyers', tapetide: 'Tapetide' }[id] || id)}</span>`).join('') || '<span class="tiny muted">none</span>';
         const setv = (sel, v) => { const n = $(sel); if (n) n.value = v; };
         const setc = (sel, b) => { const n = $(sel); if (n) n.checked = !!b; };
         if (c.angelone) {
@@ -1220,6 +1229,10 @@
           setc('#fy-enabled', c.fyers.enabled);
           setv('#fy-appId', c.fyers.appId || '');
         }
+        if (c.tapetide) {
+          setc('#tp-enabled', c.tapetide.enabled);
+          const tk = $('#tp-token'); if (tk && !tk.value) tk.placeholder = c.tapetide.hasToken ? '•••• saved — blank to keep' : 'tpt_rt_…';
+        }
       } catch { }
     },
     async provSave(which) {
@@ -1229,6 +1242,10 @@
         const set = (k, id) => { const v = $('#' + id)?.value; if (v) a[k] = v; };
         set('apiKey', 'ao-apiKey'); set('clientCode', 'ao-clientCode'); set('pin', 'ao-pin'); set('totpSecret', 'ao-totpSecret');
         body.angelone = a;
+      } else if (which === 'tapetide') {
+        const t = { enabled: $('#tp-enabled')?.checked };
+        const tv = $('#tp-token')?.value; if (tv) t.token = tv;
+        body.tapetide = t;
       } else {
         const f = { enabled: $('#fy-enabled')?.checked };
         const av = $('#fy-appId')?.value; if (av) f.appId = av;

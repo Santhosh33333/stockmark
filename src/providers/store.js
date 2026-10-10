@@ -10,9 +10,11 @@ const FILE = path.join(config.dataDir, 'providers.json');
 
 const DEFAULTS = {
   // Try in this order; yahoo is the always-available, key-less fallback.
-  order: ['angelone', 'fyers', 'yahoo'],
+  // tapetide is an optional research source (MCP, ~50 free calls/day) — off by default.
+  order: ['angelone', 'fyers', 'tapetide', 'yahoo'],
   angelone: { enabled: false, apiKey: '', clientCode: '', pin: '', totpSecret: '', totp: '' },
   fyers: { enabled: false, appId: '', accessToken: '' },
+  tapetide: { enabled: false, token: '' },
 };
 
 let cache = null;
@@ -26,6 +28,7 @@ function load() {
     ...disk,
     angelone: { ...DEFAULTS.angelone, ...(disk.angelone || {}) },
     fyers: { ...DEFAULTS.fyers, ...(disk.fyers || {}) },
+    tapetide: { ...DEFAULTS.tapetide, ...(disk.tapetide || {}) },
     order: Array.isArray(disk.order) && disk.order.length ? disk.order : DEFAULTS.order,
   };
   return cache;
@@ -38,6 +41,7 @@ function save(patch = {}) {
     ...patch,
     angelone: { ...cur.angelone, ...(patch.angelone || {}) },
     fyers: { ...cur.fyers, ...(patch.fyers || {}) },
+    tapetide: { ...cur.tapetide, ...(patch.tapetide || {}) },
   };
   cache = next;
   try {
@@ -66,6 +70,11 @@ function publicView() {
       enabled: !!c.fyers.enabled,
       appId: c.fyers.appId || '',
       hasAccessToken: has(c.fyers.accessToken),
+    },
+    tapetide: {
+      enabled: !!c.tapetide.enabled,
+      hasToken: has(c.tapetide.token),
+      token: mask(c.tapetide.token),
     },
     yahoo: { enabled: true },
   };

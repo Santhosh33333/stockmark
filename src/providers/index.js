@@ -8,20 +8,27 @@ const store = require('./store');
 const yahoo = require('./yahoo');
 const angelone = require('./angelone');
 const fyers = require('./fyers');
+const tapetide = require('./tapetide');
 
 const noop = () => true;
 const REGISTRY = {
   yahoo: { id: 'yahoo', label: 'Yahoo Finance', ...yahoo, isConfigured: noop },
   angelone,
   fyers,
+  tapetide,
 };
 
 // Ordered list of provider ids to try (configured first, yahoo forced last).
-function chain() {
+// Any registered provider missing from the saved order is appended, so newly
+// added sources (e.g. tapetide) light up without wiping an existing config.
+function chainIds() {
   const c = store.load();
   const ids = (c.order || []).filter((id) => REGISTRY[id]);
-  if (!ids.includes('yahoo')) ids.push('yahoo');
-  return ids.map((id) => REGISTRY[id]);
+  for (const id of Object.keys(REGISTRY)) if (!ids.includes(id)) ids.push(id);
+  return ids.filter((id) => id !== 'yahoo').concat('yahoo');
+}
+function chain() {
+  return chainIds().map((id) => REGISTRY[id]);
 }
 function credsFor(id) {
   if (id === 'yahoo') return {};
@@ -101,14 +108,13 @@ const mapLimit = (items, limit, worker) => pMap(items, limit, worker);
 
 // ── Settings helpers ─────────────────────────────────────────────────────
 function providerStatus() {
-  const c = store.load();
   const list = chain().map((p) => {
     let ok = false;
     try { ok = p.isConfigured(credsFor(p.id)); } catch { /* ignore */ }
     return { id: p.id, label: p.label, configured: ok, active: ok };
   });
   return {
-    order: c.order,
+    order: chainIds(),
     providers: list,
     active: usable().map((p) => p.id),
     lastUsed,

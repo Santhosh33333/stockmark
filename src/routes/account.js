@@ -483,6 +483,13 @@ router.put('/providers/credentials', requireAdmin, (req, res) => {
       if (k in f) patch.fyers[k] = f[k];
     }
   }
+  if (body.tapetide) {
+    const t = body.tapetide;
+    patch.tapetide = {};
+    for (const k of ['enabled', 'token']) {
+      if (k in t) patch.tapetide[k] = t[k];
+    }
+  }
   try {
     const store = require('../providers/store');
     store.save(patch);
