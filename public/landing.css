@@ -198,6 +198,51 @@ footer a{color:#9dc0ff}
 .foot-brand{display:flex;align-items:center;gap:9px;justify-content:center;margin-bottom:12px;font-weight:800;font-size:16px;color:var(--txt)}
 .foot-brand img{width:26px;height:26px}
 
+/* ── trust / integrations strip ── */
+.trustbar{padding:6px 0 4px}
+.trustbar-in{display:flex;align-items:center;gap:10px 20px;flex-wrap:wrap;justify-content:center;
+  border:1px solid var(--line);border-radius:var(--radius-sm);padding:14px 20px;background:rgba(15,22,40,.5)}
+.tb-lbl{font-size:12px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#9dc0ff;
+  padding-right:16px;border-right:1px solid var(--line)}
+.tb-item{color:var(--dim);font-size:13.5px}
+.tb-item b{color:var(--txt);font-weight:700}
+
+/* ── start in 3 steps ── */
+.how{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.how-step{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:26px 24px;position:relative;
+  backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);transition:.28s}
+.how-step:hover{transform:translateY(-5px);border-color:rgba(79,140,255,.45);box-shadow:0 28px 60px -30px rgba(79,140,255,.6)}
+.how-step .hn{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;font-weight:800;font-size:16px;margin-bottom:15px;
+  background:linear-gradient(140deg,#4f8cff,#8b5cf6);color:#fff;box-shadow:0 12px 26px -12px rgba(79,140,255,.9)}
+.how-step h4{font-size:16.5px;font-weight:700;margin-bottom:8px}
+.how-step p{color:var(--dim);font-size:14px}
+.how-cta{display:flex;align-items:center;gap:16px;flex-wrap:wrap;justify-content:center;margin-top:30px}
+.how-note{color:var(--dim-2);font-size:13px}
+
+/* ── comparison table ── */
+.cmp{overflow-x:auto;border:1px solid var(--line);border-radius:var(--radius);background:var(--panel);
+  backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+.cmp table{width:100%;border-collapse:collapse;min-width:620px}
+.cmp th,.cmp td{padding:14px 18px;text-align:left;font-size:14px;border-bottom:1px solid var(--line)}
+.cmp tbody tr:last-child td{border-bottom:none}
+.cmp thead th{font-size:11.5px;text-transform:uppercase;letter-spacing:.8px;color:var(--dim-2);font-weight:700}
+.cmp td:first-child{color:var(--dim);font-weight:600}
+.cmp td:nth-child(2){color:var(--dim-2)}
+.cmp .hl{color:var(--txt);background:linear-gradient(180deg,rgba(79,140,255,.10),rgba(139,92,246,.06));border-left:1px solid rgba(79,140,255,.2)}
+.cmp .hl b{color:#9dc0ff}
+
+/* ── sticky mobile CTA ── */
+.sticky-cta{position:fixed;left:12px;right:12px;bottom:12px;z-index:70;display:none;align-items:center;gap:12px;
+  padding:12px 14px;border-radius:16px;background:rgba(11,18,34,.92);border:1px solid var(--line-2);
+  box-shadow:0 22px 50px -20px rgba(0,0,0,.9);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+  transform:translateY(140%);transition:transform .35s cubic-bezier(.2,.8,.2,1)}
+.sticky-cta.show{transform:none}
+.sticky-cta div{display:flex;flex-direction:column;line-height:1.25}
+.sticky-cta b{font-size:14px}
+.sticky-cta span{font-size:11.5px;color:var(--dim-2)}
+.sticky-cta .btn{margin-left:auto;padding:10px 16px}
+@media(max-width:640px){.sticky-cta{display:flex}}
+
 /* ── reveal ── */
 .rv{opacity:0;transform:translateY(22px);transition:opacity .7s cubic-bezier(.2,.8,.2,1),transform .7s cubic-bezier(.2,.8,.2,1)}
 .rv.in{opacity:1;transform:none}
@@ -215,6 +260,7 @@ footer a{color:#9dc0ff}
 @media(max-width:1040px){
   .hero-grid{grid-template-columns:1fr;gap:38px}
   .features{grid-template-columns:repeat(2,1fr)}
+  .how{grid-template-columns:1fr}
   .results,.stats-grid{grid-template-columns:repeat(2,1fr)}
   .plans,.sig-grid{grid-template-columns:1fr}
   .plan.best{transform:none}
@@ -228,5 +274,7 @@ footer a{color:#9dc0ff}
   .term-body{height:230px}
   .hero-cta .btn{flex:1;justify-content:center}
   .nav-cta .btn:first-child{display:none}
+  .tb-lbl{border-right:none;padding-right:0;width:100%;text-align:center}
+  footer{padding-bottom:86px}
 }
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}

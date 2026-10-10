@@ -6,11 +6,43 @@
 <title>StockArtha 2.0 — Live NSE &amp; BSE Smart-Money Scanner</title>
 <meta name="description" content="StockArtha 2.0 scans every NSE & BSE stock live for wick rejection + unmitigated order block + inducement with a 4H RSI filter. Free market data in ₹, paper trading, Dhan execution, Pine Script." />
 <meta name="theme-color" content="#05070f" />
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="StockArtha" />
 <meta property="og:title" content="StockArtha 2.0 — Live NSE & BSE Smart-Money Scanner" />
 <meta property="og:description" content="Wick rejection + order block + inducement + 4H RSI. Real-time scanner, paper trading and Pine Script." />
+<meta property="og:image" content="/icons/icon-512.png" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="StockArtha 2.0 — Live NSE & BSE Smart-Money Scanner" />
+<meta name="twitter:description" content="Wick rejection + order block + inducement + 4H RSI. Real-time scanner, paper trading and Pine Script." />
+<meta name="twitter:image" content="/icons/icon-512.png" />
 <link rel="icon" type="image/svg+xml" href="/logo.svg" />
 <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
 <link rel="stylesheet" href="landing.css" />
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "StockArtha 2.0",
+  "applicationCategory": "FinanceApplication",
+  "operatingSystem": "Web",
+  "description": "Live NSE & BSE smart-money scanner: wick rejection, order blocks, inducement sweeps and a 4H RSI filter, with paper trading, alerts and a TradingView Pine Script.",
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "INR" },
+  "areaServed": "IN",
+  "inLanguage": "en-IN"
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    { "@type": "Question", "name": "Do I need a paid data API or broker account?", "acceptedAnswer": { "@type": "Answer", "text": "No. Live quotes and candles come from free public endpoints. Dhan is optional and only used for real order execution." } },
+    { "@type": "Question", "name": "Are the prices on this page real?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. The chart and signal feed are fetched live from the running scanner's API. If the provider is unreachable you see an explicit data-unavailable state instead of a fake price." } },
+    { "@type": "Question", "name": "Can I backtest before risking money?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. The bundled Pine Script runs in TradingView's Strategy Tester, the app shows per-symbol backtest stats on real history, and paper trading replays signals on live prices." } },
+    { "@type": "Question", "name": "Is this investment advice?", "acceptedAnswer": { "@type": "Answer", "text": "No. StockArtha is analysis and automation tooling. Your broker keys stay server-side and nothing is a promise of returns." } }
+  ]
+}
+</script>
 </head>
 <body>
 <div class="bg" aria-hidden="true"></div>
@@ -22,8 +54,9 @@
     <a class="brand" href="/"><img src="/logo.svg" alt="StockArtha" /><span><b>StockArtha</b></span><span class="v2">2.0</span></a>
     <nav class="nav-links">
       <a href="#features">Features</a>
+      <a href="#start">Get started</a>
       <a href="#engine">The engine</a>
-      <a href="#results">Results</a>
+      <a href="#signals">Live</a>
       <a href="#pricing">Pricing</a>
       <a href="#faq">FAQ</a>
     </nav>
@@ -83,6 +116,36 @@
     <div class="stat"><div class="k">Fresh BUY signals</div><div class="v u" id="st-signals">—</div><div class="s">last confirmed setups</div></div>
     <div class="stat"><div class="k">NIFTY 50</div><div class="v" id="st-nifty">—</div><div class="s" id="st-nifty-s">loading…</div></div>
     <div class="stat"><div class="k">Market</div><div class="v" id="st-market">—</div><div class="s" id="st-market-s">IST</div></div>
+  </div>
+</section>
+
+<!-- ══════════ TRUST / INTEGRATIONS ══════════ -->
+<section class="trustbar">
+  <div class="wrap trustbar-in">
+    <span class="tb-lbl">Free &amp; honest by design</span>
+    <span class="tb-item"><b>₹0</b> no data subscription</span>
+    <span class="tb-item"><b>No card</b> to start</span>
+    <span class="tb-item"><b>Never faked</b> real prices only</span>
+    <span class="tb-item">Data · <b>Yahoo</b> · <b>NSE</b> · <b>BSE</b></span>
+    <span class="tb-item">Optional live · <b>Dhan</b></span>
+    <span class="tb-item">Alerts · <b>Telegram</b> · <b>TradingView</b></span>
+  </div>
+</section>
+
+<!-- ══════════ START IN 3 STEPS ══════════ -->
+<section class="section" id="start">
+  <div class="wrap">
+    <div class="section-head rv">
+      <span class="eyebrow">Start in 3 steps</span>
+      <h2>From zero to your first scan</h2>
+      <p>No installs, no API keys, no card. It runs entirely in your browser on live free data.</p>
+    </div>
+    <div class="how">
+      <div class="how-step rv"><div class="hn">1</div><h4>Create a free account</h4><p>Sign in with email OTP — it takes about 30 seconds. Your session is yours alone.</p></div>
+      <div class="how-step rv"><div class="hn">2</div><h4>Run a full-market scan</h4><p>One click scans every NSE &amp; BSE stock for a fresh smart-money setup, then ranks them.</p></div>
+      <div class="how-step rv"><div class="hn">3</div><h4>Chart, paper-trade, alert</h4><p>Open any hit on a real chart, let paper trading track it on live ₹ prices, and set an alert.</p></div>
+    </div>
+    <div class="how-cta rv"><a class="btn btn-grad btn-lg" href="/app/">Create your free account →</a><span class="how-note">No credit card · Free data · Nothing to cancel</span></div>
   </div>
 </section>
 
@@ -153,6 +216,30 @@
   </div>
 </section>
 
+<!-- ══════════ WHY NOT JUST CHART BY HAND ══════════ -->
+<section class="section" id="why">
+  <div class="wrap">
+    <div class="section-head rv">
+      <span class="eyebrow">Why StockArtha</span>
+      <h2>Same rules, without the grind</h2>
+      <p>The detection logic isn't unique — the point is doing it across the whole market, consistently, in minutes.</p>
+    </div>
+    <div class="cmp rv">
+      <table>
+        <thead><tr><th>What you'd need</th><th>By hand / generic screener</th><th class="hl">StockArtha 2.0</th></tr></thead>
+        <tbody>
+          <tr><td>Wick + order-block + inducement on one bar</td><td>Eyeball dozens of charts</td><td class="hl"><b>Automated</b>, rule-by-rule</td></tr>
+          <tr><td>Full NSE + BSE coverage</td><td>Watchlist by hand</td><td class="hl"><b>Whole universe</b> per scan</td></tr>
+          <tr><td>4H RSI confluence</td><td>Switch timeframe manually</td><td class="hl"><b>Built-in</b> MTF filter</td></tr>
+          <tr><td>Track the outcome</td><td>Notes / spreadsheets</td><td class="hl"><b>Paper book</b> + live P&amp;L</td></tr>
+          <tr><td>Trade it live</td><td>Copy numbers into broker</td><td class="hl"><b>Optional</b> Dhan routing</td></tr>
+          <tr><td>Cost</td><td>Paid data/screener plans</td><td class="hl"><b>₹0</b> on free data</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
 <!-- ══════════ PRICING ══════════ -->
 <section class="section" id="pricing">
   <div class="wrap">
@@ -210,6 +297,12 @@
   </div>
 </section>
 
+<!-- ══════════ STICKY MOBILE CTA ══════════ -->
+<div class="sticky-cta" id="stickyCta">
+  <div><b>Scan all NSE + BSE</b><span>free · no card</span></div>
+  <a class="btn btn-grad" href="/app/">Launch app →</a>
+</div>
+
 <footer>
   <div class="foot-brand"><img src="/logo.svg" alt="" /><b>StockArtha 2.0</b></div>
   <p>Live NSE &amp; BSE smart-money scanner · All prices in ₹ (INR) · Free market data</p>
@@ -225,6 +318,18 @@ const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '
 /* ── reveal ── */
 const io = new IntersectionObserver((es) => es.forEach((e) => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } }), { threshold: .12 });
 document.querySelectorAll('.rv').forEach((el) => io.observe(el));
+
+/* ── sticky mobile CTA: appear once past the hero, hide over the final CTA band ── */
+const sticky = $('#stickyCta');
+if (sticky) {
+  const onScroll = () => {
+    const past = window.scrollY > 520;
+    const nearEnd = (window.innerHeight + window.scrollY) > (document.body.scrollHeight - 320);
+    sticky.classList.toggle('show', past && !nearEnd);
+  };
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+}
 
 /* ── universe + market + signals ── */
 fetch('/api/universe').then((r) => r.json()).then((j) => {
