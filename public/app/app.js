@@ -1206,8 +1206,20 @@
       try {
         const j = await api('/providers/status');
         state.prov = j.credentials || {};
+        const c = state.prov;
         const el = $('#prov-active');
         if (el) el.innerHTML = (j.active || []).map((id) => `<span class="pill buy" style="margin-left:4px">${esc(id === 'yahoo' ? 'Yahoo Finance' : id === 'angelone' ? 'Angel One' : 'Fyers')}</span>`).join('') || '<span class="tiny muted">none</span>';
+        const setv = (sel, v) => { const n = $(sel); if (n) n.value = v; };
+        const setc = (sel, b) => { const n = $(sel); if (n) n.checked = !!b; };
+        if (c.angelone) {
+          setc('#ao-enabled', c.angelone.enabled);
+          setv('#ao-clientCode', c.angelone.clientCode || '');
+          const ak = $('#ao-apiKey'); if (ak && !ak.value) ak.placeholder = c.angelone.apiKey || 'SmartAPI key';
+        }
+        if (c.fyers) {
+          setc('#fy-enabled', c.fyers.enabled);
+          setv('#fy-appId', c.fyers.appId || '');
+        }
       } catch { }
     },
     async provSave(which) {
