@@ -19,6 +19,14 @@
     options: { symbol: 'NIFTY', expiry: null, data: null, loading: false, error: null, source: null },
     optSyms: null, optSymsLoading: false, optFilter: '',
     backtest: { symbol: 'RELIANCE', preset: 'improved', slPct: 1.5, tpPct: 3, maxBars: 25, data: null, loading: false, error: null },
+    lab: {
+      prompt: 'Find bullish NSE stocks using liquidity sweeps, wick rejection, bullish BOS, and an unmitigated order block. Confirm the trend using the completed 4-hour RSI. Enter after confirmation, place the stop loss below the invalidation swing, and target a 1:2 risk-reward ratio.',
+      parsing: false, parsed: null, parseError: null,
+      symbol: 'RELIANCE', running: false, result: null, runError: null,
+      optimizing: false, optimize: null,
+      wf: null, mc: null, sens: null, risklv: null,
+      saving: false, strategies: [], savedLoaded: false,
+    },
   };
 
   /* ── API ── */
@@ -1064,12 +1072,258 @@
   }
 
   /* ── RENDER ── */
+  /* ── STRATEGY LAB ── */
+  const opSym = (op) => ({ gt: '>', gte: '≥', lt: '<', lte: '≤' }[op] || op);
+  function condText(c) {
+    switch (c.kind) {
+      case 'rsi': return `RSI(${c.period}) ${opSym(c.op)} ${c.value}${c.tf ? ' on ' + c.tf : ''}`;
+      case 'htf_rsi': return `${(c.tf || 'HTF').toUpperCase()} RSI(${c.period}) ${opSym(c.op)} ${c.value}`;
+      case 'ma_cross': return `${String(c.type).toUpperCase()} ${c.fast}/${c.slow} ${c.dir === 'bear' ? 'bearish' : 'bullish'} cross`;
+      case 'price_vs_ma': return `price ${c.side} ${String(c.type).toUpperCase()}(${c.len})`;
+      case 'wick_rejection': return `${c.dir === 'bear' ? 'Bearish' : 'Bullish'} wick rejection`;
+      case 'order_block': return `${c.dir === 'bear' ? 'Bearish' : 'Bullish'} order block${c.unmitigated ? ' (unmitigated)' : ''}`;
+      case 'fvg': return `${c.dir === 'bear' ? 'Bearish' : 'Bullish'} fair value gap`;
+      case 'bos': return `break of structure (${c.dir})`;
+      case 'choch': return `change of character (${c.dir})`;
+      case 'liquidity_sweep': return `${c.side === 'buyside' ? 'Buy-side' : 'Sell-side'} liquidity sweep`;
+      case 'htf_trend': return `${(c.tf || 'HTF').toUpperCase()} trend ${c.align}`;
+      case 'candle_pattern': return `${c.pattern} (${c.dir})`;
+      case 'volume': return `volume > ${c.mult}× avg(${c.period})`;
+      default: return c.kind;
+    }
+  }
+  const stopText = (s) => !s ? '—' : s.kind === 'pct' ? `${s.pct}%` : s.kind === 'atr' ? `${s.atrMult}×ATR(${s.atrPeriod})` : s.kind === 'swing' ? 'below/above invalidation swing' : s.kind === 'ob' ? 'beyond order block' : s.kind;
+  const targetText = (t) => !t ? '—' : t.kind === 'rr' ? `1:${t.rr} R` : t.kind === 'pct' ? `${t.pct}%` : t.kind === 'atr' ? `${t.atrMult}×ATR` : 'no target (exit by stop/time)';
+  const bullets = (items) => (items || []).map((x) => `<li>${esc(x)}</li>`).join('');
+
+  function labSpecCard(p) {
+    const s = p.spec || {};
+    const d = p.diagnostics || {};
+    return `
+    <div class="section-title"><h2>Interpreted strategy</h2><span class="pill ${p.valid ? 'buy' : 'none'}">${p.valid ? 'valid' : 'needs attention'}</span></div>
+    <div class="card">
+      <div class="row wrap" style="gap:16px;align-items:flex-start">
+        <div style="flex:1 1 200px">
+          <div class="tiny muted">Name</div><b>${esc(s.name || 'Untitled')}</b>
+          <div class="tiny muted" style="margin-top:6px">Timeframe</div><b>${esc(String(s.timeframe || '1d').toUpperCase())}${s.higherTimeframe ? ' · HTF ' + esc(String(s.higherTimeframe).toUpperCase()) : ''}</b>
+          <div class="tiny muted" style="margin-top:6px">Direction</div><b>${esc(s.universe ? s.universe.direction : 'long')}</b>
+        </div>
+        <div style="flex:1.4 1 240px"><div class="tiny muted">Entry (${(s.entry || []).length})</div>
+          <ul class="tiny" style="margin:4px 0 0 16px">${(s.entry || []).map((c) => `<li>${esc(condText(c))}</li>`).join('') || '<li class="muted">none</li>'}</ul>
+          ${(s.filters || []).length ? `<div class="tiny muted" style="margin-top:6px">Filters</div><ul class="tiny" style="margin:4px 0 0 16px">${s.filters.map((c) => `<li>${esc(condText(c))}</li>`).join('')}</ul>` : ''}
+        </div>
+        <div style="flex:1 1 200px"><div class="tiny muted">Risk</div>
+          <div>Stop: <b>${esc(stopText(s.stopLoss))}</b></div>
+          <div>Target: <b>${esc(targetText(s.takeProfit))}</b></div>
+          <div>Risk/trade: <b>${s.riskPct}%</b> · Max positions: <b>${s.maxPositions}</b></div>
+          <div>Max bars: <b>${s.maxBars}</b> · Capital: <b>${inr(s.capital)}</b></div>
+        </div>
+      </div>
+    </div>
+    ${(!p.valid && p.errors && p.errors.length) ? `<div class="card"><div class="tiny d">Fix before running:</div><ul class="tiny" style="margin:6px 0 0 16px">${bullets(p.errors)}</ul></div>` : ''}
+    ${(d.unsupported && d.unsupported.length) ? `<div class="card"><div class="tiny d">Not supported (reported, not used):</div><ul class="tiny" style="margin:6px 0 0 16px">${bullets(d.unsupported)}</ul></div>` : ''}
+    ${(d.ambiguous && d.ambiguous.length) ? `<div class="card"><div class="tiny">Assumptions made:</div><ul class="tiny" style="margin:6px 0 0 16px">${bullets(d.ambiguous)}</ul></div>` : ''}`;
+  }
+
+  function labCoverage(c) {
+    if (!c) return '';
+    return `<div class="card"><div class="row between tiny muted"><span>Provider: <b style="color:var(--txt)">${esc(c.provider)}</b> · ${esc(String(c.timeframe || '').toUpperCase())}</span><span>${c.candles} verified candles</span></div>
+      <div class="row between tiny muted" style="margin-top:4px"><span>${c.firstCandleTs ? dtDate(c.firstCandleTs) : '—'} → ${c.lastCandleTs ? dtDate(c.lastCandleTs) : '—'}</span>${c.rejectedCandles ? `<span class="d">${c.rejectedCandles} invalid candles dropped</span>` : '<span class="u">structure validated</span>'}</div>
+      ${(c.notes && c.notes.length) ? `<ul class="tiny" style="margin:6px 0 0 16px">${bullets(c.notes)}</ul>` : ''}</div>`;
+  }
+
+  function labMcCard(mc) {
+    if (!mc) return '';
+    if (mc.ok === false) return `<div class="card empty"><div class="big">🎲</div>${esc(mc.error || 'Monte Carlo unavailable.')}</div>`;
+    return `<div class="section-title"><h2>Monte Carlo</h2><span class="tiny muted">${mc.iterations} bootstrap runs · model-based estimate</span></div>
+    <div class="stats-grid">
+      ${stat('Median final', inrC(mc.medianFinal), mc.medianFinal >= mc.capital ? 'u' : 'd')}
+      ${stat('5th–95th %ile', inrC(mc.p5Final) + ' → ' + inrC(mc.p95Final))}
+      ${stat('P(profit)', mc.probProfitPct + '%', mc.probProfitPct >= 50 ? 'u' : 'd')}
+      ${stat('Median max DD', mc.medianMaxDdPct + '%', 'd')}
+      ${stat('95th %ile DD', mc.p95MaxDdPct + '%', 'd')}
+      ${stat('P(ruin)', mc.ruinProbabilityPct + '%', mc.ruinProbabilityPct > 0 ? 'd' : 'u')}
+    </div>
+    <div class="card"><div class="tiny muted">Assumptions: ${mc.assumptions.map((a) => esc(a)).join(' ')}</div></div>`;
+  }
+
+  function labRunCard(r) {
+    const s = r.stats || {};
+    const noTrades = !s.totalTrades;
+    const eqKind = (s.netPnl || 0) >= 0 ? 'u' : 'd';
+    return `
+    ${labCoverage(r.coverage)}
+    <div class="section-title"><h2>${esc(r.symbol)} — backtest</h2><span class="pill ${noTrades ? 'none' : 'buy'}">${s.totalTrades || 0} trades · real data</span></div>
+    <div class="stats-grid">
+      ${stat('Trades', s.totalTrades)}
+      ${stat('Win rate', s.winRate == null ? '—' : s.winRate + '%', s.winRate >= 50 ? 'u' : s.totalTrades ? 'd' : '')}
+      ${stat('Profit factor', s.profitFactor == null ? '—' : s.profitFactor, s.profitFactor >= 1.5 ? 'u' : s.profitFactor != null && s.profitFactor < 1 ? 'd' : '')}
+      ${stat('Net P&L', inrC(s.netPnl), eqKind)}
+      ${stat('Net %', pct(s.netPnlPct), eqKind)}
+      ${stat('Expectancy', s.expectancy == null ? '—' : inr(s.expectancy), s.expectancy >= 0 ? 'u' : 'd')}
+      ${stat('Avg R', s.avgRMultiple == null ? '—' : s.avgRMultiple, s.avgRMultiple >= 0 ? 'u' : 'd')}
+      ${stat('Realized RR', s.realizedRR == null ? '—' : '1:' + s.realizedRR)}
+      ${stat('Max DD %', s.maxDrawdown ? s.maxDrawdown.pct + '%' : '—', 'd')}
+      ${stat('Costs', inrC(s.totalCosts))}
+    </div>
+    ${noTrades ? `<div class="card empty"><div class="big">🔍</div>No closed trades in this window. The rules are selective — try a different instrument, a longer history, or relax a condition.</div>` : `
+    <div class="section-title"><h2>Equity &amp; drawdown</h2><span class="tiny muted">${(r.equityCurve || []).length - 1} closed trades</span></div>
+    <div class="card"><canvas id="lab-equity" style="width:100%;height:230px;display:block"></canvas></div>`}
+    ${r.risk ? `<div class="section-title"><h2>Risk profile</h2><span class="tiny muted">from the actual trade ledger</span></div>
+    <div class="stats-grid">
+      ${stat('Mean R', r.risk.meanR == null ? '—' : r.risk.meanR, r.risk.meanR >= 0 ? 'u' : 'd')}
+      ${stat('Median R', r.risk.medianR == null ? '—' : r.risk.medianR)}
+      ${stat('Std dev R', r.risk.stdevR == null ? '—' : r.risk.stdevR)}
+      ${stat('Worst R', r.risk.minR == null ? '—' : r.risk.minR, 'd')}
+      ${stat('Best R', r.risk.maxR == null ? '—' : r.risk.maxR, 'u')}
+      ${stat('Top-5 profit share', r.risk.profitConcentrationTop5Pct == null ? '—' : r.risk.profitConcentrationTop5Pct + '%')}
+    </div>` : ''}
+    ${labMcCard(r.monteCarlo)}
+    <div class="section-title"><h2>Trade statistics</h2><span class="tiny muted">every figure from simulated trades</span></div>
+    <div class="card"><div class="set-row"><span class="lbl">Wins / Losses / Breakeven</span><b>${s.wins || 0} / ${s.losses || 0} / ${s.breakeven || 0}</b></div>
+      <div class="set-row"><span class="lbl">Avg win / Avg loss</span><b class="u">${inr(s.avgWin)}</b> / <b class="d">${inr(s.avgLoss)}</b></div>
+      <div class="set-row"><span class="lbl">Gross profit / loss</span><b class="u">${inr(s.grossProfit)}</b> / <b class="d">${inr(s.grossLoss)}</b></div>
+      <div class="set-row"><span class="lbl">Largest win / loss</span><b class="u">${inr(s.largestWin)}</b> / <b class="d">${inr(s.largestLoss)}</b></div>
+      <div class="set-row"><span class="lbl">Max consecutive wins / losses</span><b>${s.maxConsecutiveWins || 0} / ${s.maxConsecutiveLosses || 0}</b></div>
+      <div class="set-row"><span class="lbl">Avg holding (bars)</span><b>${s.avgHoldingBars == null ? '—' : s.avgHoldingBars}</b></div>
+      <div class="set-row"><span class="lbl">Planned R:R</span><b>${s.plannedRR == null ? '—' : '1:' + s.plannedRR}</b></div>
+    </div>
+    ${r.report ? `<div class="section-title"><h2>Strategy report</h2><span class="tiny muted">${esc(r.report.method)} · every number computed, none invented</span></div>
+      ${r.report.segments.map((seg) => `<div class="card"><div class="tiny muted">${esc(seg.q)}</div><div style="margin-top:4px">${esc(seg.a)}</div></div>`).join('')}` : ''}
+    <div class="section-title"><h2>Trade history</h2><span class="tiny muted">${(r.trades || []).length} closed</span></div>
+    <div class="tbl-wrap"><table><thead><tr><th>#</th><th>Dir</th><th>Entry</th><th>Exit</th><th>Entry Px</th><th>Exit Px</th><th>Stop</th><th>Target</th><th>Bars</th><th>Reason</th><th>P&amp;L</th><th>R</th></tr></thead><tbody>
+      ${(r.trades || []).map((t) => `<tr><td>${t.seq}</td><td>${t.dir === 'long' ? '▲' : '▼'}</td><td>${dt(t.entryTs)}</td><td>${dt(t.exitTs)}</td><td>${inr(t.entry, 2)}</td><td>${inr(t.exit, 2)}</td><td>${inr(t.stop, 2)}</td><td>${t.target == null ? '—' : inr(t.target, 2)}</td><td>${t.barsHeld}</td><td>${esc(t.reason)}</td><td class="${t.netPnl >= 0 ? 'u' : 'd'}">${inrC(t.netPnl)}</td><td class="${t.rMultiple >= 0 ? 'u' : 'd'}">${t.rMultiple == null ? '—' : t.rMultiple + 'R'}</td></tr>`).join('') || '<tr><td colspan="12" class="empty">No trades</td></tr>'}
+    </tbody></table></div>`;
+  }
+
+  function labOptimizeCard(o) {
+    if (!o || o.ok === false) return `<div class="card empty"><div class="big">🧪</div>${esc((o && o.error) || 'Optimizer unavailable.')}</div>`;
+    return `<div class="section-title"><h2>Optimizer (in-sample → out-of-sample)</h2><span class="tiny muted">${o.combosTested} combinations · ${o.trainBars} IS / ${o.oosBars} OOS bars</span></div>
+    <div class="card"><div class="tiny muted">${esc(o.method)}</div></div>
+    <div class="tbl-wrap"><table><thead><tr><th>#</th><th>Parameters</th><th>IS trades</th><th>IS net%</th><th>OOS trades</th><th>OOS net%</th><th>OOS PF</th><th>OOS avg R</th></tr></thead><tbody>
+      ${(o.ranked || []).map((x) => `<tr><td>${x.rank}</td><td class="tiny">${esc(JSON.stringify(x.params))}</td><td>${x.is.trades}</td><td class="${x.is.netPnlPct >= 0 ? 'u' : 'd'}">${pct(x.is.netPnlPct)}</td><td>${x.oos ? x.oos.trades : '—'}</td><td class="${x.oos && x.oos.netPnl >= 0 ? 'u' : 'd'}">${x.oos ? pct(x.oos.netPnlPct) : '—'}</td><td>${x.oos && x.oos.profitFactor != null ? x.oos.profitFactor : '—'}</td><td>${x.oos && x.oos.avgRMultiple != null ? x.oos.avgRMultiple : '—'}</td></tr>`).join('') || '<tr><td colspan="8" class="empty">No combinations produced trades.</td></tr>'}
+    </tbody></table></div>
+    <div class="card"><div class="tiny muted">${esc(o.note || '')}</div></div>`;
+  }
+
+  function labWfCard(wf) {
+    if (!wf) return '';
+    if (wf.ok === false) return `<div class="card empty"><div class="big">🧭</div>${esc(wf.error || 'Walk-forward unavailable.')}</div>`;
+    const ag = wf.aggregate || {};
+    return `<div class="section-title"><h2>Walk-forward validation</h2><span class="tiny muted">${ag.windowsScored || 0} unseen windows</span></div>
+    <div class="stats-grid">
+      ${stat('OOS trades', ag.oosTradesTotal == null ? '—' : ag.oosTradesTotal)}
+      ${stat('OOS net P&L', inrC(ag.oosNetPnlTotal), ag.oosNetPnlTotal >= 0 ? 'u' : 'd')}
+      ${stat('Profitable windows', ag.oosPositiveWindowsPct == null ? '—' : ag.oosPositiveWindowsPct + '%', ag.oosPositiveWindowsPct >= 50 ? 'u' : 'd')}
+    </div>
+    <div class="tbl-wrap"><table><thead><tr><th>Window</th><th>Params</th><th>IS trades</th><th>OOS trades</th><th>OOS net</th></tr></thead><tbody>
+      ${(wf.windows || []).map((w) => `<tr><td>${w.window}${w.skipped ? ' (skipped)' : ''}</td><td class="tiny">${w.params ? esc(JSON.stringify(w.params)) : '—'}</td><td>${w.is ? w.is.trades : '—'}</td><td>${w.oos ? w.oos.trades : '—'}</td><td class="${w.oos && w.oos.netPnl >= 0 ? 'u' : 'd'}">${w.oos ? inrC(w.oos.netPnl) : '—'}</td></tr>`).join('')}
+    </tbody></table></div>
+    <div class="card"><div class="tiny muted">${esc(wf.note || '')}</div></div>`;
+  }
+
+  function labSensCard(sn) {
+    if (!sn || sn.ok === false) return `<div class="card empty"><div class="big">📐</div>${esc((sn && sn.error) || 'Sensitivity unavailable.')}</div>`;
+    return `<div class="section-title"><h2>Stop × target sensitivity</h2><span class="tiny muted">full spread of outcomes</span></div>
+    <div class="tbl-wrap"><table><thead><tr><th>Stop ${esc(sn.stopKind)}</th><th>R:R</th><th>Trades</th><th>Net P&amp;L</th><th>PF</th><th>Expectancy</th><th>Max DD%</th></tr></thead><tbody>
+      ${sn.cells.map((c) => `<tr><td>${c.stop}</td><td>1:${c.rr}</td><td>${c.trades}</td><td class="${c.netPnl >= 0 ? 'u' : 'd'}">${inrC(c.netPnl)}</td><td>${c.profitFactor == null ? '—' : c.profitFactor}</td><td>${c.expectancy == null ? '—' : inr(c.expectancy)}</td><td class="d">${c.maxDrawdownPct == null ? '—' : c.maxDrawdownPct + '%'}</td></tr>`).join('')}
+    </tbody></table></div>
+    <div class="card"><div class="tiny muted">${esc(sn.note)}</div></div>`;
+  }
+
+  function labRiskCard(rl) {
+    if (!rl || rl.ok === false) return `<div class="card empty"><div class="big">⚖️</div>${esc((rl && rl.error) || 'Risk-level comparison unavailable.')}</div>`;
+    return `<div class="section-title"><h2>Risk-per-trade comparison</h2><span class="tiny muted">position sizing effect</span></div>
+    <div class="tbl-wrap"><table><thead><tr><th>Risk/trade</th><th>Trades</th><th>Net P&amp;L</th><th>Net %</th><th>PF</th><th>Expectancy</th><th>Max DD%</th></tr></thead><tbody>
+      ${rl.levels.map((l) => `<tr><td>${l.riskPct}%</td><td>${l.trades}</td><td class="${l.netPnl >= 0 ? 'u' : 'd'}">${inrC(l.netPnl)}</td><td class="${l.netPnlPct >= 0 ? 'u' : 'd'}">${pct(l.netPnlPct)}</td><td>${l.profitFactor == null ? '—' : l.profitFactor}</td><td>${l.expectancy == null ? '—' : inr(l.expectancy)}</td><td class="d">${l.maxDrawdownPct == null ? '—' : l.maxDrawdownPct + '%'}</td></tr>`).join('')}
+    </tbody></table></div>
+    <div class="card"><div class="tiny muted">${esc(rl.note)}</div></div>`;
+  }
+
+  function labSavedCard() {
+    const L = state.lab;
+    return `<div class="section-title"><h2>Saved strategies</h2><span class="tiny muted">${L.strategies.length} saved</span></div>
+    <div class="tbl-wrap"><table><thead><tr><th>Name</th><th>Version</th><th>Updated</th><th></th></tr></thead><tbody>
+      ${L.strategies.map((s) => `<tr><td>${esc(s.name)}</td><td>v${s.current_ver}</td><td class="tiny muted">${dt(s.updated_at)}</td><td class="right"><button class="btn sm" onclick="window.__sa.labOpen(${s.id})">Load</button> <button class="btn sm" onclick="window.__sa.labDelete(${s.id})">Delete</button></td></tr>`).join('') || '<tr><td colspan="4" class="empty">No saved strategies yet</td></tr>'}
+    </tbody></table></div>`;
+  }
+
+  function renderLab() {
+    const L = state.lab;
+    const p = L.parsed;
+    const hasSpec = !!(p && p.spec);
+    return `
+    <div class="section-title"><h2>Strategy Lab</h2><span class="tiny muted">Plain English → validated rules → real-data backtest · ₹0, no fake data</span></div>
+    <div class="card">
+      <label style="display:block">Describe your strategy
+        <textarea id="lab-prompt" rows="3" style="width:100%;margin-top:6px" placeholder="e.g. Bullish NSE stocks with a liquidity sweep, wick rejection and an unmitigated order block, stop below the swing low, target 1:2">${esc(L.prompt)}</textarea>
+      </label>
+      <div class="row wrap" style="gap:10px;align-items:flex-end;margin-top:8px">
+        <label style="flex:0 0 170px">Instrument (NSE)<input id="lab-symbol" value="${esc(L.symbol)}" placeholder="RELIANCE / NIFTY" /></label>
+        <button class="btn" onclick="window.__sa.labParse()" ${L.parsing ? 'disabled' : ''}>${L.parsing ? 'Interpreting…' : '🧠 Interpret'}</button>
+        <button class="btn primary" onclick="window.__sa.labRun()" ${(!hasSpec || L.running) ? 'disabled' : ''}>${L.running ? 'Backtesting…' : '▶ Run backtest'}</button>
+        <button class="btn sm" onclick="window.__sa.labLoadSaved()">Saved strategies</button>
+      </div>
+      <div class="tiny muted" style="margin-top:6px">The interpreter is deterministic and offline — it maps your words to a fixed rule vocabulary and reports anything it cannot support. It never invents prices, signals or results.</div>
+    </div>
+    ${L.parseError ? `<div class="card empty"><div class="big">⚠️</div>${esc(L.parseError)}</div>` : ''}
+    ${p ? labSpecCard(p) : ''}
+    ${hasSpec ? `<div class="row wrap" style="gap:8px;margin:2px 0 10px">
+      <button class="btn sm" onclick="window.__sa.labOptimize()" ${L.optimizing ? 'disabled' : ''}>${L.optimizing ? 'Optimizing…' : '🧪 Optimize (IS/OOS)'}</button>
+      <button class="btn sm" onclick="window.__sa.labWF()">🧭 Walk-forward</button>
+      <button class="btn sm" onclick="window.__sa.labMC()">🎲 Monte Carlo</button>
+      <button class="btn sm" onclick="window.__sa.labSens()">📐 Sensitivity</button>
+      <button class="btn sm" onclick="window.__sa.labRisk()">⚖️ Risk levels</button>
+      <button class="btn sm" onclick="window.__sa.labSave()" ${L.saving ? 'disabled' : ''}>💾 ${L.saving ? 'Saving…' : 'Save strategy'}</button>
+    </div>` : ''}
+    ${L.runError ? `<div class="card empty"><div class="big">⚠️</div>${esc(L.runError)}</div>` : ''}
+    ${L.running ? `<div class="card empty"><div class="big">⏳</div>Loading verified history and running the engine…</div>` : ''}
+    ${L.result ? labRunCard(L.result) : ''}
+    ${L.optimize ? labOptimizeCard(L.optimize) : ''}
+    ${L.wf ? labWfCard(L.wf) : ''}
+    ${L.sens ? labSensCard(L.sens) : ''}
+    ${L.risklv ? labRiskCard(L.risklv) : ''}
+    ${L.savedLoaded ? labSavedCard() : ''}`;
+  }
+
+  function drawLabEquity() {
+    const cv = $('#lab-equity'); if (!cv) return;
+    const r = state.lab.result; if (!r) return;
+    const eq = (r.equityCurve || []).map((p) => p.equity);
+    const dpr = window.devicePixelRatio || 1;
+    const W = cv.clientWidth || 320, H = cv.clientHeight || 230;
+    cv.width = W * dpr; cv.height = H * dpr;
+    const ctx = cv.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, W, H);
+    ctx.strokeStyle = 'rgba(148,163,184,.14)'; ctx.lineWidth = 1;
+    for (let g = 1; g < 4; g++) { const y = (H / 4) * g; ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+    if (eq.length < 2) { ctx.fillStyle = '#6b7896'; ctx.font = '12px Segoe UI,system-ui'; ctx.textAlign = 'center'; ctx.fillText('Need ≥2 closed trades to plot', W / 2, H / 2); return; }
+    let lo = Math.min(...eq), hi = Math.max(...eq);
+    if (hi === lo) { hi += 1; lo -= 1; }
+    const pad = (hi - lo) * 0.08; lo -= pad; hi += pad;
+    const x = (i) => (i / (eq.length - 1)) * W;
+    const y = (v) => H - ((v - lo) / (hi - lo)) * H;
+    const up = eq[eq.length - 1] >= eq[0];
+    const col = up ? '#22c55e' : '#f43f5e';
+    const grad = ctx.createLinearGradient(0, 0, 0, H);
+    grad.addColorStop(0, up ? 'rgba(34,197,94,.28)' : 'rgba(244,63,94,.28)');
+    grad.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.beginPath(); ctx.moveTo(x(0), y(eq[0]));
+    eq.forEach((v, i) => ctx.lineTo(x(i), y(v)));
+    ctx.lineTo(W, H); ctx.lineTo(0, H); ctx.closePath(); ctx.fillStyle = grad; ctx.fill();
+    ctx.beginPath(); eq.forEach((v, i) => i ? ctx.lineTo(x(i), y(v)) : ctx.moveTo(x(i), y(v)));
+    ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.stroke();
+    ctx.fillStyle = '#93a1bd'; ctx.font = '10px Segoe UI,system-ui'; ctx.textAlign = 'left';
+    ctx.fillText(inrC(hi), 4, 12); ctx.fillText(inrC(lo), 4, H - 4);
+  }
+
   async function render() {
     const v = $('#view');
     const route = state.route;
     if (route === 'dashboard') v.innerHTML = renderDashboard();
     else if (route === 'scanner') { v.innerHTML = renderScanner(); wireScanVirtual(); }
     else if (route === 'backtest') { v.innerHTML = renderBacktest(); if (state.backtest.data) setTimeout(drawBacktest, 20); }
+    else if (route === 'lab') { v.innerHTML = renderLab(); if (state.lab.result && state.lab.result.equityCurve) setTimeout(drawLabEquity, 20); }
     else if (route === 'options') { v.innerHTML = renderOptions(); if (!state.optSyms) setTimeout(actions.loadOptSyms, 20); if (!state.options.data && !state.options.loading && !state.options.error) setTimeout(actions.loadOptions, 40); }
     else if (route === 'stock') v.innerHTML = renderStock();
     else if (route === 'paper') v.innerHTML = await renderPaper();
@@ -1351,6 +1605,126 @@
       if (sym) state.backtest.symbol = String(sym).toUpperCase();
       go('backtest');
     },
+
+    /* ── Strategy Lab ── */
+    labSync() {
+      const L = state.lab;
+      const pEl = $('#lab-prompt'); if (pEl) L.prompt = pEl.value;
+      const sEl = $('#lab-symbol'); if (sEl && sEl.value.trim()) L.symbol = sEl.value.trim().toUpperCase();
+    },
+    async labParse() {
+      const L = state.lab; actions.labSync();
+      if (!L.prompt.trim()) { toast('Describe your strategy first', 'err'); return; }
+      L.parsing = true; L.parseError = null; render();
+      try {
+        const j = await api('/lab/parse', { method: 'POST', body: { prompt: L.prompt } });
+        L.parsed = j;
+        if (j.valid) toast('Strategy interpreted · ' + ((j.spec.entry || []).length) + ' entry rule(s)', 'ok');
+        else toast('Parsed with ' + ((j.errors || []).length) + ' issue(s) to fix', '');
+      } catch (e) { L.parsed = null; L.parseError = e.message; toast(e.message, 'err'); }
+      finally { L.parsing = false; render(); }
+    },
+    async labRun() {
+      const L = state.lab; actions.labSync();
+      if (!L.parsed || !L.parsed.spec) { toast('Interpret a strategy first', 'err'); return; }
+      if (L.running) return;
+      L.running = true; L.runError = null; L.result = null;
+      L.optimize = L.wf = L.mc = L.sens = L.risklv = null;
+      render();
+      try {
+        const j = await api('/lab/run', { method: 'POST', body: { symbol: L.symbol, spec: L.parsed.spec } });
+        if (j.ok === false) { L.runError = j.error || 'Backtest unavailable.'; toast('Backtest unavailable', ''); }
+        else { L.result = j; toast(j.stats.totalTrades + ' trade(s) · net ' + inrC(j.stats.netPnl), 'ok'); }
+      } catch (e) { L.runError = e.message; toast(e.message, 'err'); }
+      finally { L.running = false; render(); setTimeout(drawLabEquity, 40); }
+    },
+    async labOptimize() {
+      const L = state.lab; actions.labSync();
+      if (!L.parsed || !L.parsed.spec) return;
+      L.optimizing = true; render();
+      try {
+        const j = await api('/lab/optimize', { method: 'POST', body: { symbol: L.symbol, spec: L.parsed.spec } });
+        L.optimize = j; toast(j.ok ? 'Optimizer tested ' + j.combosTested + ' combinations' : (j.error || 'Optimizer unavailable'), j.ok ? 'ok' : '');
+      } catch (e) { L.optimize = { ok: false, error: e.message }; toast(e.message, 'err'); }
+      finally { L.optimizing = false; render(); }
+    },
+    async labWF() {
+      const L = state.lab; actions.labSync();
+      if (!L.parsed || !L.parsed.spec) return;
+      try {
+        const j = await api('/lab/walkforward', { method: 'POST', body: { symbol: L.symbol, spec: L.parsed.spec } });
+        L.wf = j; toast(j.ok ? 'Walk-forward complete' : (j.error || 'Walk-forward unavailable'), j.ok ? 'ok' : '');
+      } catch (e) { L.wf = { ok: false, error: e.message }; toast(e.message, 'err'); }
+      finally { render(); }
+    },
+    async labMC() {
+      const L = state.lab; actions.labSync();
+      if (!L.parsed || !L.parsed.spec) return;
+      try {
+        const j = await api('/lab/montecarlo', { method: 'POST', body: { symbol: L.symbol, spec: L.parsed.spec } });
+        L.mc = j; toast(j.ok ? 'Monte Carlo complete' : (j.error || 'Monte Carlo unavailable'), j.ok ? 'ok' : '');
+      } catch (e) { L.mc = { ok: false, error: e.message }; toast(e.message, 'err'); }
+      finally { render(); }
+    },
+    async labSens() {
+      const L = state.lab; actions.labSync();
+      if (!L.parsed || !L.parsed.spec) return;
+      try {
+        const j = await api('/lab/sensitivity', { method: 'POST', body: { symbol: L.symbol, spec: L.parsed.spec } });
+        L.sens = j; toast(j.ok ? 'Sensitivity grid ready' : (j.error || 'Sensitivity unavailable'), j.ok ? 'ok' : '');
+      } catch (e) { L.sens = { ok: false, error: e.message }; toast(e.message, 'err'); }
+      finally { render(); }
+    },
+    async labRisk() {
+      const L = state.lab; actions.labSync();
+      if (!L.parsed || !L.parsed.spec) return;
+      try {
+        const j = await api('/lab/risklevels', { method: 'POST', body: { symbol: L.symbol, spec: L.parsed.spec } });
+        L.risklv = j; toast(j.ok ? 'Risk-level comparison ready' : (j.error || 'Risk-level comparison unavailable'), j.ok ? 'ok' : '');
+      } catch (e) { L.risklv = { ok: false, error: e.message }; toast(e.message, 'err'); }
+      finally { render(); }
+    },
+    async labSave() {
+      const L = state.lab; actions.labSync();
+      if (!L.parsed || !L.parsed.spec) { toast('Interpret a strategy first', 'err'); return; }
+      const name = String(window.prompt('Strategy name', (L.parsed.spec && L.parsed.spec.name) || 'My strategy') || '').trim();
+      if (!name) return;
+      L.saving = true; render();
+      try {
+        const j = await api('/lab/strategies', { method: 'POST', body: { name, spec: L.parsed.spec } });
+        if (j.ok) { toast('Saved "' + name + '" v' + j.version, 'ok'); L.savedLoaded = false; }
+        else toast(j.error || 'Could not save', 'err');
+      } catch (e) { toast(e.message, 'err'); }
+      finally { L.saving = false; render(); }
+    },
+    async labLoadSaved() {
+      const L = state.lab;
+      try { const j = await api('/lab/strategies'); L.strategies = j.strategies || []; L.savedLoaded = true; toast(L.strategies.length + ' saved strateg' + (L.strategies.length === 1 ? 'y' : 'ies'), 'ok'); }
+      catch (e) { toast(e.message, 'err'); }
+      render();
+    },
+    async labOpen(id) {
+      const L = state.lab;
+      try {
+        const j = await api('/lab/strategies/' + id);
+        if (!j.ok) { toast(j.error || 'Not found', 'err'); return; }
+        L.prompt = j.strategy.name || L.prompt;
+        L.parsed = { ok: true, spec: j.strategy.spec, valid: true, errors: [], warnings: [], diagnostics: {} };
+        L.result = null; L.optimize = L.wf = L.mc = L.sens = L.risklv = null;
+        toast('Loaded "' + j.strategy.name + '" v' + j.strategy.current_ver, 'ok');
+      } catch (e) { toast(e.message, 'err'); }
+      render();
+    },
+    async labDelete(id) {
+      if (!window.confirm('Delete this saved strategy?')) return;
+      const L = state.lab;
+      try {
+        await api('/lab/strategies/' + id, { method: 'DELETE' });
+        L.strategies = (L.strategies || []).filter((s) => s.id !== id);
+        toast('Strategy deleted', 'ok');
+      } catch (e) { toast(e.message, 'err'); }
+      render();
+    },
   };
   window.__sa = actions;
 
@@ -1372,7 +1746,7 @@
       if (state.route === 'dashboard') await loadWatchlist();
       if (state.route === 'paper') render();
       if (state.route === 'stock' && state.detail) openStock(state.detail);
-      if (state.route !== 'backtest') render();
+      if (state.route !== 'backtest' && state.route !== 'lab') render();
     }, state.market?.state === 'OPEN' ? 30000 : 180000);
     // count alerts
     setInterval(async () => {
