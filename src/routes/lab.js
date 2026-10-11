@@ -9,6 +9,8 @@
 
 const express = require('express');
 const auth = require('../auth');
+const { getSymbolList } = require('../providers/symbols');
+const { marketStatus, pMap } = require('../util');
 const parser = require('../lab/parser');
 const schema = require('../lab/schema');
 const data = require('../lab/data');
@@ -273,6 +275,97 @@ router.post('/lab/risklevels', requireUser, async (req, res) => {
     const out = optimizer.riskLevels({ candles: loaded.series.candles, htf: loaded.htf, spec, levels: body.levels || [0.25, 0.5, 1, 2] });
     res.json({ ok: out.ok, ...out, symbol: loaded.series.symbol });
   } catch (e) { res.status(500).json({ ok: false, error: 'Risk-level run failed: ' + e.message }); }
+});
+
+// ── screen: evaluate the validated spec on the latest completed bar of every
+//    symbol in a universe preset (default F&O) and report which ones qualify
+//    RIGHT NOW — no manual symbol entry. Symbols with insufficient verified
+//    history are skipped (counted, never fabricated). ──────────────────────
+const SCREEN_TF_DAYS = { '1d': 400, '4h': 400, '1h': 400, '30m': 55, '15m': 55 };
+const SCREEN_BUDGET_MS = 100000;
+const round2 = (v) => (v == null || !isFinite(v) ? null : +Number(v).toFixed(2));
+
+router.post('/lab/screen', requireUser, async (req, res) => {
+  try {
+    const body = req.body || {};
+    const check = schema.validate(body.spec || {});
+    if (!check.ok) return res.status(400).json({ ok: false, error: 'Strategy is invalid', errors: check.errors });
+    const spec = check.spec;
+    const universe = String(body.universe || 'fno').toLowerCase();
+    if (!['fno', 'nse', 'indices'].includes(universe)) {
+      return res.status(400).json({ ok: false, error: 'Screen universe must be fno, nse or indices (the full NSE+BSE list is too large for a live screen).' });
+    }
+    const maxSymbols = Math.min(500, Math.max(1, Number(body.maxSymbols) || 300));
+    let list;
+    try { list = await getSymbolList(universe); }
+    catch (e) { return res.status(502).json({ ok: false, error: 'Universe list unavailable: ' + e.message }); }
+    list = (list || []).slice(0, maxSymbols);
+    if (!list.length) return res.status(502).json({ ok: false, error: 'Universe list is empty — try again shortly.' });
+
+    const days = SCREEN_TF_DAYS[spec.timeframe] || 400;
+    const fromTs = Date.now() - days * 86400000;
+    const needHtf = htfTfs(spec);
+    const open = marketStatus().state === 'OPEN';
+    const t0 = Date.now();
+    let stopped = false;
+
+    const screenOne = async (entry) => {
+      if (stopped || Date.now() - t0 > SCREEN_BUDGET_MS) { stopped = true; return { status: 'budget' }; }
+      const sym = entry.yahoo || entry.symbol;
+      try {
+        const series = await data.fetchSeries(sym, spec.timeframe, { fromTs });
+        if (!series || series.ok === false) return { status: 'error', symbol: entry.symbol, error: (series && series.error) || 'provider error' };
+        if (series.candles.length < 60) return { status: 'skipped', symbol: entry.symbol, reason: `only ${series.candles.length} verified bars (need 60)` };
+        // Latest COMPLETED bar: skip the forming bar while the market is open.
+        const sigIdx = series.candles.length - 1 - (open ? 1 : 0);
+        if (sigIdx < 30) return { status: 'skipped', symbol: entry.symbol, reason: 'not enough completed bars' };
+        const sliced = series.candles.slice(0, sigIdx + 1);
+        const htf = {};
+        for (const tf of needHtf) {
+          const r = await data.fetchHtf(sym, tf, { fromTs });
+          if (r.ok && r.candles && r.candles.length >= 20) htf[tf] = r.candles;
+        }
+        const r = engine.run({ candles: sliced, spec, htf });
+        if (!r.ok) return { status: 'skipped', symbol: entry.symbol, reason: r.error };
+        // A setup qualifies when it fired on the signal bar (fresh) or fired
+        // earlier and is still running into the signal bar (open at the end).
+        const hits = (r.trades || []).filter((t) => t.entryIdx === sigIdx || (t.exitIdx === sigIdx && t.reason === 'open_at_end'));
+        if (!hits.length) return { status: 'none' };
+        return {
+          status: 'match', symbol: entry.symbol, name: entry.name || entry.symbol, exchange: entry.exchange || 'NSE',
+          asOf: sliced[sigIdx].t, lastClose: sliced[sigIdx].c,
+          setups: hits.map((t) => ({
+            dir: t.dir, entry: t.entry, stop: t.stop, target: t.target,
+            planR: t.target != null && t.stop !== t.entry ? round2(Math.abs(t.target - t.entry) / Math.abs(t.entry - t.stop)) : null,
+            fresh: t.entryIdx === sigIdx, barsAgo: sigIdx - t.entryIdx,
+            reason: t.reason,
+          })),
+        };
+      } catch (e) { return { status: 'error', symbol: entry.symbol, error: e.message }; }
+    };
+
+    const wrapped = await pMap(list, 10, screenOne);
+    const results = wrapped.map((w) => (w && w.ok ? w.value : { status: 'error', error: (w && w.error && w.error.message) || 'worker failed' }));
+    const matches = results.filter((r) => r && r.status === 'match');
+    const skipped = results.filter((r) => r && r.status === 'skipped').length;
+    const errors = results.filter((r) => r && r.status === 'error').length;
+    const scanned = results.filter((r) => r && r.status !== 'budget').length;
+    const sigBarTs = (() => { for (const m of matches) return m.asOf; return null; })();
+
+    res.json({
+      ok: true,
+      universe, timeframe: spec.timeframe, marketOpen: open,
+      signalBarTs: sigBarTs,
+      scanned, universeSize: list.length, matches: matches.map((m) => ({ symbol: m.symbol, name: m.name, exchange: m.exchange, asOf: m.asOf, lastClose: m.lastClose, setups: m.setups })),
+      skipped, errors,
+      partial: stopped,
+      method: 'Each symbol: latest ~' + days + ' days of verified ' + String(spec.timeframe).toUpperCase() + ' candles, strategy evaluated on the latest completed bar only. No signal, no report.',
+      note: stopped
+        ? `Time budget reached — partial results over ${scanned}/${list.length} symbols. Re-run to cover the rest (results vary as bars complete).`
+        : `${matches.length} of ${scanned} symbols show a fresh setup on the latest completed bar. ${skipped} skipped (insufficient verified history), ${errors} provider errors.`,
+      realData: true,
+    });
+  } catch (e) { res.status(500).json({ ok: false, error: 'Screen failed: ' + e.message }); }
 });
 
 // ── saved strategies ─────────────────────────────────────────────────────

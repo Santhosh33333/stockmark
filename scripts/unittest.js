@@ -229,6 +229,44 @@ test('price-alert never fires on missing, zero or negative quotes', () => {
   assert.strictEqual(priceAlerts.ruleMatches({ condition: 'below', target: 10 }, -5), false);
 });
 
+// ── Strategy Lab: screen-grade signal detection (offline, synthetic) ──────
+const labEngine = require('../src/lab/engine');
+const labSchema = require('../src/lab/schema');
+const rising = (n, start = 100) => Array.from({ length: n }, (_, i) => c(start + i, start + i + 0.6, start + i - 0.4, start + i + 0.3, 1000, Date.UTC(2024, 0, 1 + i)));
+const trendSpec = () => labSchema.normalize({
+  name: 'trend', universe: { direction: 'long' }, timeframe: '1d',
+  entry: [{ kind: 'price_vs_ma', side: 'above', type: 'ema', len: 5 }],
+  stopLoss: { kind: 'pct', pct: 2 }, takeProfit: { kind: 'rr', rr: 2 },
+  riskPct: 0.5, maxPositions: 1, maxBars: 20, capital: 100000,
+});
+test('lab engine fires on the latest completed bar of a rising market', () => {
+  const candles = rising(120);
+  const r = labEngine.run({ candles, spec: trendSpec(), htf: {} });
+  assert.ok(r.ok, r.error);
+  const sigIdx = candles.length - 1;
+  const hits = r.trades.filter((t) => t.entryIdx === sigIdx || (t.exitIdx === sigIdx && t.reason === 'open_at_end'));
+  assert.ok(hits.length > 0, 'expected a live setup on the last bar');
+  const t = hits[0];
+  assert.ok(t.entry > 0 && t.stop < t.entry && t.target > t.entry, 'entry/stop/target bracket the fill');
+});
+test('lab engine reports no setup on the last bar of a flat market for an RSI-long rule', () => {
+  const candles = Array.from({ length: 120 }, (_, i) => c(100, 100.5, 99.5, 100, 1000, Date.UTC(2024, 0, 1 + i)));
+  const spec = labSchema.normalize({
+    name: 'rsi-long', universe: { direction: 'long' }, timeframe: '1d',
+    entry: [{ kind: 'rsi', period: 14, op: 'lt', value: 30 }],
+    stopLoss: { kind: 'pct', pct: 2 }, takeProfit: { kind: 'rr', rr: 2 },
+    riskPct: 0.5, maxPositions: 1, maxBars: 20, capital: 100000,
+  });
+  const r = labEngine.run({ candles, spec, htf: {} });
+  assert.ok(r.ok, r.error);
+  assert.strictEqual(r.trades.filter((t) => t.entryIdx === candles.length - 1).length, 0);
+});
+test('lab screen contract: insufficient history is skipped, never faked', () => {
+  const r = labEngine.run({ candles: rising(10), spec: trendSpec(), htf: {} });
+  assert.strictEqual(r.ok, false);
+  assert.ok(/insufficient/i.test(r.error || 'insufficient'), 'must refuse with an honest error');
+});
+
 console.log(`\n${pass}/${pass + fail} unit checks passed`);
 if (fail) { console.log('FAILED'); process.exit(1); }
 console.log('ALL UNIT CHECKS PASSED ✅');

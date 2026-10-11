@@ -291,6 +291,7 @@
     { id: 'dashboard', label: 'Dashboard', sub: 'Overview', ic: '📊' },
     { id: 'scanner', label: 'Scanner', sub: 'SMC full universe', ic: '🔎' },
     { id: 'backtest', label: 'Backtesting', sub: 'Historical simulation', ic: '📈' },
+    { id: 'lab', label: 'Strategy Lab', sub: 'Auto-pick stocks + backtest', ic: '🧠' },
     { id: 'options', label: 'Options', sub: 'Chain & analytics', ic: '🧾' },
     { id: 'paper', label: 'Paper trading', sub: 'Simulated orders', ic: '💼' },
     { id: 'alerts', label: 'Alerts', sub: 'Price & signal alerts', ic: '🔔' },
@@ -408,7 +409,7 @@
   if (cmdk) cmdk.addEventListener('mousedown', function (e) { if (e.target === cmdk) close(); });
 
   /* ── keyboard navigation ───────────────────────────────────────────── */
-  var GO = { d: 'dashboard', s: 'scanner', b: 'backtest', o: 'options', p: 'paper', a: 'alerts', e: 'settings' };
+  var GO = { d: 'dashboard', s: 'scanner', b: 'backtest', l: 'lab', o: 'options', p: 'paper', a: 'alerts', e: 'settings' };
   var pendingG = false, gTimer = null;
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape' && tmPanel) { closePanel(); return; }

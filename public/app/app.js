@@ -23,6 +23,7 @@
       prompt: 'Find bullish NSE stocks using liquidity sweeps, wick rejection, bullish BOS, and an unmitigated order block. Confirm the trend using the completed 4-hour RSI. Enter after confirmation, place the stop loss below the invalidation swing, and target a 1:2 risk-reward ratio.',
       parsing: false, parsed: null, parseError: null,
       symbol: 'RELIANCE', running: false, result: null, runError: null,
+      screening: false, screen: null, screenError: null,
       optimizing: false, optimize: null,
       wf: null, mc: null, sens: null, risklv: null,
       saving: false, strategies: [], savedLoaded: false,
@@ -1240,6 +1241,25 @@
     <div class="card"><div class="tiny muted">${esc(rl.note)}</div></div>`;
   }
 
+  function labScreenCard(sc) {
+    if (!sc || sc.ok === false) return `<div class="card empty"><div class="big">🔍</div>${esc((sc && sc.error) || 'Screen unavailable.')}</div>`;
+    const ms = sc.matches || [];
+    return `<div class="section-title"><h2>Auto-screen — who qualifies now</h2><span class="pill ${ms.length ? 'buy' : 'none'}">${ms.length} setup${ms.length === 1 ? '' : 's'} · ${sc.scanned}/${sc.universeSize} ${esc(sc.universe).toUpperCase()} scanned</span></div>
+    <div class="card"><div class="tiny muted">${esc(sc.method)}</div>
+      <div class="tiny muted" style="margin-top:4px">${esc(sc.note || '')}${sc.partial ? ' (partial — time budget reached)' : ''}</div></div>
+    ${ms.length ? `<div class="tbl-wrap"><table><thead><tr><th>Symbol</th><th>Dir</th><th>Signal</th><th>Entry</th><th>Stop</th><th>Target</th><th>R:R</th><th>Close</th><th></th></tr></thead><tbody>
+      ${ms.map((m) => (m.setups || []).map((s) => `<tr>
+        <td><b>${esc(m.symbol)}</b><div class="tiny muted">${esc(m.name || '')}</div></td>
+        <td>${s.dir === 'long' ? '▲' : '▼'}</td>
+        <td>${s.fresh ? '<span class="pill buy">fresh</span>' : `<span class="tiny muted">running ${s.barsAgo} bar${s.barsAgo === 1 ? '' : 's'}</span>`}</td>
+        <td>${inr(s.entry, 2)}</td><td>${inr(s.stop, 2)}</td><td>${s.target == null ? '—' : inr(s.target, 2)}</td>
+        <td>${s.planR == null ? '—' : '1:' + s.planR}</td><td>${inr(m.lastClose, 2)}</td>
+        <td class="right"><button class="btn sm primary" onclick="window.__sa.labScreenBacktest('${esc(m.symbol)}')">Backtest</button></td>
+      </tr>`).join('')).join('')}
+    </tbody></table></div>`
+      : `<div class="card empty"><div class="big">🔍</div>No ${esc(sc.universe).toUpperCase()} symbol shows a fresh setup on the latest completed bar. Try relaxing a condition or screening after the next close.</div>`}`;
+  }
+
   function labSavedCard() {
     const L = state.lab;
     return `<div class="section-title"><h2>Saved strategies</h2><span class="tiny muted">${L.strategies.length} saved</span></div>
@@ -1262,6 +1282,7 @@
         <label style="flex:0 0 170px">Instrument (NSE)<input id="lab-symbol" value="${esc(L.symbol)}" placeholder="RELIANCE / NIFTY" /></label>
         <button class="btn" onclick="window.__sa.labParse()" ${L.parsing ? 'disabled' : ''}>${L.parsing ? 'Interpreting…' : '🧠 Interpret'}</button>
         <button class="btn primary" onclick="window.__sa.labRun()" ${(!hasSpec || L.running) ? 'disabled' : ''}>${L.running ? 'Backtesting…' : '▶ Run backtest'}</button>
+        <button class="btn gold" onclick="window.__sa.labScreen()" ${(!hasSpec || L.screening) ? 'disabled' : ''}>${L.screening ? 'Screening F&O… (≈1 min)' : '🔍 Auto-pick stocks'}</button>
         <button class="btn sm" onclick="window.__sa.labLoadSaved()">Saved strategies</button>
       </div>
       <div class="tiny muted" style="margin-top:6px">The interpreter is deterministic and offline — it maps your words to a fixed rule vocabulary and reports anything it cannot support. It never invents prices, signals or results.</div>
@@ -1278,6 +1299,9 @@
     </div>` : ''}
     ${L.runError ? `<div class="card empty"><div class="big">⚠️</div>${esc(L.runError)}</div>` : ''}
     ${L.running ? `<div class="card empty"><div class="big">⏳</div>Loading verified history and running the engine…</div>` : ''}
+    ${L.screenError ? `<div class="card empty"><div class="big">⚠️</div>${esc(L.screenError)}</div>` : ''}
+    ${L.screening ? `<div class="card empty"><div class="big">🔍</div>Analysing every F&O stock against your strategy… this takes about a minute. Leave this tab open.</div>` : ''}
+    ${L.screen ? labScreenCard(L.screen) : ''}
     ${L.result ? labRunCard(L.result) : ''}
     ${L.optimize ? labOptimizeCard(L.optimize) : ''}
     ${L.wf ? labWfCard(L.wf) : ''}
@@ -1637,6 +1661,25 @@
         else { L.result = j; toast(j.stats.totalTrades + ' trade(s) · net ' + inrC(j.stats.netPnl), 'ok'); }
       } catch (e) { L.runError = e.message; toast(e.message, 'err'); }
       finally { L.running = false; render(); setTimeout(drawLabEquity, 40); }
+    },
+    async labScreen() {
+      const L = state.lab; actions.labSync();
+      if (!L.parsed || !L.parsed.spec) { toast('Interpret a strategy first', 'err'); return; }
+      if (L.screening) return;
+      L.screening = true; L.screenError = null; L.screen = null;
+      render();
+      try {
+        const j = await api('/lab/screen', { method: 'POST', body: { spec: L.parsed.spec, universe: 'fno' } });
+        if (j.ok === false) { L.screenError = j.error || 'Screen unavailable.'; toast('Screen unavailable', ''); }
+        else { L.screen = j; toast(j.matches.length ? j.matches.length + ' stock(s) qualify now' : 'No F&O stock qualifies right now', j.matches.length ? 'ok' : ''); }
+      } catch (e) { L.screenError = e.message; toast(e.message, 'err'); }
+      finally { L.screening = false; render(); }
+    },
+    labScreenBacktest(sym) {
+      const L = state.lab;
+      L.symbol = String(sym || '').toUpperCase();
+      const inp = $('#lab-symbol'); if (inp) inp.value = L.symbol;
+      actions.labRun();
     },
     async labOptimize() {
       const L = state.lab; actions.labSync();
