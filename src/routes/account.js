@@ -451,7 +451,7 @@ router.post('/options/strategy/payoff', requireUser, (req, res) => {
 router.post('/dhan/test', requireUser, async (req, res) => {
   const settings = auth.getSettings(req.user);
   const out = await dhan.testConnection(settings);
-  res.json(out);
+  res.json({ ...out, env: settings.dhanSandbox ? 'SANDBOX' : 'PRODUCTION' });
 });
 
 router.post('/dhan/order', requireUser, async (req, res) => {

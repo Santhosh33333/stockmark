@@ -88,6 +88,10 @@ const config = {
   dhan: {
     baseUrl: (process.env.DHAN_BASE_URL || 'https://api.dhan.co')
       .trim().replace(/\/+$/, '').replace(/\/v2$/i, ''),
+    // Dhan's free sandbox (simulated fills, no real money) — used when a user
+    // enables "Dhan sandbox (test)" in Settings.
+    sandboxUrl: (process.env.DHAN_SANDBOX_URL || 'https://api-sandbox.dhan.co')
+      .trim().replace(/\/+$/, '').replace(/\/v2$/i, ''),
   },
 
   // NSE public option chain (free fallback when no Dhan key is configured).

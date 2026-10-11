@@ -234,7 +234,8 @@ function dhanHeaders(settings) {
 }
 
 async function dhanJson(path, settings, body) {
-  return httpJson(`${config.dhan.baseUrl}${path}`, {
+  const base = settings.dhanSandbox ? config.dhan.sandboxUrl : config.dhan.baseUrl;
+  return httpJson(`${base}${path}`, {
     method: 'POST',
     headers: dhanHeaders(settings),
     body: JSON.stringify(body),
@@ -306,7 +307,9 @@ async function getOptionChain({ settings = {}, symbol, expiry } = {}) {
   const cached = cacheGet(key);
   if (cached) return { ...cached, cached: true };
 
-  const preferDhan = !!(settings.dhanAccessToken && settings.dhanClientId);
+  // Below: the sandbox has no live option-chain feed, so when sandbox mode is on
+  // the chain always uses the free NSE source (real data, read-only, no keys).
+  const preferDhan = !settings.dhanSandbox && !!(settings.dhanAccessToken && settings.dhanClientId);
   const attempts = [];
   if (preferDhan) {
     try {

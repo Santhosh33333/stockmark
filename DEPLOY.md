@@ -58,6 +58,18 @@ Notes:
   `Secure` automatically.
 - Your data never leaves this machine except as HTTP responses.
 
+**Permanent hostname (named tunnel — needs a free Cloudflare account + a domain):**
+
+```bash
+cloudflared tunnel login            # browser step — sign in to Cloudflare & Authorize
+cloudflared tunnel create trademind
+cloudflared tunnel route dns trademind app.yourdomain.com
+cloudflared tunnel run trademind    # keep this running (or install it as a service)
+```
+
+`scripts/tunnel.ps1` restarts the quick tunnel and saves the URL to
+`data/tunnel.url` if you just want the throwaway link again.
+
 ---
 
 ## 2. Render — free web service (one click, ephemeral DB)
@@ -139,6 +151,20 @@ expects the platform's `$PORT`. Mount `/app/data` (or set `DATA_DIR`) to persist
 
 No other variables are required. Broker keys (Dhan / Angel One / Fyers / Tapetide)
 are entered **in-app under Settings** and stored server-side — never in git.
+
+## Live trading setup (Dhan)
+
+Live orders are **OFF by default**. To power them on:
+
+1. Get free API keys from DhanHQ (Dashboard → API) — client id + access token.
+2. In **Settings → Dhan**, enter the keys, tick **Enable live orders**, and set the
+   account mode to **LIVE**.
+3. To practise first (recommended): tick **Dhan sandbox (test)** and use keys from
+   the Dhan sandbox portal — orders then go to `api-sandbox.dhan.co` and fills are
+   **simulated**, so no real money moves. The option chain keeps using the free
+   NSE feed while sandbox is on.
+4. Live orders still have to pass the risk guardrails (per-trade %, daily loss,
+   drawdown) and are blocked while the kill switch is on.
 
 ---
 

@@ -198,7 +198,7 @@
     <div class="card" style="margin-top:14px">
       <div class="row between">
         <div><div class="tiny muted">Account mode</div>
-          <div style="font-weight:800;font-size:17px;margin-top:2px">${s.mode === 'LIVE' ? '🔴 LIVE (Dhan)' : s.mode === 'SIGNAL' ? '🔔 Signals only' : '📄 Paper trading'}</div></div>
+          <div style="font-weight:800;font-size:17px;margin-top:2px">${s.mode === 'LIVE' ? (s.dhanSandbox ? '🧪 LIVE (Dhan sandbox)' : '🔴 LIVE (Dhan)') : s.mode === 'SIGNAL' ? '🔔 Signals only' : '📄 Paper trading'}</div></div>
         <div style="text-align:right"><div class="tiny muted">Capital</div><div style="font-weight:800;font-size:17px;margin-top:2px">${inr(s.capital)}</div></div>
       </div>
       <div class="progress"><div class="bar" id="scan-bar" style="width:0%"></div></div>
@@ -671,7 +671,7 @@
         ${[['PAPER', '📄 Paper'], ['SIGNAL', '🔔 Signals only'], ['LIVE', '🔴 Live Dhan']]
       .map(([v, l]) => `<button class="${s.mode === v ? 'active' : ''}" onclick="window.__sa.setSetting('mode','${v}')">${l}</button>`).join('')}
       </div>
-      <p class="tiny muted" style="margin:10px 0 0">Paper uses live NSE/BSE prices with virtual money. Live sends real orders through your Dhan API key.</p>
+      <p class="tiny muted" style="margin:10px 0 0">Paper uses live NSE/BSE prices with virtual money. Live sends real orders through your Dhan API key — orders are <b>simulated</b> while "Dhan sandbox (test)" is on, so no real money moves.</p>
     </div>
 
     <div class="section-title"><h2>Risk controls</h2></div>
@@ -706,7 +706,9 @@
       <div class="set-row"><span class="lbl">Dhan client id</span><input type="text" value="${esc(s.dhanClientId)}" onchange="window.__sa.setSetting('dhanClientId',this.value)"></div>
       <div class="set-row"><span class="lbl">Access token</span><input type="password" value="${esc(s.dhanAccessToken)}" onchange="window.__sa.setSetting('dhanAccessToken',this.value)"></div>
       <div class="set-row"><span class="lbl">Enable live orders</span><label class="switch"><input type="checkbox" ${s.dhanEnabled ? 'checked' : ''} onchange="window.__sa.setSetting('dhanEnabled',this.checked)"><i></i></label></div>
+      <div class="set-row"><span class="lbl">Dhan sandbox (test)<small>Simulated orders — no real money</small></span><label class="switch"><input type="checkbox" ${s.dhanSandbox ? 'checked' : ''} onchange="window.__sa.setSetting('dhanSandbox',this.checked)"><i></i></label></div>
       <div class="set-row"><span class="lbl">Test connection</span><button class="btn sm" onclick="window.__sa.dhanTest()">Test</button></div>
+      <p class="tiny muted" style="margin-top:8px">Keys are free from <b>DhanHQ → API</b> (production) or the <b>Dhan sandbox portal</b> (test). In sandbox mode, orders and the connection test hit <b>api-sandbox.dhan.co</b> and fills are simulated. Production orders touch a real broker — they stay OFF until you pick <b>LIVE mode</b> above, enable live orders, are not in sandbox, and pass the risk checks.</p>
     </div>
 
     ${u.isAdmin ? `
@@ -1099,7 +1101,7 @@
       catch (e) { toast(e.message, 'err'); }
     },
     async dhanTest() {
-      try { const j = await api('/dhan/test', { method: 'POST' }); toast(j.ok ? 'Dhan connected · funds loaded' : (j.error || 'Failed'), j.ok ? 'ok' : 'err'); }
+      try { const j = await api('/dhan/test', { method: 'POST' }); toast(j.ok ? 'Dhan connected (' + (j.env || 'PRODUCTION') + ') · funds loaded' : (j.error || 'Failed'), j.ok ? 'ok' : 'err'); }
       catch (e) { toast(e.message, 'err'); }
     },
     async provLoad() {

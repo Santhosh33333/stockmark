@@ -5,9 +5,16 @@ const config = require('../config');
 const { httpText, httpJson, parseCsv } = require('./util');
 
 const DHAN_BASE = config.dhan.baseUrl;
+const DHAN_SANDBOX = config.dhan.sandboxUrl;
 const MASTER_CSV = 'https://images.dhan.co/api-data/api-scrip-master.csv';
 let masterCache = null;         // { bySymbol: Map(symbol -> securityId) }
 let masterLoadedAt = 0;
+
+// Sandbox vs production: the sandbox only signs simulated orders (no real money).
+// The env is visible in the host (api-sandbox.dhan.co) and echoed back to the UI.
+function baseFor(settings) {
+  return settings && settings.dhanSandbox ? DHAN_SANDBOX : DHAN_BASE;
+}
 
 // Security-id resolution needs Dhan's free scrip master (ISIN/symbol -> numeric id)
 async function loadMaster() {
@@ -50,7 +57,7 @@ function headers(accessToken) {
 async function testConnection(settings) {
   if (!settings.dhanAccessToken) return { ok: false, error: 'Dhan access token not set' };
   try {
-    const funds = await httpJson(`${DHAN_BASE}/v2/fundlimit`, {
+    const funds = await httpJson(`${baseFor(settings)}/v2/fundlimit`, {
       timeoutMs: 20000, retry: 1,
       headers: headers(settings.dhanAccessToken),
     });
@@ -61,7 +68,7 @@ async function testConnection(settings) {
 }
 
 async function getPositions(settings) {
-  const p = await httpJson(`${DHAN_BASE}/v2/positions`, {
+  const p = await httpJson(`${baseFor(settings)}/v2/positions`, {
     timeoutMs: 20000, retry: 1, headers: headers(settings.dhanAccessToken),
   });
   return p;
@@ -88,7 +95,7 @@ async function placeOrderWithProtections(settings, { symbol, name, exchange = 'N
     correlationId,
     afterMarketOrder: false,
   };
-  const entryRes = await httpJson(`${DHAN_BASE}/v2/orders`, {
+  const entryRes = await httpJson(`${baseFor(settings)}/v2/orders`, {
     method: 'POST', headers: headers(settings.dhanAccessToken), body: JSON.stringify(entry), timeoutMs: 25000, retry: 0,
   });
 
@@ -109,16 +116,16 @@ async function placeOrderWithProtections(settings, { symbol, name, exchange = 'N
   };
   let slRes = null, slErr = null;
   try {
-    slRes = await httpJson(`${DHAN_BASE}/v2/orders`, {
+    slRes = await httpJson(`${baseFor(settings)}/v2/orders`, {
       method: 'POST', headers: headers(settings.dhanAccessToken), body: JSON.stringify(slOrder), timeoutMs: 25000, retry: 0,
     });
   } catch (e) { slErr = e.message; }
 
-  return { entry: entryRes, sl: slRes, slErr, correlationId, securityId, slPrice: sl };
+  return { entry: entryRes, sl: slRes, slErr, correlationId, securityId, slPrice: sl, env: settings.dhanSandbox ? 'SANDBOX' : 'PRODUCTION' };
 }
 
 async function cancelOrder(settings, orderId) {
-  return httpJson(`${DHAN_BASE}/v2/orders/${orderId}`, {
+  return httpJson(`${baseFor(settings)}/v2/orders/${orderId}`, {
     method: 'DELETE', headers: headers(settings.dhanAccessToken), timeoutMs: 20000,
   });
 }

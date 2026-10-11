@@ -40,6 +40,7 @@ const DEFAULT_SETTINGS = {
   telegramToken: '', telegramChat: '',
   webhookPass: '',
   dhanClientId: '', dhanAccessToken: '', dhanEnabled: false,
+  dhanSandbox: false,            // route Dhan orders to the free sandbox (no real money)
   notifyBrowser: true,
   theme: 'dark',
 };
