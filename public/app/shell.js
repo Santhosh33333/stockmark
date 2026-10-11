@@ -185,13 +185,17 @@
       { label: 'Collapse sidebar', sub: 'Layout', ic: '▤', run: function () { setCollapsed(true); } },
       { label: 'Risk controls & kill switch', sub: 'Risk management', ic: '🛡', run: openRiskPanel },
       { label: 'Research brief for a symbol…', sub: 'Evidence-based analysis', ic: '🔬', run: openResearchPrompt },
+      { label: 'Options analytics for a symbol…', sub: 'Chain · Greeks · OI · IV', ic: '🧾', run: openOptionsPrompt },
+      { label: 'Options strategy builder…', sub: 'Payoff · breakevens · max P/L', ic: '🧮', run: function () { openPayoff(); } },
       { label: 'Sign out', sub: 'Session', ic: '⏻', run: function () { var b = $('#btn-logout'); if (b) b.click(); } }
     ];
     ACTS.forEach(function (a) { if (!ql || a.label.toLowerCase().indexOf(ql) > -1) add('Actions', { label: a.label, sub: a.sub, ic: a.ic, run: a.run }); });
 
     // "Research <SYM>" shortcut when the query looks like a ticker
     if (q && /^[\^A-Za-z0-9.&-]{1,15}$/.test(q)) {
-      add('Research', { label: 'Research brief: ' + q.toUpperCase(), sub: 'Deterministic evidence + levels', ic: '🔬', run: (function (sym) { return function () { openResearch(sym); }; })(q.toUpperCase()) });
+      var U = q.toUpperCase();
+      add('Research', { label: 'Research brief: ' + U, sub: 'Deterministic evidence + levels', ic: '🔬', run: function () { openResearch(U); } });
+      add('Options', { label: 'Options analytics: ' + U, sub: 'Chain · Greeks · OI · IV', ic: '🧾', run: function () { openOptions(U); } });
     }
 
     // watchlist shortcuts
@@ -309,7 +313,15 @@
       + '.tm-btn{border:1px solid var(--line,#1f2a44);background:var(--bg-2,#0f1a30);color:inherit;border-radius:10px;padding:8px 14px;cursor:pointer;font:inherit}'
       + '.tm-btn:hover{border-color:var(--accent,#22d3ee)}.tm-btn.danger{border-color:#f43f5e;color:#fb7185}'
       + '.tm-in{width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--line,#1f2a44);background:var(--bg-2,#0f1a30);color:inherit;font:inherit}'
-      + '.tm-bad{color:#fb7185}.tm-good{color:#34d399}';
+      + '.tm-bad{color:#fb7185}.tm-good{color:#34d399}'
+      + '.tm-tbl{width:100%;border-collapse:collapse;font-size:12.5px;font-variant-numeric:tabular-nums}'
+      + '.tm-tbl th,.tm-tbl td{padding:5px 7px;border-bottom:1px solid rgba(148,163,184,.18);text-align:right;white-space:nowrap}'
+      + '.tm-tbl th:first-child,.tm-tbl td:first-child{text-align:left}'
+      + '.tm-tbl thead th{position:sticky;top:0;background:var(--bg-1,#0b1220);opacity:.9}'
+      + '.tm-scroll{max-height:320px;overflow:auto;border:1px solid var(--line,#1f2a44);border-radius:10px}'
+      + '.tm-chart{width:100%;height:180px;display:block;margin-top:8px}'
+      + '.tm-leg{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px dashed rgba(148,163,184,.18)}'
+      + '.tm-leg button{margin-left:auto}';
     document.head.appendChild(st);
   }
   var tmPanel = null;
@@ -401,6 +413,208 @@
     }).catch(function (e) { body.appendChild(h('div', 'tm-bad', 'Failed: ' + e.message)); });
   }
 
+  /* ── options analytics + strategy builder (injected; uses real endpoints) ── */
+  function fmtN(v) { return v == null ? '—' : Number(v).toLocaleString('en-IN'); }
+  function pill(text, color) { var p = h('span', 'tm-pill', text); if (color) p.style.color = color; return p; }
+
+  function openOptionsPrompt() {
+    var body = openPanel('Options analytics');
+    body.appendChild(h('div', 'tm-mut', 'Enter an underlying (e.g. NIFTY, BANKNIFTY, RELIANCE). Uses the free NSE chain, or your Dhan token when configured. Greeks are computed from provider IV — never invented.'));
+    var form = h('form'); form.style.marginTop = '12px';
+    var inp = h('input', 'tm-in'); inp.placeholder = 'Underlying'; inp.setAttribute('aria-label', 'Underlying');
+    var go = h('button', 'tm-btn', 'Load chain'); go.type = 'submit'; go.style.marginTop = '10px';
+    form.appendChild(inp); form.appendChild(go);
+    form.addEventListener('submit', function (e) { e.preventDefault(); var s = String(inp.value || '').trim().toUpperCase(); if (s) openOptions(s); });
+    body.appendChild(form);
+    setTimeout(function () { inp.focus(); }, 20);
+  }
+
+  function strikeTable(j) {
+    var S = j.underlyingValue || j.atm || 0;
+    var rows = (j.strikes || []).slice().sort(function (a, b) { return Math.abs(a.strike - S) - Math.abs(b.strike - S); }).slice(0, 11).sort(function (a, b) { return a.strike - b.strike; });
+    var nearest = rows.reduce(function (a, b) { return (!a || Math.abs(b.strike - S) < Math.abs(a.strike - S)) ? b : a; }, null);
+    var box = h('div', 'tm-scroll');
+    var t = document.createElement('table'); t.className = 'tm-tbl';
+    t.innerHTML = '<thead><tr><th>Strike</th><th>CE LTP</th><th>CE Δ</th><th>CE IV</th><th>PE LTP</th><th>PE Δ</th><th>PE IV</th><th>CE OI</th><th>PE OI</th></tr></thead>';
+    var tb = document.createElement('tbody');
+    rows.forEach(function (s) {
+      var ce = s.ce || {}, pe = s.pe || {};
+      var tr = document.createElement('tr');
+      if (nearest && s.strike === nearest.strike) tr.style.background = 'rgba(34,211,238,.10)';
+      var cells = [s.strike, ce.ltp, ce.greeks ? ce.greeks.delta : null, ce.iv, pe.ltp, pe.greeks ? pe.greeks.delta : null, pe.iv, ce.oi, pe.oi];
+      cells.forEach(function (v, i) {
+        var td = document.createElement('td');
+        if (v == null) td.textContent = '—';
+        else if (i === 0) td.textContent = v;
+        else if (i === 2 || i === 5) td.textContent = (v >= 0 ? '+' : '') + Number(v).toFixed(3);
+        else if (i >= 7) td.textContent = fmtN(v);
+        else td.textContent = typeof v === 'number' ? (Math.round(v * 100) / 100) : v;
+        tr.appendChild(td);
+      });
+      tb.appendChild(tr);
+    });
+    t.appendChild(tb); box.appendChild(t); return box;
+  }
+
+  function openOptions(sym, expiry) {
+    var body = openPanel('Options analytics — ' + sym);
+    body.appendChild(h('div', 'tm-mut', 'Loading option chain…'));
+    var url = '/api/options/' + encodeURIComponent(sym) + '/analytics' + (expiry ? '?expiry=' + encodeURIComponent(expiry) : '');
+    fetch(url).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); }).then(function (res) {
+      var j = res.j; body.textContent = '';
+      if (!res.ok || !j.ok) { body.appendChild(h('div', 'tm-bad', 'Unavailable: ' + (j.error || 'no chain'))); return; }
+      var head = h('div'); head.style.display = 'flex'; head.style.gap = '10px'; head.style.alignItems = 'center'; head.style.flexWrap = 'wrap';
+      head.appendChild(pill(String(j.source || 'NSE').toUpperCase()));
+      head.appendChild(h('span', 'tm-mut', (j.expiry || '') + ' · updated ' + (j.updatedAt ? new Date(j.updatedAt).toLocaleTimeString() : '—')));
+      if (j.expiries && j.expiries.length > 1) {
+        var sel = document.createElement('select'); sel.className = 'tm-in'; sel.style.width = 'auto'; sel.style.padding = '5px 8px'; sel.setAttribute('aria-label', 'Expiry');
+        j.expiries.forEach(function (x) { var o = document.createElement('option'); o.value = x; o.textContent = x; if (x === j.expiry) o.selected = true; sel.appendChild(o); });
+        sel.addEventListener('change', function () { openOptions(sym, sel.value); });
+        head.appendChild(sel);
+      }
+      body.appendChild(head);
+
+      body.appendChild(h('div', 'tm-sec', 'Snapshot'));
+      var g = h('div', 'tm-grid');
+      row(g, 'Underlying', j.underlyingValue != null ? '₹' + j.underlyingValue : '—');
+      row(g, 'ATM strike', j.atm != null ? j.atm : '—');
+      row(g, 'ATM IV', j.atmIV != null ? j.atmIV + '%' : '—');
+      row(g, 'IV skew (put − call)', j.ivSkew != null ? j.ivSkew : '—');
+      row(g, 'PCR (OI)', j.pcr != null ? j.pcr : '—');
+      row(g, 'Max pain', j.maxPain && j.maxPain.strike != null ? '₹' + j.maxPain.strike + '  (' + fmtN(j.maxPain.pain) + ' pain)' : '—');
+      body.appendChild(g);
+
+      body.appendChild(h('div', 'tm-sec', 'Greeks'));
+      body.appendChild(h('div', 'tm-mut', j.greeks.note + (j.greeks.available ? '  Model: ' + j.greeks.model + ' · r = ' + j.greeks.riskFreeRate + '%' : '')));
+
+      body.appendChild(h('div', 'tm-sec', 'IV rank / percentile'));
+      if (j.ivRank && j.ivRank.available) {
+        var rg = h('div', 'tm-grid');
+        row(rg, 'Snapshots', j.ivRank.samples);
+        row(rg, 'Recorded range', j.ivRank.min + '% – ' + j.ivRank.max + '%');
+        row(rg, 'IV rank', j.ivRank.rank + '%');
+        row(rg, 'IV percentile', j.ivRank.percentile + '%');
+        body.appendChild(rg);
+      } else body.appendChild(h('div', 'tm-mut', (j.ivRank && j.ivRank.note) || 'Not available yet'));
+
+      body.appendChild(h('div', 'tm-sec', 'Open interest — top strikes'));
+      var og = h('div', 'tm-grid');
+      (j.oi && j.oi.highestCeOi || []).slice(0, 3).forEach(function (s) { row(og, 'CE OI ' + s.strike, fmtN(s.oi)); });
+      (j.oi && j.oi.highestPeOi || []).slice(0, 3).forEach(function (s) { row(og, 'PE OI ' + s.strike, fmtN(s.oi)); });
+      body.appendChild(og);
+      if (j.oi && j.oi.biggestCeOiAdd) body.appendChild(h('div', 'tm-mut', 'Biggest CE OI add: ' + j.oi.biggestCeOiAdd.strike + ' (' + fmtN(j.oi.biggestCeOiAdd.oiChange) + ')'));
+      if (j.oi && j.oi.biggestPeOiAdd) body.appendChild(h('div', 'tm-mut', 'Biggest PE OI add: ' + j.oi.biggestPeOiAdd.strike + ' (' + fmtN(j.oi.biggestPeOiAdd.oiChange) + ')'));
+
+      body.appendChild(h('div', 'tm-sec', 'Near-ATM chain'));
+      body.appendChild(strikeTable(j));
+
+      var btns = h('div'); btns.style.marginTop = '14px';
+      var b = h('button', 'tm-btn', 'Build a strategy from this chain'); b.type = 'button';
+      b.addEventListener('click', function () { openPayoff(j); });
+      btns.appendChild(b); body.appendChild(btns);
+    }).catch(function (e) { body.appendChild(h('div', 'tm-bad', 'Failed: ' + e.message)); });
+  }
+
+  function payoffChart(grid) {
+    var ns = 'http://www.w3.org/2000/svg';
+    function el(n, attrs) { var e = document.createElementNS(ns, n); for (var k in attrs) e.setAttribute(k, attrs[k]); return e; }
+    var W = 560, H = 170, pad = 10;
+    var xs = grid.map(function (g) { return g.price; }), ys = grid.map(function (g) { return g.pnl; });
+    var x0 = Math.min.apply(null, xs), x1 = Math.max.apply(null, xs);
+    var y0 = Math.min.apply(null, ys.concat([0])), y1 = Math.max.apply(null, ys.concat([0]));
+    var sx = function (x) { return pad + ((x - x0) / ((x1 - x0) || 1)) * (W - 2 * pad); };
+    var sy = function (y) { return pad + ((y1 - y) / ((y1 - y0) || 1)) * (H - 2 * pad); };
+    var pts = grid.map(function (g) { return sx(g.price).toFixed(1) + ',' + sy(g.pnl).toFixed(1); }).join(' ');
+    var svg = el('svg', { viewBox: '0 0 ' + W + ' ' + H, class: 'tm-chart', preserveAspectRatio: 'none' });
+    svg.appendChild(el('line', { x1: pad, y1: sy(0).toFixed(1), x2: W - pad, y2: sy(0).toFixed(1), stroke: '#64748b', 'stroke-width': 1, 'stroke-dasharray': '4 4', 'vector-effect': 'non-scaling-stroke' }));
+    svg.appendChild(el('polyline', { points: pts, fill: 'none', stroke: '#22d3ee', 'stroke-width': 2, 'vector-effect': 'non-scaling-stroke' }));
+    var lbl = el('text', { x: pad, y: H - 3, fill: '#94a3b8', 'font-size': 10 });
+    lbl.textContent = '₹' + x0.toFixed(0) + ' → ₹' + x1.toFixed(0) + '   (dashed = break-even)';
+    svg.appendChild(lbl);
+    return svg;
+  }
+
+  function openPayoff(chain) {
+    var body = openPanel('Options strategy builder');
+    var model = { lotSize: 1, legs: [] };
+    body.appendChild(h('div', 'tm-mut', 'Signed qty: positive = long (buy), negative = short (sell). Premium is per unit, ₹. Payoff is expiry P&L per lot — excludes brokerage/taxes/slippage.'));
+    var wrap = h('div'); body.appendChild(wrap);
+
+    function mkIn(val, ph, w) { var i = h('input', 'tm-in'); i.type = 'number'; i.value = val == null ? '' : val; i.placeholder = ph || ''; if (w) { i.style.width = w; } return i; }
+
+    function render() {
+      wrap.textContent = '';
+      var g = h('div', 'tm-grid');
+      var lotIn = mkIn(model.lotSize, 'Lot size');
+      g.appendChild(h('span', 'l tm-mut', 'Lot size')); g.appendChild(lotIn);
+      wrap.appendChild(g);
+
+      wrap.appendChild(h('div', 'tm-sec', 'Legs (' + model.legs.length + ')'));
+      model.legs.forEach(function (l, i) {
+        var lr = h('div', 'tm-leg');
+        lr.appendChild(h('span', null, l.qty > 0 ? '▲' : '▼'));
+        var t = h('div'); t.appendChild(h('b', null, (l.qty > 0 ? 'LONG ' : 'SHORT ') + l.type + ' ' + l.strike));
+        t.appendChild(h('span', 'tm-mut', '  qty ' + l.qty + ' @ ₹' + l.premium));
+        lr.appendChild(t);
+        var rm = h('button', 'tm-btn', 'remove'); rm.type = 'button';
+        rm.addEventListener('click', function () { model.legs.splice(i, 1); render(); });
+        lr.appendChild(rm);
+        wrap.appendChild(lr);
+      });
+
+      var addRow = h('div'); addRow.style.display = 'flex'; addRow.style.gap = '8px'; addRow.style.flexWrap = 'wrap'; addRow.style.marginTop = '8px';
+      var typeSel = document.createElement('select'); typeSel.className = 'tm-in'; typeSel.style.width = '70px'; typeSel.setAttribute('aria-label', 'Option type');
+      ['CE', 'PE'].forEach(function (x) { var o = document.createElement('option'); o.value = x; o.textContent = x; typeSel.appendChild(o); });
+      var strike = mkIn('', 'Strike', '100px'), qty = mkIn('', 'Qty', '80px'), prem = mkIn('', 'Premium', '100px');
+      var add = h('button', 'tm-btn', '+ Add leg'); add.type = 'button';
+      add.addEventListener('click', function () {
+        var s = Number(strike.value), q = Number(qty.value), p = Number(prem.value) || 0;
+        if (!isFinite(s) || !isFinite(q) || q === 0) { return; }
+        model.legs.push({ type: typeSel.value, strike: s, qty: q, premium: p });
+        strike.value = ''; qty.value = ''; prem.value = '';
+        render();
+      });
+      addRow.appendChild(typeSel); addRow.appendChild(strike); addRow.appendChild(qty); addRow.appendChild(prem); addRow.appendChild(add);
+      wrap.appendChild(addRow);
+
+      if (chain && chain.atm != null) {
+        var quick = h('button', 'tm-btn', 'Quick add ATM ' + chain.atm + ' straddle'); quick.type = 'button'; quick.style.marginTop = '8px';
+        quick.addEventListener('click', function () {
+          model.legs.push({ type: 'CE', strike: chain.atm, qty: -1, premium: 0 });
+          model.legs.push({ type: 'PE', strike: chain.atm, qty: -1, premium: 0 });
+          render();
+        });
+        wrap.appendChild(quick);
+        wrap.appendChild(h('div', 'tm-mut', 'Tip: long ATM CE = qty +1; short straddle = CE −1 and PE −1. Set the real premium from the chain above.'));
+      }
+
+      var calc = h('button', 'tm-btn', 'Compute payoff'); calc.type = 'button'; calc.style.marginTop = '12px';
+      var out = h('div'); out.style.marginTop = '10px';
+      calc.addEventListener('click', function () {
+        if (!model.legs.length) { out.textContent = ''; out.appendChild(h('div', 'tm-bad', 'Add at least one leg.')); return; }
+        out.textContent = ''; out.appendChild(h('div', 'tm-mut', 'Computing…'));
+        fetch('/api/options/strategy/payoff', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ legs: model.legs, lotSize: Number(lotIn.value) || 1 }),
+        }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); }).then(function (res) {
+          out.textContent = ''; var j = res.j;
+          if (!res.ok || !j.ok) { out.appendChild(h('div', 'tm-bad', 'Error: ' + (j.error || 'failed'))); return; }
+          var rg = h('div', 'tm-grid');
+          row(rg, 'Position', j.position);
+          row(rg, 'Net premium', (j.netPremium < 0 ? '₹' + Math.abs(j.netPremium) + ' credit' : '₹' + j.netPremium + ' debit'), j.netPremium < 0 ? 'tm-good' : '');
+          row(rg, 'Max profit', j.maxProfit === 'unlimited' ? 'unlimited' : '₹' + j.maxProfit, 'tm-good');
+          row(rg, 'Max loss', j.maxLoss === 'unlimited' ? 'unlimited' : '₹' + j.maxLoss, 'tm-bad');
+          row(rg, 'Breakeven(s)', (j.breakevens && j.breakevens.length) ? j.breakevens.join(' · ') : '—');
+          out.appendChild(rg);
+          out.appendChild(payoffChart(j.payoff));
+          out.appendChild(h('p', 'tm-mut', j.note));
+        }).catch(function (e) { out.textContent = ''; out.appendChild(h('div', 'tm-bad', 'Failed: ' + e.message)); });
+      });
+      wrap.appendChild(calc); wrap.appendChild(out);
+    }
+    render();
+  }
+
   function openRiskPanel() {
     var body = openPanel('Risk controls');
     function load() {
@@ -446,5 +660,5 @@
   }
 
   /* ── expose for debugging / tests ──────────────────────────────────── */
-  window.__shell = { open: open, close: close, toggleTheme: toggleTheme, setCollapsed: setCollapsed, openResearch: openResearch, openRiskPanel: openRiskPanel };
+  window.__shell = { open: open, close: close, toggleTheme: toggleTheme, setCollapsed: setCollapsed, openResearch: openResearch, openRiskPanel: openRiskPanel, openOptions: openOptions, openPayoff: openPayoff };
 })();

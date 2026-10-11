@@ -70,6 +70,13 @@ Exposed in the app via the command palette → **Research brief**.
   breakevens (verified: long call & iron condor).
 - Verified live: NSE NIFTY chain, 108 strikes, ATM IV 12.03, max pain 22500,
   ATM delta 0.5563.
+- **Exposed in the app** via the command palette (Ctrl/Cmd-K):
+  *Options analytics* (source, expiry switcher, snapshot, Greeks note, IV rank,
+  OI top strikes + biggest adds, near-ATM chain table) and *Options strategy
+  builder* (add/remove legs, quick ATM straddle, expiry payoff, max P/L,
+  breakevens, SVG payoff chart). Verified in-browser: NIFTY max pain ₹22500,
+  ATM IV 12.03%, PCR 1.278, 11-row chain, 0 console errors; long CE 25000 @150 →
+  breakeven 25150, max loss ₹-150.
 - ⛔ Historical expired-option backtesting deferred (no free source of historical
   contract data).
 
@@ -109,8 +116,9 @@ Exposed in the app via the command palette → **Research brief**.
   paper portfolio, alerts, admin console (existing).
 - Dark-first + light theme, keyboard nav (`/`, `g`-shortcuts, Ctrl/Cmd-K), command
   palette, global search, freshness/provider chip, collapsible sidebar.
-- **New:** research + risk panels, data-quality status, accessible dialogs
-  (aria-modal, Esc to close), loading/empty/error states.
+- **New:** research + risk + options-analytics + strategy-builder panels, live
+  SSE quote pill (auto-reconnect, pauses when hidden), data-quality status,
+  accessible dialogs (aria-modal, Esc to close), loading/empty/error states.
 
 ## I. Zero-cost-first deployment — *done*
 
@@ -159,8 +167,8 @@ migrations are performed on existing data.
   (Greeks + max pain + IV), `/api/options/strategy/payoff`, `/api/risk/state`,
   `/api/risk/kill`, `/api/paper/export.csv`, `/api/stream/quotes` (SSE).
 - Backtest verified with costs + train/test + CSV (`--costs --train=0.7 --csv`).
-- In-browser: app shell loads with **0 console errors**; Risk-controls and
-  Research panels render live data.
+- In-browser: app shell loads with **0 console errors**; Risk-controls,
+  Research, Options-analytics and Strategy-builder panels render live data.
 - Owner account intact; test accounts removed (DB: 1 owner, 0 test sessions).
 
 ## Known limitations (honest)

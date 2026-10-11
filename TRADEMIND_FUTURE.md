@@ -66,6 +66,7 @@ _Phased rebuild of the existing repo. This is the honest state of each phase; de
 - [x] Multi-timeframe now includes 5m/15m/1h/4h/D/W (`?intraday=1`).
 - [x] Deterministic research assistant `/api/research/:symbol` (no invented probability).
 - [x] Options analytics: Black-Scholes Greeks, max pain, OI, IV rank (real history), payoff builder.
+- [x] Options analytics + strategy builder surfaced in the UI (Ctrl/Cmd-K palette → live chain table, OI, Greeks, payoff chart).
 - [x] Risk management: per-trade/daily/drawdown limits, kill switch, `/api/risk/state`, audit logging.
 - [x] Backtest realism: Indian cost model (brokerage/STT/GST/stamp/slippage) + train/test split + trades CSV.
 - [x] Paper history CSV export (`/api/paper/export.csv`).

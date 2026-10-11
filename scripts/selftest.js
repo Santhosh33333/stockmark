@@ -229,7 +229,9 @@ async function main() {
 
     // Enriched analytics (greeks, max pain, IV) — tolerate upstream being blocked.
     const ocA = await call('GET', '/api/options/NIFTY/analytics', null, authHeaders);
-    const ocAOk = ocA.status === 200 && ocA.body.ok === true && ocA.body.greeks && ocA.body.maxPain && ocA.body.ivRank;
+    const ocAOk = ocA.status === 200 && ocA.body.ok === true && ocA.body.greeks && ocA.body.maxPain && ocA.body.ivRank
+      && typeof ocA.body.maxPain.strike === 'number' && typeof ocA.body.greeks.available === 'boolean'
+      && Array.isArray(ocA.body.strikes) && typeof ocA.body.ivRank.available === 'boolean';
     if (oc.status === 200) {
       check('Option analytics (greeks + max pain + IV)',
         ocAOk,
