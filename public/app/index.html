@@ -9,7 +9,7 @@
 <link rel="manifest" href="manifest.webmanifest" />
 <link rel="icon" type="image/svg+xml" href="/logo.svg" />
 <link rel="apple-touch-icon" href="/icons/icon-192.png" />
-<link rel="stylesheet" href="app.css?v=9" />
+<link rel="stylesheet" href="app.css?v=10" />
 <link rel="stylesheet" href="/future.css?v=1" />
 </head>
 <body>
@@ -43,10 +43,34 @@
         <input type="text" name="displayName" placeholder="Your name" />
       </label>
       <label>Password
-        <input type="password" name="password" required placeholder="••••••••" minlength="6" />
+        <span class="pw-wrap">
+          <input type="password" name="password" id="auth-password" required placeholder="••••••••" minlength="6" />
+          <button type="button" class="pw-toggle" data-pw="auth-password" aria-label="Show password" title="Show password">👁</button>
+        </span>
       </label>
       <p class="auth-error" id="auth-error"></p>
       <button class="btn primary block" type="submit" id="auth-submit">Sign in</button>
+      <a href="#" class="auth-link" id="forgot-link">Forgot password?</a>
+    </form>
+
+    <form id="reset-form" class="hidden" autocomplete="on">
+      <p class="reset-note" id="reset-note">Enter your email and we'll send a 6-digit reset code.</p>
+      <label>Email
+        <input type="email" name="email" required placeholder="you@email.com" />
+      </label>
+      <button type="button" class="btn block" id="reset-send">Send reset code</button>
+      <label>Reset code
+        <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code" placeholder="6-digit code" />
+      </label>
+      <label>New password
+        <span class="pw-wrap">
+          <input type="password" name="password" id="reset-password" minlength="6" placeholder="••••••••" />
+          <button type="button" class="pw-toggle" data-pw="reset-password" aria-label="Show password" title="Show password">👁</button>
+        </span>
+      </label>
+      <p class="auth-error" id="reset-error"></p>
+      <button class="btn primary block" type="submit" id="reset-submit">Set new password</button>
+      <a href="#" class="auth-link" id="reset-back">← Back to sign in</a>
     </form>
     <p class="auth-foot">Signals are educational analysis, not investment advice. Indian market data in ₹ (INR).</p>
   </div>
@@ -89,6 +113,7 @@
           <span class="kbd" aria-hidden="true">Ctrl K</span>
         </label>
         <div class="topbar-right">
+          <button class="icon-btn msearch" id="btn-msearch" title="Search symbols" aria-label="Search symbols">⌕</button>
           <div class="fresh" id="fresh" title="Market data freshness" aria-live="polite"><span class="fd"></span><span class="lbl"><b id="fresh-src">—</b> · <span id="fresh-when">—</span></span></div>
           <button class="icon-btn" id="btn-theme" title="Toggle light / dark theme" aria-label="Toggle theme">◐</button>
           <button class="icon-btn hidden" id="btn-admin" title="Owner console">🛡️</button>
@@ -137,8 +162,8 @@
 <div class="kbdhint" aria-hidden="true">Press <span class="kbd">Ctrl</span>+<span class="kbd">K</span> to search · <span class="kbd">g</span> then a key to jump</div>
 
 <script src="chart.js?v=7"></script>
-<script src="app.js?v=12"></script>
+<script src="app.js?v=13"></script>
 <script src="fx.js?v=7"></script>
-<script src="shell.js?v=17"></script>
+<script src="shell.js?v=18"></script>
 </body>
 </html>

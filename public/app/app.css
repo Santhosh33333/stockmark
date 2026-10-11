@@ -64,6 +64,14 @@ input,select{width:100%;margin-top:6px;padding:12px 13px;border-radius:12px;bord
 input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(34,211,238,.16)}
 .auth-error{color:#fda4af;font-size:13px;min-height:18px;margin:0 0 8px}
 .auth-foot{color:var(--dim2);font-size:11px;text-align:center;margin:16px 0 0;line-height:1.6}
+.pw-wrap{position:relative;display:block}
+.pw-wrap input{padding-right:44px}
+.pw-toggle{position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:0;color:var(--dim);font-size:15px;cursor:pointer;padding:6px;border-radius:8px;line-height:1}
+.pw-toggle:hover{color:var(--txt);background:rgba(148,163,184,.12)}
+.auth-link{display:block;text-align:center;margin-top:12px;font-size:12.5px;color:var(--dim);text-decoration:none}
+.auth-link:hover{color:var(--accent)}
+.reset-note{font-size:12.5px;color:var(--dim);margin:0 0 12px;line-height:1.55}
+.reset-note code{color:var(--accent);font-weight:800;letter-spacing:2px}
 /* ── buttons ── */
 .btn{border:1px solid var(--line2);background:rgba(148,163,184,.07);color:var(--txt);padding:10px 15px;border-radius:12px;font-size:14px;font-weight:650;cursor:pointer;transition:transform .15s,box-shadow .2s,background .2s}
 .btn:hover{background:rgba(148,163,184,.13)}
@@ -350,4 +358,20 @@ canvas#chart{width:100%;height:380px;display:block}
 :root[data-theme="light"] #bg-scene{opacity:.25}
 :root[data-theme="light"] .cmdk-panel{background:#fff}
 :root[data-theme="light"] .cmdk{background:rgba(15,23,42,.35)}
+
+/* ── phones: keep the topbar to a single row (nothing clipped off-screen) ── */
+.msearch{display:none}
+@media (max-width:700px){
+  .topbar{padding:9px 12px;gap:8px}
+  .topbar-left{gap:9px;min-width:0;flex:1 1 auto;overflow:hidden}
+  .topbar-left>div{min-width:0}
+  .app-name{font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .app-name .v2{display:none}
+  .market-pill{margin-top:2px;padding:2px 8px;font-size:10.5px}
+  .gsearch,.fresh{display:none}
+  .topbar-right{gap:6px;flex:0 0 auto}
+  .icon-btn{width:36px;height:36px;font-size:15px;border-radius:11px}
+  .icon-btn.msearch{display:grid;place-items:center}
+  #btn-admin{display:none}   /* still reachable from the bottom nav + command palette */
+}
 

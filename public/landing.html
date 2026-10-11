@@ -47,6 +47,7 @@ p{margin:0}
 .links a:hover{color:var(--txt)}
 .navright{margin-left:auto;display:flex;gap:10px;align-items:center}
 .burger{display:none;background:none;border:1px solid var(--line);color:var(--txt);border-radius:10px;padding:8px 10px;font-size:16px}
+.cta-sm{display:none}
 
 /* ── hero ─────────────────────────────────────────────────────────────── */
 .hero{padding:72px 0 40px}
@@ -208,6 +209,10 @@ footer{border-top:1px solid var(--line);background:color-mix(in srgb,var(--bg) 7
   .links a{padding:13px 0;border-bottom:1px solid var(--line)}
   .navright .ghostbtn{display:none}
   .burger{display:block}
+  .nav-in{gap:12px}
+  .cta-full{display:none}
+  .cta-sm{display:inline}
+  .tm-btn.sm{padding:9px 13px}
   .brand3d{width:84px;height:84px;top:-14px}
   .pv-body{grid-template-columns:1fr}
   .pv-main{border-right:0;border-bottom:1px solid var(--line)}
@@ -233,7 +238,7 @@ footer{border-top:1px solid var(--line);background:color-mix(in srgb,var(--bg) 7
     </nav>
     <div class="navright">
       <a class="tm-btn ghost sm ghostbtn" href="/app/">Sign in</a>
-      <a class="tm-btn primary sm" href="/app/">Launch Dashboard <span aria-hidden="true">→</span></a>
+      <a class="tm-btn primary sm" href="/app/"><span class="cta-full">Launch Dashboard</span><span class="cta-sm">Launch</span> <span aria-hidden="true">→</span></a>
       <button class="burger" id="menuBtn" aria-label="Open menu" aria-expanded="false">☰</button>
     </div>
   </div>

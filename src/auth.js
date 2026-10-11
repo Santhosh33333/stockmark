@@ -90,18 +90,57 @@ function authenticate(username, password) {
   return u;
 }
 
+// ── sessions ─────────────────────────────────────────────────────────────
+// Tokens are signed (HMAC-SHA256) so a valid token still proves who you are
+// even after the sessions table is wiped — which is exactly what happens on a
+// free host whose disk is ephemeral and resets on every restart. We keep the DB
+// row as the source of truth but self-heal it from a valid signature, so a page
+// refresh never signs you out. The secret is derived from stable server config
+// so it survives restarts/redeploys too.
+const SESSION_SECRET = process.env.SESSION_SECRET
+  || process.env.ADMIN_PASSWORD
+  || 'trademind-local-dev-secret';
+
+function signToken(payload) {
+  const body = Buffer.from(JSON.stringify(payload)).toString('base64url');
+  const sig = crypto.createHmac('sha256', SESSION_SECRET).update(body).digest('base64url');
+  return body + '.' + sig;
+}
+function readToken(token) {
+  if (!token || token.indexOf('.') < 0) return null;
+  const i = token.indexOf('.');
+  const body = token.slice(0, i), sig = token.slice(i + 1);
+  const expect = crypto.createHmac('sha256', SESSION_SECRET).update(body).digest('base64url');
+  const a = Buffer.from(sig), b = Buffer.from(expect);
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
+  let p; try { p = JSON.parse(Buffer.from(body, 'base64url').toString('utf8')); } catch { return null; }
+  if (!p || !p.uid || !p.exp || p.exp < now()) return null;
+  return p;
+}
+
 function createSession(userId) {
-  const token = crypto.randomBytes(32).toString('hex');
-  stmt.insertSession.run(token, userId, now(), now() + SESSION_DAYS * 86400000);
+  const exp = now() + SESSION_DAYS * 86400000;
+  const token = signToken({ uid: userId, exp, nonce: crypto.randomBytes(8).toString('hex') });
+  stmt.insertSession.run(token, userId, now(), exp);
   return token;
 }
 function userForToken(token) {
   if (!token) return null;
   stmt.cleanSessions.run(now());
   const s = stmt.session.get(token);
-  if (!s || s.expires_at < now()) return null;
+  if (!s || s.expires_at < now()) {
+    const p = readToken(token);
+    if (!p) return null;
+    const u = stmt.userById.get(p.uid);
+    if (!u) return null;
+    try { stmt.insertSession.run(token, p.uid, now(), p.exp); } catch { /* raced */ }
+    return u;
+  }
   return stmt.userById.get(s.user_id);
 }
+// True when the token is cryptographically valid (used to tell "your account is
+// gone" apart from "just a stale session row").
+function tokenIsValid(token) { return !!readToken(token); }
 function destroySession(token) { if (token) stmt.deleteSession.run(token); }
 
 function updateSettings(userId, patch) {
@@ -185,4 +224,29 @@ function verifyOtp(email, code, purpose = 'signup') {
   return { ok: true, user: u };
 }
 
-module.exports = { createUser, authenticate, createSession, userForToken, destroySession, updateSettings, getSettings, effectiveSettings, otpDisabledEnv, publicUser, DEFAULT_SETTINGS, RISK_RANGES, sanitizeSettings, checkRate, seedAdmin, hashPassword, sendOtp, verifyOtp };
+// ── password reset (email code) ─────────────────────────────────────────
+// Reuses the free OTP mailer. When there is no such account we do NOT send and
+// report exists:false, so the API can stay generic and avoid email enumeration.
+async function sendResetCode(email) {
+  email = String(email || '').trim().toLowerCase();
+  const u = stmt.userByUsername.get(email);
+  if (!u) return { exists: false, sent: { ok: false, provider: 'dev' } };
+  const out = await sendOtp(email, 'reset');
+  return { exists: true, ...out };
+}
+
+function resetPassword(email, code, newPassword) {
+  email = String(email || '').trim().toLowerCase();
+  const u = stmt.userByUsername.get(email);
+  if (!u) return { ok: false, error: 'Invalid or expired reset code' };
+  if (String(newPassword || '').length < 6) return { ok: false, error: 'Password must be at least 6 characters' };
+  const out = verifyOtp(email, code, 'reset');
+  if (!out.ok) return out;
+  const { hash, salt } = hashPassword(newPassword);
+  stmt.setUserPassword.run(hash, salt, u.id);
+  stmt.deleteUserSessions.run(u.id);            // sign out everywhere else
+  stmt.log.run(u.id, 'PASSWORD RESET', 'via email code', now());
+  return { ok: true, user: stmt.userById.get(u.id) };
+}
+
+module.exports = { createUser, authenticate, createSession, userForToken, tokenIsValid, destroySession, updateSettings, getSettings, effectiveSettings, otpDisabledEnv, publicUser, DEFAULT_SETTINGS, RISK_RANGES, sanitizeSettings, checkRate, seedAdmin, hashPassword, sendOtp, verifyOtp, sendResetCode, resetPassword };

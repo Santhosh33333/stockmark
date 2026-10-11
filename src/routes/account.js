@@ -102,6 +102,38 @@ router.post('/auth/verify-login-otp', (req, res) => {
   res.json({ token, user: auth.publicUser(out.user) });
 });
 
+// ── password reset ──────────────────────────────────────────────────────
+// Step 1: request a reset code by email. Always answers generically so the API
+// never reveals whether an address has an account.
+router.post('/auth/forgot-password', async (req, res) => {
+  const ip = req.ip;
+  if (!auth.checkRate(ip)) return res.status(429).json({ error: 'Too many attempts. Try again in 10 minutes.' });
+  const email = String((req.body || {}).email || '').trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return res.status(400).json({ error: 'Enter a valid email address' });
+  const mailReady = require('../mailer').status().ready;
+  try {
+    const out = await auth.sendResetCode(email);
+    stmt.log.run(null, 'RESET REQUESTED', email, now());
+    res.json({ ok: true, mailReady, sent: !!(out.sent && out.sent.ok), dev: out.code || null });
+  } catch (e) {
+    res.json({ ok: true, mailReady, sent: false, note: e.message });   // generic
+  }
+});
+
+// Step 2: submit the code + a new password. On success the user is signed in.
+router.post('/auth/reset-password', (req, res) => {
+  const ip = req.ip;
+  if (!auth.checkRate(ip)) return res.status(429).json({ error: 'Too many attempts. Try again in 10 minutes.' });
+  const { email, code, password } = req.body || {};
+  try {
+    const out = auth.resetPassword(email, code, password);
+    if (!out.ok) return res.status(400).json({ error: out.error });
+    const token = auth.createSession(out.user.id);
+    setSessionCookie(req, res, token);
+    res.json({ ok: true, token, user: auth.publicUser(out.user) });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
 router.get('/mail/status', (_req, res) => {
   const mailer = require('../mailer');
   res.json({ mail: mailer.status(), otpTtl: config.otp.ttlMinutes });

@@ -389,6 +389,8 @@
   var searchInput = $('#gsearch-input'), searchBox = $('#gsearch');
   function openFromSearch() { open(searchInput ? searchInput.value : ''); }
   if (searchBox) searchBox.addEventListener('click', function (e) { if (e.target !== searchInput) { e.preventDefault(); openFromSearch(); } });
+  var msearchBtn = $('#btn-msearch');
+  if (msearchBtn) msearchBtn.addEventListener('click', function () { open(''); });
   if (searchInput) {
     searchInput.addEventListener('focus', openFromSearch);
     searchInput.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); openFromSearch(); } });
