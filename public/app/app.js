@@ -17,6 +17,7 @@
     scanTimer: null, es: null, alerts: [], universe: null, watchlist: [],
     symbols: [], selected: null, detail: null, chart: null, paper: null, alertCount: 0,
     options: { symbol: 'NIFTY', expiry: null, data: null, loading: false, error: null, source: null },
+    optSyms: null, optSymsLoading: false, optFilter: '',
     backtest: { symbol: 'RELIANCE', preset: 'improved', slPct: 1.5, tpPct: 3, maxBars: 25, data: null, loading: false, error: null },
   };
 
@@ -624,8 +625,31 @@
     if (a >= 1e3) return (v / 1e3).toFixed(1) + 'K';
     return String(Math.round(v));
   }
+  // Every option-eligible underlying (indices + all F&O stocks), filtered by the
+  // typed query so the user can search the whole list by symbol or company name.
+  function optMatches(q) {
+    const s = state.optSyms || { indices: OPT_QUICK.map((x) => ({ symbol: x, name: '' })), stocks: [] };
+    const ql = String(q == null ? state.optFilter : q).trim().toLowerCase();
+    const hit = (r) => !ql || r.symbol.toLowerCase().includes(ql) || (r.name || '').toLowerCase().includes(ql);
+    return { indices: (s.indices || []).filter(hit), stocks: (s.stocks || []).filter(hit) };
+  }
+  function optDatalist() {
+    const m = optMatches();
+    return m.indices.concat(m.stocks).map((r) => `<option value="${esc(r.symbol)}">${esc(r.name || r.symbol)}</option>`).join('');
+  }
+  function optOptionsHtml() {
+    const m = optMatches();
+    const sel = state.options.symbol;
+    const opt = (r) => `<option value="${esc(r.symbol)}"${r.symbol === sel ? ' selected' : ''}>${esc(r.symbol)}${r.name ? ' — ' + esc(r.name) : ''}</option>`;
+    const chosen = m.indices.concat(m.stocks).some((r) => r.symbol === sel);
+    return '<option value="">— choose a stock —</option>'
+      + (m.indices.length ? `<optgroup label="Indices">${m.indices.map(opt).join('')}</optgroup>` : '')
+      + (m.stocks.length ? `<optgroup label="F&O stocks (${m.stocks.length})">${m.stocks.map(opt).join('')}</optgroup>` : '')
+      + (!chosen && sel ? `<option value="${esc(sel)}" selected>${esc(sel)}</option>` : '');
+  }
   function renderOptions() {
     const o = state.options;
+    const ready = state.optSyms ? state.optSyms.total : null;
     return `
     <div class="card" style="margin-top:14px">
       <div class="row between wrap" style="gap:10px">
@@ -634,9 +658,17 @@
       </div>
       <div class="row wrap" style="gap:8px;margin-top:12px;align-items:center">
         <input id="opt-sym" list="opt-syms" placeholder="Index or F&O stock (e.g. NIFTY, RELIANCE)" style="flex:1;min-width:180px" value="${esc(o.symbol)}" onkeydown="if(event.key==='Enter')window.__sa.loadOptions()">
-        <datalist id="opt-syms">${OPT_QUICK.concat(['SENSEX', 'BANKBARODA', 'TCS', 'INFY', 'SBIN', 'HDFCBANK']).map((s) => `<option>${s}</option>`).join('')}</datalist>
+        <datalist id="opt-syms">${optDatalist()}</datalist>
         ${OPT_QUICK.map((s) => `<button class="btn sm ${o.symbol === s ? 'primary' : ''}" onclick="window.__sa.setOptSymbol('${s}')">${s}</button>`).join('')}
         <button class="btn sm" onclick="window.__sa.loadOptions()">⟳ Load</button>
+      </div>
+      <div class="row wrap" style="gap:8px;margin-top:8px;align-items:center">
+        <span class="tiny muted">All stocks</span>
+        <input id="opt-filter" placeholder="Filter by name or symbol…" style="flex:0 0 180px" value="${esc(state.optFilter || '')}" oninput="window.__sa.filterOptSyms(this.value)" aria-label="Filter stocks">
+        <select id="opt-pick" style="flex:1;min-width:200px" onchange="if(this.value)window.__sa.setOptSymbol(this.value)" aria-label="Choose a stock">
+          ${optOptionsHtml()}
+        </select>
+        <span class="tiny muted" id="opt-count">${ready != null ? ready + ' F&O stocks' : 'loading list…'}</span>
       </div>
       ${o.data ? `<div class="row wrap" style="gap:8px;margin-top:10px;align-items:center">
         <span class="tiny muted">Expiry</span>
@@ -1037,7 +1069,7 @@
     if (route === 'dashboard') v.innerHTML = renderDashboard();
     else if (route === 'scanner') { v.innerHTML = renderScanner(); wireScanVirtual(); }
     else if (route === 'backtest') { v.innerHTML = renderBacktest(); if (state.backtest.data) setTimeout(drawBacktest, 20); }
-    else if (route === 'options') { v.innerHTML = renderOptions(); if (!state.options.data && !state.options.loading && !state.options.error) setTimeout(actions.loadOptions, 20); }
+    else if (route === 'options') { v.innerHTML = renderOptions(); if (!state.optSyms) setTimeout(actions.loadOptSyms, 20); if (!state.options.data && !state.options.loading && !state.options.error) setTimeout(actions.loadOptions, 40); }
     else if (route === 'stock') v.innerHTML = renderStock();
     else if (route === 'paper') v.innerHTML = await renderPaper();
     else if (route === 'alerts') v.innerHTML = await renderAlerts();
@@ -1074,7 +1106,22 @@
       state.options.symbol = String(sym || '').toUpperCase();
       state.options.expiry = null;
       state.options.data = null;
+      const inp = $('#opt-sym'); if (inp) inp.value = state.options.symbol;   // keep the text box in sync
       actions.loadOptions();
+    },
+    async loadOptSyms() {
+      if (state.optSyms || state.optSymsLoading) return;
+      state.optSymsLoading = true;
+      try { state.optSyms = await api('/underlyings'); }
+      catch { state.optSyms = { indices: [], stocks: [], total: 0 }; }
+      finally { state.optSymsLoading = false; render(); }
+    },
+    filterOptSyms(v) {
+      state.optFilter = String(v || '');
+      const sel = $('#opt-pick');
+      if (sel) sel.innerHTML = optOptionsHtml();
+      const c = $('#opt-count');
+      if (c) c.textContent = (optMatches().indices.length + optMatches().stocks.length) + ' shown';
     },
     setOptExpiry(e) { state.options.expiry = e; actions.loadOptions(); },
     async loadOptions() {

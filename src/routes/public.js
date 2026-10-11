@@ -57,6 +57,28 @@ router.get('/universe', async (_req, res) => {
   }
 });
 
+// Every option-eligible underlying for the Options-tab picker: the index
+// underlyings plus all F&O stocks (with names) so the UI can filter/choose.
+const OPTION_INDICES = [
+  { symbol: 'NIFTY', name: 'NIFTY 50' },
+  { symbol: 'BANKNIFTY', name: 'NIFTY BANK' },
+  { symbol: 'FINNIFTY', name: 'NIFTY FIN SERVICE' },
+  { symbol: 'MIDCPNIFTY', name: 'NIFTY MIDCAP SELECT' },
+  { symbol: 'SENSEX', name: 'BSE SENSEX' },
+];
+router.get('/underlyings', async (_req, res) => {
+  try {
+    const u = await buildUniverse();
+    const nameOf = new Map(u.nse.map((r) => [r.symbol, r.name]));
+    const stocks = (u.fno || [])
+      .map((s) => ({ symbol: s, name: nameOf.get(s) || '' }))
+      .sort((a, b) => a.symbol.localeCompare(b.symbol));
+    res.json({ indices: OPTION_INDICES, stocks, total: stocks.length });
+  } catch (e) {
+    res.status(503).json({ error: e.message, indices: OPTION_INDICES, stocks: [], total: 0 });
+  }
+});
+
 // Latest scanner rows from cache (fast, no network)
 router.get('/scan/latest', (req, res) => {
   const { exchange, signal, fno, limit = 200, sort = 'time' } = req.query;
