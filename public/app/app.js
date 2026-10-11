@@ -256,6 +256,58 @@
     </div>`;
   }
 
+  function scanRowHtml(r) {
+    return `
+          <tr onclick="window.__sa.openStock('${esc(r.symbol)}')">
+            <td><b>${esc(r.symbol)}</b>${r.fno ? ' <span class="pill fno">F&O</span>' : ''}<div class="tiny muted symname">${esc((r.name || '').slice(0, 22))}</div></td>
+            <td>${inr(r.price, r.price < 1000 ? 2 : 1)}</td>
+            <td class="${(r.changePct ?? 0) >= 0 ? 'u' : 'd'}">${pct(r.changePct)}</td>
+            <td class="${r.rsi4h != null && r.rsi4h < 50 ? 'a' : ''}">${r.rsi4h ?? '—'}</td>
+            <td>${r.volRatio ?? '—'}</td>
+            <td>${r.lastSignal ? '<span class="pill buy">BUY</span>' : r.wickLast ? '<span class="pill watch">Wick</span>' : '<span class="pill none">—</span>'}</td>
+            <td>${r.trend === 'UP' ? '<span class="u">▲ up</span>' : r.trend === 'DOWN' ? '<span class="d">▼ down</span>' : '<span class="tiny muted">—</span>'}${r.score ? ` <span class="tiny muted">${r.score}%</span>` : ''}${r.mtf && r.mtf.alignment === 'BULL' ? ' <span class="pill buy">MTF▲</span>' : r.mtf && r.mtf.alignment === 'BEAR' ? ' <span class="pill sell">MTF▼</span>' : ''}</td>
+            <td class="tiny muted">${r.activeZones?.length ? r.activeZones.length + ' live' : '—'}</td>
+          </tr>`;
+  }
+  const SCAN_TH = 80;    // above this many rows, switch to a virtual (windowed) list
+  const SCAN_ROW = 54;   // fixed row height (px) used by the virtual list
+
+  // Virtual scrolling: only the rows intersecting the viewport (+overscan) live in
+  // the DOM, so universes of thousands stay smooth. Scroll offset is kept in state
+  // so it survives the SPA's full re-renders (e.g. the 30s market refresh).
+  let scanVRaf = 0;
+  function wireScanVirtual() {
+    const wrap = document.getElementById('scan-vwrap');
+    const tb = document.getElementById('scan-tbody');
+    if (!wrap || !tb) return;
+    const rows = state.scanFiltered || [];
+    const total = rows.length;
+    if (!total) { tb.innerHTML = `<tr><td colspan="8" class="empty">No rows match. Run a scan first.</td></tr>`; return; }
+    const viewH = wrap.clientHeight || 460;
+    const span = Math.ceil(viewH / SCAN_ROW) + 12;
+    // Render the window for a given scroll offset. We paint first (so the spacer
+    // rows give the scroller its full height) and only then set scrollTop —
+    // otherwise the offset clamps to 0 while the table is still short.
+    const paint = (offset) => {
+      const start = Math.max(0, Math.min(total - 1, Math.floor(offset / SCAN_ROW) - 6));
+      const end = Math.min(total, start + span);
+      const topH = start * SCAN_ROW;
+      const botH = Math.max(0, (total - end) * SCAN_ROW);
+      tb.innerHTML =
+        `<tr class="vspacer" aria-hidden="true"><td colspan="8" style="height:${topH}px"></td></tr>` +
+        rows.slice(start, end).map(scanRowHtml).join('') +
+        `<tr class="vspacer" aria-hidden="true"><td colspan="8" style="height:${botH}px"></td></tr>`;
+      state.scanScrollTop = offset;
+    };
+    const initial = state.scanScrollTop || 0;
+    paint(initial);
+    if (initial) wrap.scrollTop = initial;
+    wrap.addEventListener('scroll', () => {
+      if (scanVRaf) return;
+      scanVRaf = requestAnimationFrame(() => { scanVRaf = 0; paint(wrap.scrollTop); });
+    }, { passive: true });
+  }
+
   function renderScanner() {
     const s = state.user.settings;
     const rows = state.scanRows;
@@ -270,7 +322,14 @@
         if (!(r.symbol.toLowerCase().includes(q) || (r.name || '').toLowerCase().includes(q))) return false;
       }
       return true;
-    }).slice(0, 120);
+    });
+    state.scanFiltered = filtered;
+    const head = `<thead><tr><th>Symbol</th><th>Price</th><th>Chg%</th><th>4H RSI</th><th>Vol×</th><th>Signal</th><th>Trend</th><th>Zone</th></tr></thead>`;
+    const tableBlock = filtered.length > SCAN_TH
+      ? `<div class="tbl-wrap scan-vwrap" id="scan-vwrap"><table class="scan-v">${head}<tbody id="scan-tbody"><tr><td colspan="8" class="empty">Loading…</td></tr></tbody></table></div>`
+      : `<div class="tbl-wrap"><table>${head}<tbody>${
+          filtered.length ? filtered.map(scanRowHtml).join('') : `<tr><td colspan="8" class="empty">No rows match. Run a scan first.</td></tr>`
+        }</tbody></table></div>`;
     return `
     <div class="card" style="margin-top:14px">
       <div class="row between wrap" style="gap:8px">
@@ -300,23 +359,8 @@
       </div>
     </div>
 
-    <div class="tbl-wrap"><table>
-      <thead><tr><th>Symbol</th><th>Price</th><th>Chg%</th><th>4H RSI</th><th>Vol×</th><th>Signal</th><th>Trend</th><th>Zone</th></tr></thead>
-      <tbody>
-        ${filtered.length ? filtered.map((r) => `
-          <tr onclick="window.__sa.openStock('${esc(r.symbol)}')">
-            <td><b>${esc(r.symbol)}</b>${r.fno ? ' <span class="pill fno">F&O</span>' : ''}<div class="tiny muted">${esc((r.name || '').slice(0, 22))}</div></td>
-            <td>${inr(r.price, r.price < 1000 ? 2 : 1)}</td>
-            <td class="${(r.changePct ?? 0) >= 0 ? 'u' : 'd'}">${pct(r.changePct)}</td>
-            <td class="${r.rsi4h != null && r.rsi4h < 50 ? 'a' : ''}">${r.rsi4h ?? '—'}</td>
-            <td>${r.volRatio ?? '—'}</td>
-            <td>${r.lastSignal ? '<span class="pill buy">BUY</span>' : r.wickLast ? '<span class="pill watch">Wick</span>' : '<span class="pill none">—</span>'}</td>
-            <td>${r.trend === 'UP' ? '<span class="u">▲ up</span>' : r.trend === 'DOWN' ? '<span class="d">▼ down</span>' : '<span class="tiny muted">—</span>'}${r.score ? ` <span class="tiny muted">${r.score}%</span>` : ''}${r.mtf && r.mtf.alignment === 'BULL' ? ' <span class="pill buy">MTF▲</span>' : r.mtf && r.mtf.alignment === 'BEAR' ? ' <span class="pill sell">MTF▼</span>' : ''}</td>
-            <td class="tiny muted">${r.activeZones?.length ? r.activeZones.length + ' live' : '—'}</td>
-          </tr>`).join('') : `<tr><td colspan="8" class="empty">No rows match. Run a scan first.</td></tr>`}
-      </tbody>
-    </table></div>
-    <p class="tiny muted" style="text-align:center;margin:8px 14px 20px">Showing ${filtered.length} of ${rows.length} cached rows · live data ${state.market?.state === 'OPEN' ? 'refreshing every 30s' : 'updates on next scan'}</p>`;
+    ${tableBlock}
+    <p class="tiny muted" style="text-align:center;margin:8px 14px 20px">Showing ${filtered.length} of ${rows.length} cached rows${filtered.length > SCAN_TH ? ' · virtual list' : ''} · live data ${state.market?.state === 'OPEN' ? 'refreshing every 30s' : 'updates on next scan'}</p>`;
   }
 
   /* ── STOCK DETAIL ── */
@@ -979,7 +1023,7 @@
     const v = $('#view');
     const route = state.route;
     if (route === 'dashboard') v.innerHTML = renderDashboard();
-    else if (route === 'scanner') v.innerHTML = renderScanner();
+    else if (route === 'scanner') { v.innerHTML = renderScanner(); wireScanVirtual(); }
     else if (route === 'backtest') { v.innerHTML = renderBacktest(); if (state.backtest.data) setTimeout(drawBacktest, 20); }
     else if (route === 'options') { v.innerHTML = renderOptions(); if (!state.options.data && !state.options.loading && !state.options.error) setTimeout(actions.loadOptions, 20); }
     else if (route === 'stock') v.innerHTML = renderStock();
@@ -1044,8 +1088,8 @@
         render();
       }
     },
-    setPreset(p) { state.scanPreset = p; render(); },
-    filter(patch) { Object.assign(state.scanFilter, patch); render(); },
+    setPreset(p) { state.scanPreset = p; state.scanScrollTop = 0; render(); },
+    filter(patch) { Object.assign(state.scanFilter, patch); state.scanScrollTop = 0; render(); },
     async startScan(preset, useCache = true) {
       const btn = $('#btn-scan'); if (btn) { btn.disabled = true; btn.textContent = '…'; }
       try {

@@ -1,154 +1,237 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="theme-color" content="#020914">
-<meta name="description" content="TradeMind — 3D animated brand mark.">
-<title>TradeMind — 3D Animated Logo</title>
+<meta name="theme-color" content="#05070f">
+<meta name="description" content="TradeMind — the animated 3D brand mark and colour system.">
+<title>TradeMind — 3D Brand Mark</title>
 <link rel="icon" type="image/svg+xml" href="/logo.svg">
+<script>
+  /* apply the saved theme before paint (same key as the app) */
+  try { var t = localStorage.getItem('tm-theme'); if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t); } catch (e) {}
+</script>
 <style>
 :root{
-  --mint:#00f0b5;
-  --cyan:#35d9ff;
-  --bg:#020914;
+  --bull:#10d98a; --accent:#22d3ee; --bear:#f43f5e;
+  --bg:#05070f; --ink:#eafffb; --muted:#8aa6b8;
+  --surface:rgba(13,26,46,.55); --line:rgba(148,163,184,.2);
+  --glowA:#10d98a; --glowB:#22d3ee; --grid:rgba(26,130,145,.16);
+}
+[data-theme="light"]{
+  --bg:#eef3f9; --ink:#0b1220; --muted:#5b6b82;
+  --surface:rgba(255,255,255,.72); --line:rgba(15,23,42,.12);
+  --glowA:#0bbf7a; --glowB:#0891b2; --grid:rgba(14,116,144,.14);
 }
 *{box-sizing:border-box}
-html,body{width:100%;min-height:100%;margin:0}
+html,body{margin:0;min-height:100%}
 body{
-  min-height:100vh;display:grid;place-items:center;overflow:hidden;
-  color:#eafffb;font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;
-  background:radial-gradient(ellipse at 50% 42%,#063442 0%,#061526 38%,var(--bg) 76%);
+  color:var(--ink);font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  background:
+    radial-gradient(ellipse 70% 60% at 50% 0%,color-mix(in srgb,var(--glowB) 16%,transparent),transparent 70%),
+    radial-gradient(ellipse 60% 55% at 50% 100%,color-mix(in srgb,var(--glowA) 12%,transparent),transparent 72%),
+    var(--bg);
+  -webkit-font-smoothing:antialiased;overflow-x:hidden;
 }
+.bg{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
+.grid-floor{
+  position:absolute;left:-25%;right:-25%;bottom:-12%;height:70%;
+  background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+  background-size:44px 44px;
+  transform:perspective(620px) rotateX(64deg);
+  -webkit-mask-image:linear-gradient(transparent,#000 26%,#000 68%,transparent);
+  mask-image:linear-gradient(transparent,#000 26%,#000 68%,transparent);
+  opacity:.7;
+}
+.orb{position:absolute;border-radius:50%;filter:blur(46px);opacity:.5;animation:breathe 9s ease-in-out infinite}
+.orb-a{width:min(42vw,520px);aspect-ratio:1;left:-6%;top:-8%;background:radial-gradient(circle,color-mix(in srgb,var(--glowA) 60%,transparent),transparent 68%)}
+.orb-b{width:min(46vw,560px);aspect-ratio:1;right:-8%;top:22%;background:radial-gradient(circle,color-mix(in srgb,var(--glowB) 55%,transparent),transparent 68%);animation-delay:-3s}
+.orb-c{width:min(34vw,420px);aspect-ratio:1;left:24%;bottom:-10%;background:radial-gradient(circle,color-mix(in srgb,var(--glowB) 40%,transparent),transparent 70%);animation-delay:-6s}
+
 .scene{
-  position:relative;isolation:isolate;width:min(1000px,100vw);min-height:100vh;
-  display:grid;place-items:center;perspective:1200px;overflow:hidden;
+  position:relative;z-index:1;min-height:100vh;min-height:100dvh;
+  display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);
+  align-items:center;justify-items:center;gap:clamp(12px,3vw,48px);
+  padding:clamp(20px,4vw,64px) clamp(18px,5vw,72px);
 }
-.grid{
-  position:absolute;z-index:-3;inset:-25%;
-  background-image:linear-gradient(#1a829122 1px,transparent 1px),
-                   linear-gradient(90deg,#1a829122 1px,transparent 1px);
-  background-size:42px 42px;opacity:.38;
-  transform:perspective(650px) rotateX(62deg) translateY(170px);
-  -webkit-mask-image:linear-gradient(transparent,#000 22%,#000 70%,transparent);
-  mask-image:linear-gradient(transparent,#000 22%,#000 70%,transparent);
-}
-.glow{
-  position:absolute;z-index:-2;width:min(70vw,650px);aspect-ratio:1;
-  border-radius:50%;background:radial-gradient(circle,#00f0b526,#12a9ff0c 42%,transparent 70%);
-  filter:blur(20px);animation:breathe 5s ease-in-out infinite;
-}
+.stage{position:relative;display:grid;place-items:center;width:100%;min-height:min(72vh,560px);perspective:1300px}
 .ring{
-  position:absolute;z-index:-1;width:min(66vw,620px);aspect-ratio:1;
-  border:1px solid #00f0b52b;border-radius:50%;
-  box-shadow:0 0 35px #00f0b50b,inset 0 0 35px #00f0b50a;
-  animation:orbit 22s linear infinite;
+  position:absolute;width:min(62%,440px);aspect-ratio:1;border-radius:50%;
+  border:1px solid color-mix(in srgb,var(--glowA) 34%,transparent);
+  box-shadow:0 0 40px color-mix(in srgb,var(--glowA) 10%,transparent),inset 0 0 40px color-mix(in srgb,var(--glowA) 8%,transparent);
+  animation:orbit 26s linear infinite;
 }
-.ring::before,.ring::after{
-  content:"";position:absolute;width:7px;height:7px;border-radius:50%;
-  background:var(--mint);box-shadow:0 0 18px 4px #00f0b55c;
+.ring.r2{width:min(78%,560px);border-style:dashed;border-color:color-mix(in srgb,var(--glowB) 26%,transparent);animation-duration:40s;animation-direction:reverse}
+.ring::before{content:"";position:absolute;top:9%;left:16%;width:7px;height:7px;border-radius:50%;background:var(--bull);box-shadow:0 0 16px 4px color-mix(in srgb,var(--bull) 55%,transparent)}
+.ring.r2::after{content:"";position:absolute;right:12%;bottom:20%;width:6px;height:6px;border-radius:50%;background:var(--accent);box-shadow:0 0 16px 4px color-mix(in srgb,var(--accent) 55%,transparent)}
+.glow{position:absolute;width:min(70%,520px);aspect-ratio:1;border-radius:50%;background:radial-gradient(circle,color-mix(in srgb,var(--glowA) 22%,transparent),transparent 68%);filter:blur(24px);animation:breathe 7s ease-in-out infinite}
+.mark-wrap{
+  position:relative;width:min(58%,360px);max-width:360px;transform-style:preserve-3d;
+  animation:levitate 7s ease-in-out infinite;
+  filter:drop-shadow(0 30px 44px rgba(0,0,0,.5));
+  transition:transform .18s ease-out,filter .3s ease;
 }
-.ring::before{top:12%;left:18%}
-.ring::after{right:11%;bottom:22%;background:var(--cyan);box-shadow:0 0 18px 4px #35d9ff66}
-/* fixed, responsive size — never overflows the viewport */
-.logo-wrap{
-  width:min(56vw,560px);max-width:560px;transform-style:preserve-3d;
-  animation:levitate 6s ease-in-out infinite;
-  transition:filter .35s ease;
-  filter:drop-shadow(0 28px 35px #0009);
+.mark{display:block;width:100%;height:auto;transform:translateZ(34px);overflow:visible}
+.mark-wrap:hover{filter:drop-shadow(0 32px 54px color-mix(in srgb,var(--glowA) 30%,transparent)) brightness(1.05)}
+.bos{stroke-dasharray:96;stroke-dashoffset:96;animation:draw 4.6s ease-in-out infinite}
+.spark{transform-box:fill-box;transform-origin:center;animation:spark 3.2s ease-in-out infinite}
+.spark-core{transform-box:fill-box;transform-origin:center;animation:spark 3.2s ease-in-out infinite;animation-delay:.1s}
+.candle{transform-box:fill-box;transform-origin:bottom center;opacity:0;animation:rise .9s cubic-bezier(.2,.8,.25,1) forwards}
+.c2{animation-delay:.18s}.c3{animation-delay:.36s}
+.particle{position:absolute;width:5px;height:5px;border-radius:50%;background:var(--bull);box-shadow:0 0 14px 3px color-mix(in srgb,var(--bull) 55%,transparent);animation:drift 6s ease-in-out infinite}
+.p1{left:10%;top:26%}.p2{right:12%;top:22%;animation-delay:-2s;background:var(--accent);box-shadow:0 0 14px 3px color-mix(in srgb,var(--accent) 55%,transparent)}
+.p3{left:16%;bottom:20%;animation-delay:-3.6s}.p4{right:14%;bottom:26%;animation-delay:-1.4s;background:var(--accent);box-shadow:0 0 14px 3px color-mix(in srgb,var(--accent) 55%,transparent)}
+
+.meta{max-width:480px;width:100%}
+.meta h1{margin:0 0 10px;font-size:clamp(28px,4.4vw,46px);letter-spacing:-.02em;font-weight:800}
+.meta h1 span{background:linear-gradient(100deg,var(--bull),var(--accent));-webkit-background-clip:text;background-clip:text;color:transparent}
+.meta h1 em{font-style:normal;font-size:.42em;vertical-align:super;letter-spacing:.28em;color:var(--muted);font-weight:700}
+.meta p{margin:0 0 18px;color:var(--muted);line-height:1.6;font-size:14.5px}
+.swatches{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px}
+.sw{display:inline-flex;align-items:center;gap:8px;font-size:11.5px;color:var(--muted);border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:6px 11px;backdrop-filter:blur(10px)}
+.sw i{width:13px;height:13px;border-radius:4px;background:var(--c);box-shadow:0 0 0 1px rgba(255,255,255,.12) inset}
+.links{display:flex;flex-wrap:wrap;gap:10px}
+.btn{
+  display:inline-flex;align-items:center;gap:8px;cursor:pointer;text-decoration:none;
+  border:1px solid var(--line);border-radius:11px;padding:10px 15px;font:600 13px Inter,system-ui,sans-serif;
+  color:var(--ink);background:var(--surface);backdrop-filter:blur(12px);transition:transform .18s,border-color .18s,background .18s
 }
-.logo{
-  display:block;width:100%;height:auto;aspect-ratio:1/1;border-radius:8px;
-  user-select:none;-webkit-user-drag:none;
-  transform:translateZ(25px);
-  -webkit-mask-image:radial-gradient(ellipse 82% 82% at 50% 49%,#000 74%,transparent 100%);
-  mask-image:radial-gradient(ellipse 82% 82% at 50% 49%,#000 74%,transparent 100%);
+.btn:hover{transform:translateY(-2px);border-color:color-mix(in srgb,var(--glowA) 55%,var(--line))}
+.btn.primary{color:#04241a;background:linear-gradient(110deg,var(--bull),#48ddcb);border-color:transparent}
+.controls{position:fixed;top:16px;right:16px;z-index:3;display:flex;gap:8px}
+.controls .btn{padding:8px 12px;font-size:12px}
+.caption{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:3;color:var(--muted);font-size:10.5px;letter-spacing:.24em;text-transform:uppercase;white-space:nowrap}
+.is-paused *{animation-play-state:paused !important}
+
+@keyframes levitate{0%,100%{transform:translateY(0) rotateX(0deg) rotateY(-3deg)}50%{transform:translateY(-14px) rotateX(2deg) rotateY(3deg)}}
+@keyframes orbit{from{transform:rotate(0) scaleY(.94)}to{transform:rotate(360deg) scaleY(.94)}}
+@keyframes breathe{0%,100%{transform:scale(.92);opacity:.62}50%{transform:scale(1.09);opacity:1}}
+@keyframes drift{0%,100%{transform:translate(0,0) scale(.7);opacity:.25}50%{transform:translate(12px,-20px) scale(1.35);opacity:1}}
+@keyframes spark{0%,100%{transform:scale(.82);opacity:.7}50%{transform:scale(1.18);opacity:1}}
+@keyframes rise{from{opacity:0;transform:translateY(12px) scaleY(.4)}to{opacity:1;transform:none}}
+@keyframes draw{0%{stroke-dashoffset:96}45%,100%{stroke-dashoffset:0}}
+
+@media(max-width:860px){
+  .scene{grid-template-columns:1fr;gap:6px;padding-top:70px;padding-bottom:60px;text-align:center}
+  .stage{min-height:44vh}
+  .mark-wrap{width:min(64%,280px)}
+  .meta{margin:0 auto}
+  .swatches,.links{justify-content:center}
 }
-.logo-wrap:hover{filter:drop-shadow(0 30px 44px #00f0b522) brightness(1.06)}
-.particle{
-  position:absolute;width:4px;height:4px;border-radius:50%;
-  background:var(--mint);box-shadow:0 0 13px 3px #00f0b55c;
-  animation:drift 5s ease-in-out infinite;
-}
-.p1{left:13%;top:28%}
-.p2{right:15%;top:24%;animation-delay:-2s;background:var(--cyan)}
-.p3{left:21%;bottom:21%;animation-delay:-3.4s}
-.p4{right:19%;bottom:27%;animation-delay:-1.3s;background:var(--cyan)}
-.caption{
-  position:absolute;bottom:24px;left:50%;transform:translateX(-50%);
-  color:#88a9ba;font-size:10px;letter-spacing:2.4px;text-transform:uppercase;
-  white-space:nowrap;text-align:center;
-}
-.controls{position:absolute;top:20px;right:20px;display:flex;gap:8px}
-button{
-  border:1px solid #225267;border-radius:10px;padding:10px 13px;
-  background:#061a2bcc;color:#eafffb;font:600 12px system-ui,sans-serif;
-  cursor:pointer;backdrop-filter:blur(12px);transition:.2s;
-}
-button:hover{border-color:var(--mint);transform:translateY(-2px)}
-button.primary{color:#00231c;background:linear-gradient(110deg,var(--mint),#48ddcb);border-color:transparent}
-.paused *{animation-play-state:paused !important}
-@keyframes levitate{
-  0%,100%{transform:translateY(0) rotateX(0deg) rotateY(-2deg)}
-  50%{transform:translateY(-12px) rotateX(1.4deg) rotateY(2deg)}
-}
-@keyframes orbit{from{transform:rotate(0deg) scaleY(.93)}to{transform:rotate(360deg) scaleY(.93)}}
-@keyframes breathe{0%,100%{transform:scale(.92);opacity:.65}50%{transform:scale(1.08);opacity:1}}
-@keyframes drift{0%,100%{transform:translate(0,0) scale(.7);opacity:.25}50%{transform:translate(10px,-18px) scale(1.3);opacity:1}}
-@media(max-width:600px){
-  .logo-wrap{width:min(78vw,360px)}
-  .ring{width:78vw}
-  .caption{font-size:8px;letter-spacing:1.4px;bottom:18px}
-  .controls{top:12px;right:12px}
-  button{padding:8px 10px;font-size:11px}
-}
-/* short viewports: keep the mark fully visible */
-@media(max-height:620px){
-  .logo-wrap{width:min(42vw,360px)}
-}
+@media(max-height:640px) and (min-width:861px){ .mark-wrap{width:min(46%,280px)} }
 @media(prefers-reduced-motion:reduce){
-  *,*::before,*::after{animation-duration:.01ms !important;animation-iteration-count:1 !important;transition-duration:.01ms !important}
+  *,*::before,*::after{animation-duration:.001ms !important;animation-iteration-count:1 !important;transition-duration:.001ms !important}
+  .bos{stroke-dashoffset:0}.candle{opacity:1}
 }
 </style>
 </head>
 <body>
-<main class="scene" id="scene" aria-label="TradeMind animated logo">
-  <div class="grid"></div><div class="glow"></div><div class="ring"></div>
-  <span class="particle p1"></span><span class="particle p2"></span>
-  <span class="particle p3"></span><span class="particle p4"></span>
-  <div class="logo-wrap" id="logoWrap">
-    <img class="logo" alt="TradeMind logo: a rising teal arrow and stock candlesticks with the tagline Analyze, Plan, Trade"
-      src="/assets/trademind-logo.png" onerror="this.onerror=null;this.src='/logo.svg'">
+<div class="bg" aria-hidden="true">
+  <div class="orb orb-a"></div><div class="orb orb-b"></div><div class="orb orb-c"></div>
+  <div class="grid-floor"></div>
+</div>
+
+<main class="scene" id="scene" aria-label="TradeMind animated brand mark">
+  <div class="stage">
+    <div class="ring r1"></div><div class="ring r2"></div>
+    <div class="glow"></div>
+    <span class="particle p1"></span><span class="particle p2"></span>
+    <span class="particle p3"></span><span class="particle p4"></span>
+    <div class="mark-wrap" id="markWrap">
+      <svg class="mark" viewBox="0 0 64 64" role="img" aria-label="TradeMind logo — an ascending market-structure line breaking through three rising candles">
+        <defs>
+          <linearGradient id="tmBadge" x1="8" y1="6" x2="56" y2="60" gradientUnits="userSpaceOnUse">
+            <stop offset="0" stop-color="#0d1a2e"/><stop offset="1" stop-color="#060b16"/>
+          </linearGradient>
+          <linearGradient id="tmLine" x1="12" y1="50" x2="54" y2="16" gradientUnits="userSpaceOnUse">
+            <stop offset="0" stop-color="#10d98a"/><stop offset=".55" stop-color="#22d3ee"/><stop offset="1" stop-color="#38bdf8"/>
+          </linearGradient>
+          <radialGradient id="tmNode" cx=".5" cy=".5" r=".5">
+            <stop offset="0" stop-color="#eafffb"/><stop offset=".5" stop-color="#22d3ee"/><stop offset="1" stop-color="#22d3ee" stop-opacity="0"/>
+          </radialGradient>
+          <linearGradient id="tmEdge" x1="6" y1="4" x2="58" y2="62" gradientUnits="userSpaceOnUse">
+            <stop offset="0" stop-color="#10d98a" stop-opacity=".85"/><stop offset="1" stop-color="#22d3ee" stop-opacity=".55"/>
+          </linearGradient>
+        </defs>
+        <rect x="3" y="3" width="58" height="58" rx="17" fill="url(#tmBadge)" stroke="url(#tmEdge)" stroke-width="1.6"/>
+        <rect x="3" y="3" width="58" height="58" rx="17" fill="none" stroke="#ffffff" stroke-opacity=".06"/>
+        <g stroke-linecap="round">
+          <g class="candle c1" stroke="#10d98a" stroke-width="2" fill="#10d98a"><line x1="19" y1="30" x2="19" y2="48"/><rect x="16.4" y="35" width="5.2" height="9" rx="1.4"/></g>
+          <g class="candle c2" stroke="#19c8b0" stroke-width="2" fill="#19c8b0"><line x1="29" y1="24" x2="29" y2="44"/><rect x="26.4" y="29" width="5.2" height="10" rx="1.4"/></g>
+          <g class="candle c3" stroke="#22d3ee" stroke-width="2" fill="#22d3ee"><line x1="39" y1="18" x2="39" y2="40"/><rect x="36.4" y="23" width="5.2" height="11" rx="1.4"/></g>
+        </g>
+        <path class="bos" d="M11 47 L22 39 L30 43 L44 21" fill="none" stroke="url(#tmLine)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M44 21 L52 15" fill="none" stroke="url(#tmLine)" stroke-width="3" stroke-linecap="round" stroke-dasharray="1 5"/>
+        <circle class="spark" cx="44" cy="21" r="6.5" fill="url(#tmNode)"/>
+        <circle class="spark-core" cx="44" cy="21" r="2.6" fill="#eafffb"/>
+      </svg>
+    </div>
   </div>
+
+  <div class="meta">
+    <h1>Trade<span>Mind</span> <em>FUTURE</em></h1>
+    <p>The brand mark is the strategy: an ascending market-structure break (BOS) sweeping up through three rising candles. Live NSE &amp; BSE scanning, real prices only.</p>
+    <div class="swatches" aria-label="Brand colours">
+      <span class="sw"><i style="--c:#10d98a"></i>Bull · #10D98A</span>
+      <span class="sw"><i style="--c:#22d3ee"></i>Accent · #22D3EE</span>
+      <span class="sw"><i style="--c:#f43f5e"></i>Bear · #F43F5E</span>
+      <span class="sw"><i style="--c:#060b16"></i>Base · #060B16</span>
+    </div>
+    <div class="links">
+      <a class="btn primary" href="/app/">Open the app</a>
+      <a class="btn" href="/">Home</a>
+      <a class="btn" href="/logo.svg" download="trademind-logo.svg">Download SVG</a>
+    </div>
+  </div>
+
   <div class="controls">
-    <button class="primary" id="toggleMotion">Pause animation</button>
-    <button id="resetView">Reset view</button>
+    <button class="btn" id="toggleMotion" aria-pressed="false">Pause animation</button>
+    <button class="btn" id="resetView">Reset view</button>
+    <button class="btn" id="themeBtn" title="Toggle light / dark theme">◐ Theme</button>
   </div>
-  <div class="caption">TradeMind · Analyze · Plan · Trade</div>
+  <p class="caption">TradeMind · Analyze · Plan · Trade</p>
 </main>
+
 <script>
 (() => {
   const scene = document.getElementById('scene');
-  const logoWrap = document.getElementById('logoWrap');
-  const toggle = document.getElementById('toggleMotion');
-  toggle.addEventListener('click', () => {
-    const paused = scene.classList.toggle('paused');
-    toggle.textContent = paused ? 'Play animation' : 'Pause animation';
+  const wrap = document.getElementById('markWrap');
+  const pauseBtn = document.getElementById('toggleMotion');
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)');
+
+  // pause / play
+  let paused = reduce.matches;
+  const applyPaused = () => {
+    scene.classList.toggle('is-paused', paused);
+    pauseBtn.textContent = paused ? 'Play animation' : 'Pause animation';
+    pauseBtn.setAttribute('aria-pressed', String(paused));
+  };
+  pauseBtn.addEventListener('click', () => { paused = !paused; applyPaused(); });
+  applyPaused();
+
+  // reset view
+  document.getElementById('resetView').addEventListener('click', () => {
+    wrap.style.transform = ''; wrap.style.animation = '';
   });
-  document.getElementById('resetView').addEventListener('click', () => { logoWrap.style.transform = ''; });
-  if (matchMedia('(hover:hover) and (pointer:fine)').matches &&
-      !matchMedia('(prefers-reduced-motion: reduce)').matches) {
-    scene.addEventListener('pointermove', e => {
+
+  // theme (same key as the app)
+  document.getElementById('themeBtn').addEventListener('click', () => {
+    const root = document.documentElement;
+    const next = root.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+    root.setAttribute('data-theme', next);
+    try { localStorage.setItem('tm-theme', next); } catch (e) {}
+  });
+
+  // pointer-driven 3D tilt on fine pointers only
+  if (matchMedia('(hover:hover) and (pointer:fine)').matches && !reduce.matches) {
+    scene.addEventListener('pointermove', (e) => {
       const r = scene.getBoundingClientRect();
       const x = (e.clientX - r.left) / r.width - .5;
       const y = (e.clientY - r.top) / r.height - .5;
-      logoWrap.style.animation = 'none';
-      logoWrap.style.transform = `translateY(-3px) rotateX(${-y * 8}deg) rotateY(${x * 12}deg)`;
+      wrap.style.animation = 'none';
+      wrap.style.transform = `translateY(-4px) rotateX(${-y * 9}deg) rotateY(${x * 14}deg)`;
     });
-    scene.addEventListener('pointerleave', () => {
-      logoWrap.style.transform = '';
-      logoWrap.style.animation = '';
-    });
+    scene.addEventListener('pointerleave', () => { wrap.style.transform = ''; wrap.style.animation = ''; });
   }
 })();
 </script>
