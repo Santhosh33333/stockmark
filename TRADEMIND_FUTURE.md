@@ -38,6 +38,7 @@ _Phased rebuild of the existing repo. This is the honest state of each phase; de
 - [x] Dashboard widgets are real (existing engine); added freshness/provider chip to the shell.
 - [x] Resizable sidebar with saved width (drag handle; double-click / palette to reset). Persisted layout.
 - [x] Resizable chart/detail panes: on wide screens the stock detail becomes two panes (chart+stats | tables) with a draggable, persisted divider; collapses back to one column on narrow screens. Applied inside `shell.js` (no `app.js` change).
+- [x] Symbol command center: one panel fusing live quote/quality, SMC structure, research brief, options snapshot, cost-aware backtest and inline price-alert create/list; sections fill independently and degrade gracefully. Palette → *Symbol command center…* or search a ticker → *Command center*. Verified for RELIANCE & DMART, 0 console errors.
 
 ## Phases 7–11 — Scanner / chart / backtest / paper / options ✅ (audited)
 - [x] Endpoints live and exercised (see tests). No fabricated data; unsupported fields show `—`.

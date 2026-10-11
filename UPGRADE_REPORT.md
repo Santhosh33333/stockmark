@@ -148,6 +148,13 @@ Exposed in the app via the command palette → **Research brief**.
   SSE quote pill (auto-reconnect, pauses when hidden), **draggable sidebar with
   saved width**, **resizable chart/detail panes** (two-column stock detail with a
   draggable, persisted divider; collapses to one column on narrow screens),
+  **Symbol command center** (palette → *Symbol command center…*, or search a
+  ticker → *Command center*): one screen fusing live quote + data-quality chip,
+  SMC structure (order blocks, FVGs, liquidity, premium/discount, VWAP, RSI,
+  confluence), the research brief (stance, bull/bear evidence, conflicts, risks,
+  reference levels + R:R), an options snapshot (expiry, ATM IV, PCR, max pain),
+  a cost-aware backtest, and **inline price-alert create/list** — each section
+  fills independently and degrades gracefully when a source is unavailable,
   (double-click / palette to reset either), data-quality status,
   accessible dialogs (aria-modal, Esc to close), loading/empty/error states.
 
@@ -202,6 +209,12 @@ migrations are performed on existing data.
 - In-browser: app shell loads with **0 console errors**; Risk-controls,
   Research, Options-analytics, Strategy-builder, Advanced-backtest,
   Expiry-comparison and Price-alerts panels render live data; sidebar resize persists.
+- **Symbol command center** verified in-browser for RELIANCE and DMART: price +
+  data-quality chip, full SMC grid (confluence rendered as `25 · 4H RSI < 50,
+  Sell-side liquidity swept`), research brief + reference levels, options snapshot
+  (PCR/max pain/ATM IV), cost-aware backtest (cost model `DELIVERY`), and inline
+  alert create → *armed ≤ ₹1* → delete → empty list; 0 console errors; the created
+  test alert row was removed afterward (DB back to 0 alerts).
 - Price alerts verified end-to-end: created INFY `below ₹1` via the UI form → armed
   row rendered → deleted → empty list; the fired RELIANCE rule auto-disarmed and
   never re-fired; 2 test signal rows + 1 test user removed afterward.

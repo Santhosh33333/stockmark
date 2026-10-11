@@ -315,6 +315,7 @@
     });
     // actions
     var ACTS = [
+      { label: 'Symbol command center…', sub: 'Everything for one symbol: SMC · research · options · backtest · alerts', ic: '🧭', run: openSymbolPrompt },
       { label: 'Price alerts (create / manage)…', sub: 'Notify me when a price crosses', ic: '🔔', run: openPriceAlerts },
       { label: 'Toggle light / dark theme', sub: 'Appearance', ic: '◐', run: toggleTheme },
       { label: 'Toggle sidebar', sub: 'Layout', ic: '▤', run: function () { setCollapsed(!(shellEl && shellEl.classList.contains('collapsed'))); } },
@@ -333,6 +334,7 @@
     // "Research <SYM>" shortcut when the query looks like a ticker
     if (q && /^[\^A-Za-z0-9.&-]{1,15}$/.test(q)) {
       var U = q.toUpperCase();
+      add('Deep dive', { label: 'Command center: ' + U, sub: 'SMC · research · options · backtest · alerts', ic: '🧭', run: function () { openSymbol(U); } });
       add('Research', { label: 'Research brief: ' + U, sub: 'Deterministic evidence + levels', ic: '🔬', run: function () { openResearch(U); } });
       add('Options', { label: 'Options analytics: ' + U, sub: 'Chain · Greeks · OI · IV', ic: '🧾', run: function () { openOptions(U); } });
       add('Backtest', { label: 'Backtest: ' + U, sub: 'Cost-aware, train/test split', ic: '📈', run: function () { openBacktest(U); } });
@@ -892,6 +894,207 @@
     setTimeout(function () { if (!sym) symIn.focus(); }, 20);
   }
 
+  /* ── symbol command center: fuse every live endpoint for one symbol ──── */
+  function getJson(url) { return fetch(url).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); }); }
+  function evList(body, title, arr, good) {
+    if (!arr || !arr.length) return;
+    body.appendChild(h('div', 'tm-sec', title + ' (' + arr.length + ')'));
+    arr.slice(0, 4).forEach(function (it) {
+      var li = h('div', 'tm-li');
+      li.appendChild(h('span', null, good === true ? '▲' : good === false ? '▼' : '•'));
+      var t = h('div'); t.appendChild(h('b', null, it.label));
+      if (it.detail) t.appendChild(h('span', 'tm-mut', ' — ' + it.detail));
+      li.appendChild(t); body.appendChild(li);
+    });
+  }
+
+  function openSymbolPrompt() {
+    var body = openPanel('Symbol command center');
+    body.appendChild(h('div', 'tm-mut', 'Enter a symbol (e.g. RELIANCE, NIFTY, ^NSEI) to see live price, SMC structure, research, options snapshot, a cost-aware backtest and price alerts — all in one place.'));
+    var form = h('form'); form.style.marginTop = '12px';
+    var inp = h('input', 'tm-in'); inp.placeholder = 'Symbol'; inp.setAttribute('aria-label', 'Symbol');
+    var go = h('button', 'tm-btn', 'Open'); go.type = 'submit'; go.style.marginTop = '10px';
+    form.appendChild(inp); form.appendChild(go);
+    form.addEventListener('submit', function (e) { e.preventDefault(); var s = String(inp.value || '').trim().toUpperCase(); if (s) openSymbol(s); });
+    body.appendChild(form);
+    setTimeout(function () { inp.focus(); }, 20);
+  }
+
+  function openSymbol(sym) {
+    sym = String(sym || '').trim().toUpperCase();
+    if (!sym) return openSymbolPrompt();
+    var body = openPanel(sym + ' — command center');
+    var loading = h('div', 'tm-mut', 'Loading live analysis, research and backtest…');
+    body.appendChild(loading);
+
+    var head = h('div'); head.style.cssText = 'display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:4px';
+    var actions = h('div'); actions.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 4px';
+    function action(label, fn) { var b = h('button', 'tm-btn', label); b.type = 'button'; b.addEventListener('click', fn); actions.appendChild(b); }
+    action('📈 Chart', function () { closePanel(); window.__sa.openStock(sym); });
+    action('🧾 Options', function () { openOptions(sym); });
+    action('📊 Backtest', function () { openBacktest(sym); });
+    action('🔬 Research', function () { openResearch(sym); });
+    action('🔔 All alerts', function () { openPriceAlerts(sym); });
+    body.appendChild(actions);
+
+    var sections = h('div');
+    body.appendChild(sections);
+
+    // Containers are created up-front (in this order) and filled asynchronously,
+    // so the section order never depends on which fetch resolves first.
+    var gsec = h('div'); sections.appendChild(gsec);   // 1 · market structure & SMC
+    var rsec = h('div'); sections.appendChild(rsec);   // 2 · research
+    var osec = h('div'); sections.appendChild(osec);   // 3 · options
+    var bsec = h('div'); sections.appendChild(bsec);   // 4 · backtest (cost-aware)
+    var asec = h('div'); sections.appendChild(asec);   // 5 · price alerts
+
+    // price + SMC (immediate)
+    getJson('/api/analysis/' + encodeURIComponent(sym) + '?intraday=1').then(function (res) {
+      loading.remove();
+      var a = res.j;
+      if (!res.ok || !a || !a.ok) { body.insertBefore(h('div', 'tm-bad', 'Analysis unavailable: ' + ((a && a.error) || 'no data')), actions); return; }
+      var q = a.quality || {};
+      head.appendChild(h('b', null, '₹' + fmtN(a.price)));
+      var ch = h('span', null, (a.changePct >= 0 ? '+' : '') + (a.changePct == null ? '—' : a.changePct) + '%');
+      ch.style.color = a.changePct >= 0 ? '#34d399' : '#fb7185'; head.appendChild(ch);
+      head.appendChild(pill(q.status || '—', q.status === 'LIVE' ? '#34d399' : q.status === 'CLOSED' ? '#94a3b8' : '#fbbf24'));
+      if (q.source) head.appendChild(h('span', 'tm-mut', q.source + (q.note ? ' · ' + q.note : '')));
+      body.insertBefore(head, actions);
+
+      gsec.appendChild(h('div', 'tm-sec', 'Market structure & SMC'));
+      var g = h('div', 'tm-grid');
+      row(g, 'Structure', (a.structure && a.structure.trend) || '—');
+      row(g, 'Swing bias', (a.swingStructure && a.swingStructure.bias) || '—');
+      row(g, 'Zone', (a.premiumDiscount && a.premiumDiscount.zone) || '—');
+      row(g, 'VWAP (session)', a.vwap ? ('₹' + fmtN(a.vwap.session) + (a.vwap.aboveSession ? ' ▲' : ' ▼')) : '—');
+      row(g, 'RSI 4H / Daily', (a.rsi4h != null ? a.rsi4h : '—') + ' / ' + (a.rsiDaily != null ? a.rsiDaily : '—'));
+      row(g, 'ATR / EMA50', (a.atr != null ? a.atr : '—') + ' / ' + (a.ema50 != null ? fmtN(a.ema50) : '—'));
+      row(g, 'Active order blocks', (a.activeZones || []).length);
+      row(g, 'Unfilled FVGs', (a.fvgs || []).filter(function (f) { return !f.filled; }).length);
+      row(g, 'Liquidity (buy/sell)', ((a.liquidity && a.liquidity.buyside) || []).length + ' / ' + ((a.liquidity && a.liquidity.sellside) || []).length);
+      row(g, 'Active signals', (a.signals || []).length);
+      row(g, 'Signal confluence', (function () {
+        var cf = a.confluence; if (cf == null) return '—';
+        if (typeof cf === 'number') return cf;
+        var txt = (cf.score != null ? cf.score : '—');
+        if (cf.parts && cf.parts.length) txt += ' · ' + cf.parts.map(function (p) { return p.label; }).join(', ');
+        return txt;
+      })());
+      gsec.appendChild(g);
+      if (a.lastSignal) gsec.appendChild(h('div', 'tm-mut', 'Last signal: ' + (a.lastSignal.dir || '') + (a.lastSignal.price != null ? ' @ ₹' + fmtN(a.lastSignal.price) : '') + (a.lastSignal.reason ? ' · ' + a.lastSignal.reason : '')));
+
+      // options snapshot (graceful for non-F&O)
+      getJson('/api/options/' + encodeURIComponent(sym) + '/analytics').then(function (ores) {
+        var o = ores.j;
+        osec.appendChild(h('div', 'tm-sec', 'Options'));
+        if (!ores.ok || !o || !o.ok) { osec.appendChild(h('div', 'tm-mut', 'No option chain for this symbol (or the free NSE chain is unavailable right now).')); return; }
+        var atm = null;
+        (o.strikes || []).forEach(function (s) { if (o.underlyingValue != null && (!atm || Math.abs(s.strike - o.underlyingValue) < Math.abs(atm.strike - o.underlyingValue))) atm = s; });
+        var og = h('div', 'tm-grid');
+        row(og, 'Expiry', o.expiry || '—');
+        row(og, 'Underlying', o.underlyingValue != null ? '₹' + fmtN(o.underlyingValue) : '—');
+        row(og, 'ATM IV', atm && atm.iv != null ? atm.iv + '%' : '—');
+        row(og, 'PCR (OI)', o.pcr != null ? o.pcr : '—');
+        row(og, 'Max pain', o.maxPain ? '₹' + fmtN(o.maxPain.strike) : '—');
+        if (o.greeks && o.greeks.available === false) row(og, 'Greeks', 'unavailable (need IV)', 'tm-mut');
+        osec.appendChild(og);
+      }).catch(function () { osec.appendChild(h('div', 'tm-sec', 'Options')); osec.appendChild(h('div', 'tm-mut', 'Options unavailable.')); });
+
+      // cost-aware backtest (background)
+      bsec.appendChild(h('div', 'tm-sec', 'Backtest (cost-aware)'));
+      bsec.appendChild(h('div', 'tm-mut', 'Running cost-aware backtest…'));
+      getJson('/api/backtest/' + encodeURIComponent(sym) + '?costs=1&train=0.7').then(function (bres) {
+        var bt = bres.j; bsec.textContent = '';
+        bsec.appendChild(h('div', 'tm-sec', 'Backtest (cost-aware)'));
+        if (!bres.ok || !bt || !bt.stats) { bsec.appendChild(h('div', 'tm-mut', 'Backtest unavailable.')); return; }
+        var s = bt.stats;
+        var bg = h('div', 'tm-grid');
+        row(bg, 'Trades', s.trades);
+        row(bg, 'Win rate', (s.winRate || 0) + '%');
+        row(bg, 'Profit factor', s.profitFactor);
+        row(bg, 'Net (after costs)', (s.netProfitPct || 0) + '%', s.netProfitPct < 0 ? 'tm-bad' : 'tm-good');
+        row(bg, 'Max drawdown', (s.maxDrawdownPct || 0) + '%', 'tm-bad');
+        row(bg, 'Cost model', (s.costModel && s.costModel.mode) || (s.costsApplied ? 'applied' : 'none'));
+        row(bg, 'Total costs', (s.totalCostsPct || 0) + '%');
+        bsec.appendChild(bg);
+        bsec.appendChild(h('div', 'tm-mut', s.trades === 0
+          ? 'No trades triggered by this preset on the fetched window — reported honestly, not tuned to look good.'
+          : 'In-sample on the fetched window; not a forecast.'));
+      }).catch(function () { bsec.textContent = ''; bsec.appendChild(h('div', 'tm-sec', 'Backtest (cost-aware)')); bsec.appendChild(h('div', 'tm-bad', 'Backtest failed.')); });
+    }).catch(function (e) { loading.textContent = 'Failed: ' + e.message; });
+
+    // research (background)
+    getJson('/api/research/' + encodeURIComponent(sym)).then(function (res) {
+      var r = res.j;
+      if (!res.ok || !r || !r.ok) { rsec.appendChild(h('div', 'tm-mut', 'Research unavailable.')); return; }
+      rsec.appendChild(h('div', 'tm-sec', 'Research'));
+      var top = h('div'); top.style.cssText = 'display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:6px';
+      top.appendChild(pill(r.stance, /BULLISH/.test(r.stance) ? '#34d399' : /BEARISH/.test(r.stance) ? '#fb7185' : '#fbbf24'));
+      rsec.appendChild(top);
+      rsec.appendChild(h('p', null, r.headline));
+      evList(rsec, 'Bullish evidence', r.bullEvidence, true);
+      evList(rsec, 'Bearish evidence', r.bearEvidence, false);
+      evList(rsec, 'Conflicts', r.conflicts, null);
+      evList(rsec, 'Risks', r.risks, false);
+      if (r.missingData && r.missingData.length) rsec.appendChild(h('div', 'tm-mut', 'Missing: ' + r.missingData.join('; ')));
+      var L = r.levels || {};
+      if (L.invalidation || (L.targets && L.targets.length)) {
+        rsec.appendChild(h('div', 'tm-sec', 'Reference levels'));
+        var lg = h('div', 'tm-grid');
+        row(lg, 'Entry ref', L.entryReference != null ? '₹' + fmtN(L.entryReference) : '—');
+        if (L.invalidation) row(lg, 'Invalidation', '₹' + fmtN(L.invalidation.price) + ' (' + L.invalidation.label + ')', 'tm-bad');
+        (L.targets || []).forEach(function (t, i) { row(lg, 'Target ' + (i + 1), '₹' + fmtN(t.price) + ' (' + t.label + ')', 'tm-good'); });
+        if (L.referenceRiskReward != null) row(lg, 'R:R', '1:' + L.referenceRiskReward);
+        rsec.appendChild(lg);
+      }
+      var ph = (r.probability && r.probability.historical) || {};
+      rsec.appendChild(h('div', 'tm-mut', 'Historical sample: ' + (ph.sampleSize || 0) + ' trades. ' + ((r.probability && r.probability.note) || '')));
+    }).catch(function () { rsec.appendChild(h('div', 'tm-mut', 'Research unavailable.')); });
+
+    // price alerts for this symbol (list + inline quick-create)
+    asec.appendChild(h('div', 'tm-sec', 'Price alerts for ' + sym));
+    var alist = h('div'); asec.appendChild(alist);
+    var qform = h('form'); qform.style.cssText = 'display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:8px';
+    var qcond = document.createElement('select'); qcond.className = 'tm-in'; qcond.style.maxWidth = '190px'; qcond.setAttribute('aria-label', 'Condition');
+    [['above', 'Crosses ≥ (above)'], ['below', 'Crosses ≤ (below)']].forEach(function (c) { var o = document.createElement('option'); o.value = c[0]; o.textContent = c[1]; qcond.appendChild(o); });
+    var qtgt = h('input', 'tm-in'); qtgt.type = 'number'; qtgt.step = '0.05'; qtgt.min = '0.01'; qtgt.placeholder = 'Target ₹'; qtgt.setAttribute('aria-label', 'Target price'); qtgt.style.maxWidth = '130px';
+    var qbtn = h('button', 'tm-btn', 'Add alert'); qbtn.type = 'submit'; qbtn.style.padding = '4px 10px';
+    qform.appendChild(qcond); qform.appendChild(qtgt); qform.appendChild(qbtn);
+    var qmsg = h('div', 'tm-mut', ''); qmsg.style.marginTop = '4px';
+    asec.appendChild(qform); asec.appendChild(qmsg);
+    function loadRules() {
+      alist.textContent = '';
+      fetch('/api/alerts/rules').then(function (r) { return r.json(); }).then(function (j) {
+        var rules = (j.rules || []).filter(function (r) { return r.symbol === sym; });
+        if (!rules.length) { alist.appendChild(h('div', 'tm-mut', 'None for this symbol yet.')); return; }
+        rules.forEach(function (r) {
+          var line = h('div', 'tm-leg');
+          line.appendChild(h('span', r.enabled ? 'tm-good' : 'tm-mut', r.enabled ? 'armed' : (r.triggeredAt ? 'triggered' : 'off')));
+          line.appendChild(h('span', null, r.condition === 'above' ? '≥' : '≤'));
+          line.appendChild(h('b', null, '₹' + fmtN(r.target)));
+          if (r.note) line.appendChild(h('span', 'tm-mut', r.note));
+          var tog = h('button', 'tm-btn', r.enabled ? 'Disarm' : 'Re-arm'); tog.type = 'button'; tog.style.padding = '2px 8px';
+          tog.addEventListener('click', function () { tog.disabled = true; fetch('/api/alerts/rules/' + r.id + '/toggle', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled: !r.enabled }) }).then(loadRules); });
+          var del = h('button', 'tm-btn', 'Delete'); del.type = 'button'; del.style.padding = '2px 8px'; del.style.marginLeft = '6px';
+          del.addEventListener('click', function () { del.disabled = true; fetch('/api/alerts/rules/' + r.id, { method: 'DELETE' }).then(loadRules); });
+          line.appendChild(tog); line.appendChild(del);
+          alist.appendChild(line);
+        });
+      }).catch(function () { alist.appendChild(h('div', 'tm-mut', 'Alerts unavailable.')); });
+    }
+    qform.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var t = Number(qtgt.value);
+      if (!(t > 0)) { qmsg.className = 'tm-bad'; qmsg.textContent = 'Enter a positive target price.'; return; }
+      qbtn.disabled = true; qmsg.className = 'tm-mut'; qmsg.textContent = 'Adding…';
+      fetch('/api/alerts/rules', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ symbol: sym, condition: qcond.value, target: t }) })
+        .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+        .then(function (res) { qbtn.disabled = false; if (!res.ok || !res.j.ok) { qmsg.className = 'tm-bad'; qmsg.textContent = (res.j && res.j.error) || 'Failed'; return; } qmsg.textContent = ''; qtgt.value = ''; loadRules(); })
+        .catch(function () { qbtn.disabled = false; qmsg.className = 'tm-bad'; qmsg.textContent = 'Failed'; });
+    });
+    loadRules();
+  }
+
   /* ── price alerts: user-defined rules, real quotes, browser + Telegram ── */
   var ALERT_POLL_MS = 30000, alertTimer = null;
   function notifyPerm() { return (typeof Notification !== 'undefined') ? Notification.permission : 'unsupported'; }
@@ -921,7 +1124,7 @@
   }
   startAlertWatch();
 
-  function openPriceAlerts() {
+  function openPriceAlerts(prefillSym) {
     var body = openPanel('Price alerts');
     body.appendChild(h('div', 'tm-mut', 'Get notified when a symbol trades at or through a price. Rules use real quotes (free), fire once and then disarm (re-arm any time). Browser notifications appear while this tab is open; Telegram (if configured in Settings) works anytime — the server also checks every ~60s.'));
 
@@ -941,6 +1144,7 @@
 
     var form = h('form'); form.style.cssText = 'display:grid;grid-template-columns:1.4fr .9fr .9fr;gap:8px;align-items:end;margin:10px 0 2px';
     var sym = h('input', 'tm-in'); sym.placeholder = 'Symbol (RELIANCE, NIFTY, ^NSEI)'; sym.setAttribute('aria-label', 'Symbol');
+    if (prefillSym) sym.value = String(prefillSym).trim().toUpperCase();
     var cond = document.createElement('select'); cond.className = 'tm-in'; cond.setAttribute('aria-label', 'Condition');
     [['above', 'Crosses ≥ (above)'], ['below', 'Crosses ≤ (below)']].forEach(function (c) { var o = document.createElement('option'); o.value = c[0]; o.textContent = c[1]; cond.appendChild(o); });
     var tgt = h('input', 'tm-in'); tgt.type = 'number'; tgt.step = '0.05'; tgt.min = '0.01'; tgt.placeholder = 'Target ₹'; tgt.setAttribute('aria-label', 'Target price');
@@ -1047,5 +1251,5 @@
   }
 
   /* ── expose for debugging / tests ──────────────────────────────────── */
-  window.__shell = { open: open, close: close, toggleTheme: toggleTheme, setCollapsed: setCollapsed, openResearch: openResearch, openRiskPanel: openRiskPanel, openOptions: openOptions, openPayoff: openPayoff, openBacktest: openBacktest, openPriceAlerts: openPriceAlerts, resetSideWidth: resetSideWidth, resetSplitRatio: resetSplitRatio, evalAlerts: evalAlerts };
+  window.__shell = { open: open, close: close, toggleTheme: toggleTheme, setCollapsed: setCollapsed, openResearch: openResearch, openRiskPanel: openRiskPanel, openOptions: openOptions, openPayoff: openPayoff, openBacktest: openBacktest, openPriceAlerts: openPriceAlerts, openSymbol: openSymbol, openSymbolPrompt: openSymbolPrompt, resetSideWidth: resetSideWidth, resetSplitRatio: resetSplitRatio, evalAlerts: evalAlerts };
 })();
