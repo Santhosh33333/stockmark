@@ -5,5 +5,15 @@ data/
 *.db-shm
 .env
 owner.json
+# Android / Play Store: never commit signing keys; binaries stay out except
+# the published, signed release APK served from the landing page.
+*.keystore
+*.jks
+*.aab
+*.apk
+!public/download/*.apk
+!public/download/*.aab
+android/
+.gradle/
 .DS_Store
 *.log

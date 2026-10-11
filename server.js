@@ -112,6 +112,17 @@ app.use(express.static(path.join(__dirname, 'public'), {
 // Health probe for hosting platforms
 app.get('/healthz', (_req, res) => res.status(200).send('ok'));
 
+// Android app download (the APK built from this PWA). Short, friendly URL so
+// the landing page / QR codes can point at it. Served as an attachment so
+// Android hands it to the package installer instead of rendering it.
+app.get('/app.apk', (_req, res) => {
+  const apk = path.join(__dirname, 'public', 'download', 'TradeMind-v1.0.0.apk');
+  if (!fs.existsSync(apk)) return res.status(404).send('APK not built yet');
+  res.setHeader('Content-Type', 'application/vnd.android.package-archive');
+  res.setHeader('Content-Disposition', 'attachment; filename="TradeMind-v1.0.0.apk"');
+  res.sendFile(apk);
+});
+
 // Digital Asset Links for the Play Store (TWA) build. express.static ignores
 // dotfiles, so this is served explicitly. Replace the placeholder fingerprint
 // with the Play App Signing SHA-256 (see PLAYSTORE.md) before publishing.

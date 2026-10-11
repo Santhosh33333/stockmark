@@ -3,6 +3,6 @@
   "target": {
     "namespace": "android_app",
     "package_name": "app.trademind.twa",
-    "sha256_cert_fingerprints": ["REPLACE_WITH_PLAY_APP_SIGNING_SHA256"]
+    "sha256_cert_fingerprints": ["69:22:05:39:8F:8D:8D:DB:D7:38:67:46:65:FE:72:7E:BD:3F:00:00:7E:D1:D6:5A:91:49:3C:E0:FB:63:A1:70"]
   }
 }
