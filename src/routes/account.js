@@ -44,6 +44,19 @@ function setSessionCookie(req, res, token) {
 }
 router.use(attachUser);
 
+// One-time codes are secret. They may only be echoed back in the HTTP response
+// during LOCAL development — a loopback request to a non-production server.
+// On any real deployment the code must never travel back over HTTP, or anyone
+// who knows an email could request a reset/login code and simply read it.
+const IS_PROD = process.env.NODE_ENV === 'production';
+function isLoopback(req) {
+  const a = String((req.socket && req.socket.remoteAddress) || '');
+  return a === '127.0.0.1' || a === '::1' || a === '::ffff:127.0.0.1';
+}
+function devCode(req, out) {
+  return (!IS_PROD && isLoopback(req) && out && out.code) ? out.code : null;
+}
+
 // ── auth ─────────────────────────────────────────────────────────────────
 router.post('/auth/signup', async (req, res) => {
   const ip = req.ip;
@@ -77,7 +90,7 @@ router.post('/auth/resend-otp', async (req, res) => {
   try {
     const { email, purpose = 'signup' } = req.body || {};
     const out = await auth.sendOtp(email, purpose);
-    res.json({ ok: true, sent: out.sent.ok, dev: out.code || null, email: out.email });
+    res.json({ ok: true, sent: out.sent.ok, dev: devCode(req, out), email: out.email });
   } catch (e) { res.status(429).json({ error: e.message }); }
 });
 
@@ -114,9 +127,9 @@ router.post('/auth/forgot-password', async (req, res) => {
   try {
     const out = await auth.sendResetCode(email);
     stmt.log.run(null, 'RESET REQUESTED', email, now());
-    res.json({ ok: true, mailReady, sent: !!(out.sent && out.sent.ok), dev: out.code || null });
-  } catch (e) {
-    res.json({ ok: true, mailReady, sent: false, note: e.message });   // generic
+    res.json({ ok: true, mailReady, sent: !!(out.sent && out.sent.ok), dev: devCode(req, out) });
+  } catch {
+    res.json({ ok: true, mailReady, sent: false });   // generic: never reveal existence or timing
   }
 });
 
@@ -158,7 +171,7 @@ router.post('/admin/mail-test', requireAdmin, async (req, res) => {
   try {
     const mailer = require('../mailer');
     const out = await auth.sendOtp(req.user.username, 'login');
-    res.json({ ok: out.sent.ok, provider: out.sent.provider, dev: out.code || null, error: out.sent.error });
+    res.json({ ok: out.sent.ok, provider: out.sent.provider, dev: devCode(req, out), error: out.sent.error });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
