@@ -56,6 +56,18 @@
   </div>
 </section>
 
+<!-- ══════════ BOOT / RECONNECT (shown only if the server is unreachable on load) ══════════ -->
+<section id="boot-screen" class="screen auth hidden" aria-live="polite">
+  <div class="auth-card tilt" data-tilt>
+    <div class="brand-3d">
+      <img src="/assets/trademind-logo.png" alt="TradeMind logo" class="logo-3d" />
+      <h1 class="brand-title">Trade<span>Mind</span> <span class="v2">FUTURE</span></h1>
+    </div>
+    <p class="auth-hint" id="boot-msg" style="margin-top:6px">Connecting to the server…</p>
+    <button class="btn primary block" type="button" onclick="window.__sa.bootRetry()">Retry</button>
+  </div>
+</section>
+
 <!-- ══════════ MAIN APP (2.0 shell: desktop sidebar + mobile bottom nav) ══════════ -->
 <div id="app" class="hidden">
   <div class="app-shell">
@@ -142,7 +154,7 @@
 <div class="kbdhint" aria-hidden="true">Press <span class="kbd">Ctrl</span>+<span class="kbd">K</span> to search · <span class="kbd">g</span> then a key to jump</div>
 
 <script src="chart.js?v=7"></script>
-<script src="app.js?v=16"></script>
+<script src="app.js?v=17"></script>
 <script src="fx.js?v=7"></script>
 <script src="shell.js?v=18"></script>
 </body>

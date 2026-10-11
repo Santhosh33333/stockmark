@@ -29,7 +29,7 @@
       body: body ? JSON.stringify(body) : undefined,
     });
     const j = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(j.error || ('HTTP ' + res.status));
+    if (!res.ok) { const e = new Error(j.error || ('HTTP ' + res.status)); e.status = res.status; throw e; }
     return j;
   }
 
@@ -46,6 +46,7 @@
   function showAuth(show) {
     $('#auth-screen').classList.toggle('hidden', !show);
     $('#app').classList.toggle('hidden', show);
+    const bs = $('#boot-screen'); if (bs) bs.classList.add('hidden');
   }
   function setAuthMode(m) {
     authMode = m;
@@ -1087,6 +1088,11 @@
 
   const actions = {
     go, toast, openStock,
+    bootRetry() {
+      const bs = $('#boot-screen'); if (bs) bs.classList.add('hidden');
+      const m = $('#boot-msg'); if (m) m.textContent = 'Connecting to the server…';
+      if (state.token) tryResume(3); else showAuth(true);
+    },
     setChartTf(tf) {
       state.chartTf = tf;
       render();
@@ -1379,18 +1385,37 @@
     }, 60000);
   }
 
-  async function init() {
-    bindAuth(); bindNav();
-    if (state.token) {
+  // Resume a saved session. A refresh must NOT sign the user out just because
+  // the server was briefly unreachable (a free host cold-start returns 502/503,
+  // not 401). We only log out on a definitive 401/403; for anything else we
+  // retry with backoff and, if the server stays down, offer a Retry button.
+  async function tryResume(retries = 3) {
+    for (let i = 0; i <= retries; i++) {
       try {
         const j = await api('/me');
         state.user = j.user;
         showAuth(false);
         bootApp();
-      } catch {
-        localStorage.removeItem('sa_token'); state.token = null; showAuth(true);
+        return;
+      } catch (e) {
+        if (e.status === 401 || e.status === 403) {   // the server says the session is truly invalid
+          localStorage.removeItem('sa_token'); state.token = null; showAuth(true);
+          return;
+        }
+        if (i < retries) await new Promise((r) => setTimeout(r, 1200 * (i + 1)));
       }
-    } else showAuth(true);
+    }
+    // Server unreachable after retries — keep the token, do NOT log out.
+    const auth = $('#auth-screen'); if (auth) auth.classList.add('hidden');
+    $('#app').classList.add('hidden');
+    const bs = $('#boot-screen'); if (bs) bs.classList.remove('hidden');
+    const m = $('#boot-msg'); if (m) m.textContent = 'Server not reachable — it may be waking up. Your session is safe; tap Retry.';
+  }
+
+  async function init() {
+    bindAuth(); bindNav();
+    if (state.token) tryResume(3);
+    else showAuth(true);
     if ('Notification' in window && Notification.permission === 'default') {
       setTimeout(() => Notification.requestPermission().catch(() => { }), 4000);
     }
