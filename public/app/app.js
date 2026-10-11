@@ -501,10 +501,11 @@
     const stats = data.stats, pos = data.positions;
     return `
     <div class="card" style="margin-top:14px">
-      <div class="row between">
+      <div class="row between wrap" style="gap:10px">
         <div><div class="tiny muted">Mode</div><b>${data.mode === 'LIVE' ? '🔴 LIVE' : '📄 Paper'}</b></div>
         <div><div class="tiny muted">Capital</div><b>${inr(data.capital)}</b></div>
-        <div><div class="tiny muted">Net P&L</div><b class="${stats.netPnl >= 0 ? '' : ''}" style="color:${stats.netPnl >= 0 ? 'var(--up)' : 'var(--down)'}">${stats.netPnlFmt}</b></div>
+        <div><div class="tiny muted">Realized P&L</div><b style="color:${stats.netPnl >= 0 ? 'var(--up)' : 'var(--down)'}">${stats.netPnlFmt}</b></div>
+        <div><div class="tiny muted">Open P&L</div><b style="color:${data.unrealizedPnl >= 0 ? 'var(--up)' : 'var(--down)'}">${data.unrealizedPnlFmt}</b></div>
       </div>
       <button class="btn sm block" style="margin-top:12px" onclick="window.__sa.evalPositions()">⟳ Check SL / TP with live prices</button>
     </div>
@@ -521,9 +522,9 @@
     ${pos.length ? `<div class="tbl-wrap"><table><thead><tr><th>Symbol</th><th>Qty</th><th>Entry</th><th>LTP</th><th>P&L</th><th></th></tr></thead><tbody>
       ${pos.map((t) => `<tr>
         <td><b>${esc(t.symbol)}</b><div class="tiny muted">SL ${inr(t.sl, 1)} · TP ${inr(t.tp, 1)}</div></td>
-        <td>${t.qty}</td><td>${inr(t.entry_price, 2)}</td><td>${inr(t.ltp, 2)}</td>
-        <td class="${t.pnl >= 0 ? 'u' : 'd'}">${t.pnlFmt}<div class="tiny">${pct(t.pnlPct)}</div></td>
-        <td><button class="btn sm red" onclick="window.__sa.paperClose(${t.id},${t.ltp})">Exit</button></td></tr>`).join('')}
+        <td>${t.qty}</td><td>${inr(t.entry_price, 2)}</td><td>${t.ltp == null ? '<span class="tiny muted">no quote</span>' : inr(t.ltp, 2)}</td>
+        <td class="${t.pnl == null ? 'tiny muted' : (t.pnl >= 0 ? 'u' : 'd')}">${t.pnl == null ? '—' : t.pnlFmt + '<div class="tiny">' + pct(t.pnlPct) + '</div>'}</td>
+        <td><button class="btn sm red" onclick="window.__sa.paperClose(${t.id},${t.ltp == null ? 'null' : t.ltp})">Exit</button></td></tr>`).join('')}
     </tbody></table></div>` : `<div class="card empty"><div class="big">💼</div>No open positions. Signals can auto-fill here when a fresh BUY appears.</div>`}
 
     <div class="section-title"><h2>Closed trades</h2></div>
@@ -1063,8 +1064,11 @@
       } catch (e) { toast(e.message, 'err'); }
     },
     async paperClose(id, price) {
-      try { const j = await api('/paper/close', { method: 'POST', body: { id, price } }); toast('Position closed · P&L ' + j.trade.pnl, 'ok'); }
-      catch (e) { toast(e.message, 'err'); }
+      try {
+        const j = await api('/paper/close', { method: 'POST', body: { id, price: price || undefined } });
+        toast('Position closed · P&L ' + (j.pnlFmt || (j.trade && j.trade.pnl)), 'ok');
+        render();
+      } catch (e) { toast(e.message, 'err'); }
     },
     async evalPositions() {
       try { const j = await api('/paper/evaluate', { method: 'POST' }); toast(j.closed.length ? j.closed.length + ' position(s) exited' : 'No SL/TP hit yet', j.closed.length ? 'ok' : ''); }

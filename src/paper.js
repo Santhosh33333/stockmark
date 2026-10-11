@@ -10,15 +10,19 @@ function startOfIstDay(ts = Date.now()) {
 
 // Capital deployed per position (% of capital) — pre-risk sizing.
 function positionSize(settings, price) {
+  if (!(price > 0)) return 0;
   const capital = Number(settings.capital || 100000);
   const deploy = capital * (Number(settings.qtyPct || 20) / 100);
-  const qty = Math.max(1, Math.floor(deploy / price));
-  return qty;
+  // Never force a share past the per-trade allocation: if one share costs more
+  // than the allocation, the size is 0 and riskCheck explains why (previously it
+  // silently forced 1 share that could exceed the allocation).
+  return Math.max(0, Math.floor(deploy / price));
 }
 
 // Risk-based sizing: risk no more than maxRiskPerTradePct of capital between
 // entry and stop. Falls back to the capital-allocation size when unset.
 function positionSizeRisk(settings, price) {
+  if (!(price > 0)) return 0;
   const capital = Number(settings.capital || 100000);
   const allocQty = positionSize(settings, price);
   const riskPct = Number(settings.maxRiskPerTradePct);
@@ -27,7 +31,7 @@ function positionSizeRisk(settings, price) {
   const riskBudget = capital * (riskPct / 100);
   const riskPerShare = price * (slPct / 100);
   const riskQty = Math.floor(riskBudget / riskPerShare);
-  return Math.max(1, Math.min(allocQty, riskQty));
+  return Math.min(allocQty, riskQty);
 }
 
 // Per-user risk snapshot used by both the guard and the /risk/state endpoint.
@@ -51,8 +55,12 @@ function riskCheck(settings, symbol, price, qty, userId = null) {
 
   if (settings.killSwitch) problems.push('Kill switch is ON — new positions are blocked');
   if (open.length >= maxPos) problems.push(`Max positions reached (${maxPos})`);
-  if (!(qty > 0)) problems.push('Invalid quantity');
-  if (!(price > 0)) problems.push('Invalid price');
+  if (!(price > 0)) {
+    problems.push('Invalid price');
+  } else if (!(qty > 0)) {
+    const deploy = capital * (Number(settings.qtyPct || 20) / 100);
+    problems.push(`Price ₹${price.toFixed(2)} is above the per-trade allocation (₹${deploy.toFixed(0)}) and risk budget — raise capital, per-trade % or risk % to size a position`);
+  }
 
   // Max risk per trade (distance to stop × size)
   const slPct = Number(settings.slPct || 3);
@@ -79,6 +87,9 @@ function riskCheck(settings, symbol, price, qty, userId = null) {
 function openTrade(userId, { symbol, name, price, settings }) {
   const s = settings;
   const open = stmt.openTrades.all(userId);
+  if (open.some((t) => t.symbol === symbol)) {
+    return { ok: false, duplicate: true, open: open.length, problems: [`An open position in ${symbol} already exists — exit it before opening another`] };
+  }
   const qty = positionSizeRisk(s, price);
   const check = riskCheck(s, symbol, price, qty, userId);
   check.open = open.length;
@@ -86,8 +97,9 @@ function openTrade(userId, { symbol, name, price, settings }) {
 
   const sl = price * (1 - Number(s.slPct || 3) / 100);
   const tp = price * (1 + Number(s.tpPct || 10) / 100);
-  const info = stmt.addTrade.run(userId, symbol, name || symbol, qty, price, now(), sl, tp, s.mode === 'LIVE' ? 'LIVE' : 'PAPER');
-  const trade = { id: Number(info.lastInsertRowid), user_id: userId, symbol, name, qty, entry_price: price, entry_ts: now(), sl, tp, status: 'OPEN' };
+  const ts = now();
+  const info = stmt.addTrade.run(userId, symbol, name || symbol, qty, price, ts, sl, tp, s.mode === 'LIVE' ? 'LIVE' : 'PAPER');
+  const trade = { id: Number(info.lastInsertRowid), user_id: userId, symbol, name: name || symbol, qty, entry_price: price, entry_ts: ts, sl, tp, status: 'OPEN' };
   return { ok: true, trade, ...check };
 }
 
@@ -99,9 +111,11 @@ function closeTrade(tradeId, price, reason) {
   return { ...t, exit_price: price, exit_reason: reason, pnl, status: 'CLOSED' };
 }
 
-// Evaluates SL/TP for every open paper position using live prices
-async function evaluateOpenPositions(getPriceFn) {
-  const open = stmt.allOpenTrades.all();
+// Evaluates SL/TP for open paper positions using live prices. Pass userId to
+// scope to one user's book (the API route does) — omitting it evaluates every
+// user's open positions, so callers acting for a user must always pass it.
+async function evaluateOpenPositions(getPriceFn, userId = null) {
+  const open = userId ? stmt.openTrades.all(userId) : stmt.allOpenTrades.all();
   const closed = [];
   for (const t of open) {
     const px = await getPriceFn(t.symbol.includes('.') ? t.symbol : `${t.symbol}.NS`);
@@ -143,7 +157,7 @@ function portfolioStats(userId) {
     avgTrade: closed.length ? +(net / closed.length).toFixed(2) : 0,
     avgTradeFmt: inr(closed.length ? net / closed.length : 0, true),
     trades: trades.slice(0, 100).map((t) => ({ ...t, pnlFmt: t.pnl != null ? inr(t.pnl, true) : null })),
-    open: open.map((t) => ({ ...t, pnl: t.entry_price ? 0 : 0 })),
+    open: open.map((t) => ({ ...t, pnl: null, pnlFmt: null })),
   };
 }
 

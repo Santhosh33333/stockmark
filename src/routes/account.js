@@ -200,16 +200,20 @@ router.get('/paper/stats', requireUser, async (req, res) => {
   const positions = open.map((t) => {
     const ySym = t.symbol.includes('.') ? t.symbol : `${t.symbol}.NS`;
     const q = quotes[ySym] || quotes[t.symbol] || {};
-    const px = q.price ?? t.entry_price;
+    const px = Number(q.price);
+    const live = isFinite(px) && px > 0;
+    const pnl = live ? +((px - t.entry_price) * t.qty).toFixed(2) : null;
     return {
       ...t,
-      ltp: px,
-      pnl: +((px - t.entry_price) * t.qty).toFixed(2),
-      pnlPct: +(((px - t.entry_price) / t.entry_price) * 100).toFixed(2),
-      pnlFmt: inr((px - t.entry_price) * t.qty, true),
+      ltp: live ? px : null,
+      live,
+      pnl,
+      pnlPct: live ? +(((px - t.entry_price) / t.entry_price) * 100).toFixed(2) : null,
+      pnlFmt: live ? inr(pnl, true) : '—',
     };
   });
-  res.json({ stats, positions, capital: settings.capital, mode: settings.mode });
+  const unrealizedPnl = +positions.reduce((a, p) => a + (p.pnl || 0), 0).toFixed(2);
+  res.json({ stats, positions, capital: settings.capital, mode: settings.mode, unrealizedPnl, unrealizedPnlFmt: inr(unrealizedPnl, true) });
 });
 
 // Paper trade history as CSV (safe escaping; opens in Excel/Sheets).
@@ -248,20 +252,30 @@ router.post('/paper/open', requireUser, (req, res) => {
   res.json({ ok: true, trade: out.trade, exposure: out.exposure });
 });
 
-router.post('/paper/close', requireUser, (req, res) => {
+router.post('/paper/close', requireUser, async (req, res) => {
   const id = Number(req.body?.id);
-  const price = Number(req.body?.price);
   const t = id ? stmt.tradeById.get(id) : null;
   if (!t || t.user_id !== req.user.id) return res.status(404).json({ error: 'Trade not found' });
-  const closed = paper.closeTrade(t.id, isFinite(price) && price > 0 ? price : t.entry_price, 'MANUAL');
-  res.json({ ok: true, trade: closed });
+  if (t.status === 'CLOSED') return res.status(400).json({ error: 'Trade is already closed' });
+  let price = Number(req.body?.price);
+  if (!(isFinite(price) && price > 0)) {
+    // No client price supplied — fetch a real quote. Never exit at a made-up price.
+    try {
+      const q = await market.fetchQuote(t.symbol.includes('.') ? t.symbol : `${t.symbol}.NS`);
+      price = Number(q && q.price);
+    } catch { price = NaN; }
+  }
+  if (!(isFinite(price) && price > 0)) return res.status(400).json({ error: 'Live price unavailable — cannot exit at a made-up price. Try again in a moment.' });
+  const closed = paper.closeTrade(t.id, price, 'MANUAL');
+  if (!closed) return res.status(400).json({ error: 'Trade is already closed' });
+  res.json({ ok: true, trade: closed, pnlFmt: inr(closed.pnl, true) });
 });
 
-router.post('/paper/evaluate', requireUser, async (_req, res) => {
+router.post('/paper/evaluate', requireUser, async (req, res) => {
   const closed = await paper.evaluateOpenPositions(async (sym) => {
     const q = await market.fetchQuote(sym);
     return q.price;
-  });
+  }, req.user.id);
   res.json({ ok: true, closed: closed.map((c) => ({ ...c, pnlFmt: inr(c.pnl, true) })) });
 });
 
