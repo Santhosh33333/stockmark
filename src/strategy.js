@@ -3,8 +3,9 @@
 //  This is the JavaScript twin of pine/smc_wick_ob_inducement.pine so the
 //  web scanner, paper trader and TradingView all use IDENTICAL rules.
 // ═══════════════════════════════════════════════════════════════════════
-const { sma, ema, rsi, atr, macdHistogram, resample4h } = require('./indicators');
+const { sma, ema, rsi, atr, macdHistogram, resample4h, adx, bollinger } = require('./indicators');
 const costs = require('./costs');
+const regime = require('./regime');
 
 const DEFAULTS = {
   // 1. Strong wick rejection candle
@@ -43,6 +44,9 @@ const DEFAULTS = {
   liqTolAtr: 0.25,        // equal-high/low tolerance (x ATR)
   liqMax: 3,              // liquidity pools per side kept in the payload
   // 6. extra context (additive; report-only)
+  adxLen: 14,             // ADX / +/-DI period (daily)
+  bbLen: 20, bbMult: 2,   // Bollinger Bands period + width multiplier (daily)
+  scoreOff: [],           // confluence factor labels to disable, e.g. ['4H RSI < 50']
   rangeLookback: 60,      // bars used for the premium/discount dealing range
   dispMult: 1.5,          // body >= N x ATR counts as a displacement candle
   vwapWindow: 20,         // rolling VWAP window
@@ -330,8 +334,14 @@ function swingStructure(swings, max = 10) {
 // ── Confluence score: how many independent bullish factors line up ───────
 function confluenceScore(last, o, rsi4hNow, activeZoneCount, lastSignal, structure, fvgs, liquidity) {
   const parts = [];
+  const disabled = [];
   let score = 0;
-  const add = (label, pts, ok) => { if (ok) { score += pts; parts.push({ label, pts }); } };
+  const off = new Set((o.scoreOff || []).map((s) => String(s)));
+  const add = (label, pts, ok) => {
+    if (off.has(label)) { disabled.push({ label, pts }); return; }
+    if (ok) { score += pts; parts.push({ label, pts }); }
+    else parts.push({ label, pts, missed: true });
+  };
   add('4H RSI < 50', 15, rsi4hNow != null && rsi4hNow < o.htfRsiMax);
   add('Active order block', 15, activeZoneCount > 0);
   add('Fresh BUY signal', 20, !!lastSignal);
@@ -341,7 +351,12 @@ function confluenceScore(last, o, rsi4hNow, activeZoneCount, lastSignal, structu
   const sweptSell = liquidity.sellside.some((p) => p.swept);
   add('Sell-side liquidity swept', 10, sweptSell);
   add('Bullish CHoCH', 10, !!(structure.lastCHoCH && structure.lastCHoCH.dir === 'BULL'));
-  return { score: Math.min(100, score), parts };
+  return {
+    score: Math.min(100, score),
+    max: 100 - disabled.reduce((a, d) => a + d.pts, 0),
+    parts, disabled,
+    note: 'Rule-based confluence rating (0–100 of the enabled factors). Not a probability of profit.',
+  };
 }
 
 // ── Multi-timeframe context: weekly / daily / 4H / 1H agreement ─────────
@@ -431,6 +446,8 @@ function analyze(daily, hourly, opts = {}) {
   const rsi4h = rsi(c4h.map((c) => c.c), o.rsiLen);
   const weekly = toWeekly(daily);
   const wMacd = macdHistogram(weekly.map((c) => c.c));
+  const adxA = adx(daily, o.adxLen);
+  const bbA = bollinger(closes, o.bbLen, o.bbMult);
 
   const wickFlags = daily.map((c, i) => wickRejectionAt(c, volMa[i], o));
   const zones = [];        // every OB zone ever created (chart)
@@ -609,6 +626,16 @@ function analyze(daily, hourly, opts = {}) {
   const rsi4hNow = rsi4h.length && rsi4h[rsi4h.length - 1] != null ? +rsi4h[rsi4h.length - 1].toFixed(1) : null;
   const lastSig = signals.length ? signals[signals.length - 1] : null;
   const confluence = confluenceScore(last, o, rsi4hNow, activeZones.length, lastSig, structure, allFvgs, liquidity);
+  // ── trend/volatility context (additive; report-only) ──
+  const adxNow = adxA.adx[n - 1] ?? null;
+  const atrPctNow = lastAtr != null && last.c > 0 ? +(lastAtr / last.c * 100).toFixed(2) : null;
+  const bbNow = bbA.widthPct[n - 1] ?? null;
+  const bbHist = bbA.widthPct.filter((v) => v != null).slice(-120).sort((a, b) => a - b);
+  const bbMed = bbHist.length ? +bbHist[Math.floor(bbHist.length / 2)].toFixed(3) : null;
+  const marketRegime = regime.classify({
+    candles: daily, adxNow, atrPctNow, bbWidthNow: bbNow, bbWidthMedian: bbMed,
+    trend: structure.trend, mtfAlign: mtf.alignment,
+  });
   const unfilled = allFvgs.filter((f) => !f.filled);
   const nearestFvg = unfilled
     .map((f) => ({ ...f, distance: +Math.abs(last.c - (f.top + f.bottom) / 2).toFixed(2) }))
@@ -628,6 +655,18 @@ function analyze(daily, hourly, opts = {}) {
     rsiDaily: rsiD[n - 1] != null ? +rsiD[n - 1].toFixed(1) : null,
     ema50: emaA[n - 1] != null ? +emaA[n - 1].toFixed(2) : null,
     atr: lastAtr != null ? +lastAtr.toFixed(2) : null,
+    atrPct: atrPctNow,
+    adx: adxNow,
+    plusDI: adxA.plusDI[n - 1] ?? null,
+    minusDI: adxA.minusDI[n - 1] ?? null,
+    adxPeriod: o.adxLen,
+    bollinger: bbA.middle[n - 1] != null ? {
+      period: o.bbLen, mult: o.bbMult,
+      middle: +bbA.middle[n - 1].toFixed(2), upper: +bbA.upper[n - 1].toFixed(2), lower: +bbA.lower[n - 1].toFixed(2),
+      widthPct: bbNow, medianWidthPct: bbMed,
+      position: last.c > bbA.upper[n - 1] ? 'ABOVE_UPPER' : last.c < bbA.lower[n - 1] ? 'BELOW_LOWER' : 'INSIDE',
+    } : null,
+    regime: marketRegime,
     wickLastIdx: wickFlags.lastIndexOf(true),
     wickCount: wickFlags.filter(Boolean).length,
     activeZones: activeZones.map((z) => ({ top: +z.top.toFixed(2), bottom: +z.bottom.toFixed(2), createdIdx: z.createdIdx, swept: z.swept, age: n - 1 - z.createdIdx })),

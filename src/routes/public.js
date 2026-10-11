@@ -5,6 +5,7 @@ const market = require('../providers');
 const scanner = require('../scanner');
 const strategy = require('../strategy');
 const research = require('../research');
+const costs = require('../costs');
 const dq = require('../dataquality');
 const net = require('../net');
 const auth = require('../auth');
@@ -176,6 +177,7 @@ router.get('/analysis/:symbol', async (req, res) => {
     const mkt = marketStatus();
     const opts = { ...strategy.DEFAULTS, formingLastBar: mkt.state === 'OPEN' };
     if (data.intraday) opts.intraday = data.intraday;
+    if (req.query.noScore) opts.scoreOff = String(req.query.noScore).split(',').map((s) => s.trim()).filter(Boolean);
     const a = strategy.analyze(data.daily, data.hourly, opts);
     if (!a.ok) return res.status(422).json(shortHistory(raw, data.daily.length));
     const source = data.meta?.source || market.providerStatus().lastUsed.chart || 'yahoo';
@@ -241,6 +243,51 @@ function dailyRsiSeries(daily) {
 function compressCandles(daily) {
   return daily.slice(-160).map((c) => ({ t: c.t, o: +c.o.toFixed(2), h: +c.h.toFixed(2), l: +c.l.toFixed(2), c: +c.c.toFixed(2), v: c.v }));
 }
+
+// ── Setup risk estimate: position size from explicit rules (no live data) ──
+// Body: { entry, stop, target?, capital=100000, riskPct=1, minRR=2, mode }
+// qty = (capital × risk%) ÷ stop distance (no leverage: capped at capital/entry).
+// Costs via the same brokerage model as the backtester. Refuses when any leg
+// of entry/stop/target cannot be determined from the inputs.
+router.post('/risk/estimate', (req, res) => {
+  try {
+    const b = req.body || {};
+    const num = (v) => (v != null && isFinite(Number(v)) ? Number(v) : null);
+    const entry = num(b.entry), stop = num(b.stop), target = num(b.target);
+    const capital = num(b.capital) || 100000;
+    const riskPct = num(b.riskPct) ?? 1;
+    const minRR = num(b.minRR) ?? 2;
+    if (!(entry > 0) || !(stop > 0) || stop === entry) {
+      return res.status(400).json({ ok: false, error: 'Entry and stop must be positive, distinct prices. No setup issued.' });
+    }
+    const dir = stop < entry ? 'long' : 'short';
+    const dist = Math.abs(entry - stop);
+    const riskAmount = capital * riskPct / 100;
+    let qty = riskAmount / dist;
+    const capQty = Math.floor(capital / entry);
+    const capped = qty > capQty;
+    qty = Math.min(qty, capQty);
+    if (!(qty >= 1)) return res.status(400).json({ ok: false, error: `Risk ₹${riskAmount.toFixed(0)} cannot buy even 1 share at ₹${entry} within capital ₹${capital}. No setup issued.` });
+    qty = Math.floor(qty);
+    const t = target != null && target > 0 ? target : null;
+    const reward = t != null ? (dir === 'long' ? t - entry : entry - t) : null;
+    const rr = reward != null && dist > 0 ? reward / dist : null;
+    const rt = costs.roundTrip({ entryPrice: entry, exitPrice: t ?? entry, qty, cfg: { mode: b.mode === 'INTRADAY' ? 'INTRADAY' : 'DELIVERY' } });
+    const lossAtStop = dist * qty + rt.charges;
+    res.json({
+      ok: true, dir,
+      entry, stop, target: t,
+      capital, riskPct, riskAmount: +riskAmount.toFixed(2),
+      qty, notional: +(entry * qty).toFixed(2), cappedByCapital: capped,
+      plannedRR: rr != null ? +rr.toFixed(2) : null,
+      meetsMinRR: rr != null ? rr >= minRR : null, minRR,
+      estCosts: rt.charges, costPct: rt.costPct,
+      potentialLossAtStop: +lossAtStop.toFixed(2),
+      potentialProfitAtTarget: t != null ? +(reward * qty - rt.charges).toFixed(2) : null,
+      method: 'Risk-sized, no leverage. Costs are brokerage-model estimates (brokerage, STT, GST, stamp, slippage); target profit assumes the target fills — never a promise it will.',
+    });
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
 
 // ── Backtest: run the deterministic scanner rules over history ─────────
 // Returns the real engine output (never fabricated): stats, equity curve,

@@ -267,6 +267,71 @@ test('lab screen contract: insufficient history is skipped, never faked', () => 
   assert.ok(/insufficient/i.test(r.error || 'insufficient'), 'must refuse with an honest error');
 });
 
+// ── ADX / Bollinger / regime / score toggles (deterministic) ─────────────
+const { adx, bollinger } = require('../src/indicators');
+const regime = require('../src/regime');
+test('ADX of a strong monotonic trend exceeds 25 with +DI above −DI', () => {
+  const candles = Array.from({ length: 60 }, (_, i) => c(100 + i * 2, 100 + i * 2 + 1, 100 + i * 2 - 1, 100 + i * 2 + 0.5, 1000, i));
+  const r = adx(candles, 14);
+  assert.ok(r.adx[59] > 25, `adx ${r.adx[59]}`);
+  assert.ok(r.plusDI[59] > r.minusDI[59]);
+  assert.strictEqual(r.adx[20], null); // unsettled early values stay null
+});
+test('ADX of a flat market stays weak', () => {
+  const candles = Array.from({ length: 60 }, (_, i) => c(100 + ((i % 2) ? 0.2 : -0.2), 100.5, 99.5, 100, 1000, i));
+  const r = adx(candles, 14);
+  assert.ok(r.adx[59] < 25, `adx ${r.adx[59]}`);
+});
+test('Bollinger width expands on a trending series vs flat', () => {
+  const trend = Array.from({ length: 40 }, (_, i) => 100 + i);
+  const flat = Array.from({ length: 40 }, () => 100);
+  const wt = bollinger(trend, 20, 2).widthPct[39];
+  const wf = bollinger(flat, 20, 2).widthPct[39];
+  assert.ok(wt > wf, `trend ${wt} vs flat ${wf}`);
+  assert.strictEqual(bollinger(trend, 20, 2).widthPct[10], null);
+});
+test('regime classifies a strong uptrend as TRENDING_UP with thresholds shown', () => {
+  const r = regime.classify({ candles: new Array(70), adxNow: 32, atrPctNow: 1.8, bbWidthNow: 6, bbWidthMedian: 5, trend: 'UP', mtfAlign: 'BULL' });
+  assert.strictEqual(r.state, 'TRENDING_UP');
+  assert.strictEqual(r.thresholds.adxTrend, 25);
+  assert.ok(/ADX 32/.test(r.note));
+});
+test('regime flags a squeeze as BREAKOUT_WATCH without predicting direction', () => {
+  const r = regime.classify({ candles: new Array(70), adxNow: 14, atrPctNow: 1.0, bbWidthNow: 2.5, bbWidthMedian: 5, trend: 'RANGE', mtfAlign: 'NEUTRAL' });
+  assert.strictEqual(r.state, 'BREAKOUT_WATCH');
+  assert.ok(/NOT predicted/.test(r.note));
+});
+test('regime returns INSUFFICIENT_DATA rather than guessing', () => {
+  const r = regime.classify({ candles: new Array(10), adxNow: null, atrPctNow: null, bbWidthNow: null });
+  assert.strictEqual(r.state, 'INSUFFICIENT_DATA');
+});
+test('confluence score supports disabling factors and labels itself rule-based', () => {
+  const all = strategy.confluenceScore({ c: 100 }, strategy.DEFAULTS, 40, 1, { price: 1 }, { trend: 'UP', lastCHoCH: null }, [], { sellside: [{ swept: true }], buyside: [] });
+  const some = strategy.confluenceScore({ c: 100 }, { ...strategy.DEFAULTS, scoreOff: ['4H RSI < 50', 'Fresh BUY signal'] }, 40, 1, { price: 1 }, { trend: 'UP', lastCHoCH: null }, [], { sellside: [{ swept: true }], buyside: [] });
+  assert.ok(all.score === 15 + 15 + 20 + 15 + 10, `all ${all.score}`);
+  assert.strictEqual(some.score, all.score - 35);
+  assert.strictEqual(some.disabled.length, 2);
+  assert.ok(/Not a probability/.test(some.note));
+  assert.ok(all.parts.some((p) => p.missed), 'missed factors are listed, not hidden');
+});
+test('analyze embeds ADX, Bollinger and regime from real candles', () => {
+  const candles = Array.from({ length: 260 }, (_, i) => c(100 + i, 101 + i, 99 + i, 100.5 + i, 1000, Date.UTC(2024, 0, 1 + i)));
+  const a = strategy.analyze(candles, [], {});
+  assert.ok(a.ok, a.reason);
+  assert.ok(a.adx > 25 && a.plusDI > a.minusDI, `adx ${a.adx}`);
+  assert.ok(a.bollinger && a.bollinger.widthPct > 0 && a.bollinger.period === 20);
+  assert.ok(['TRENDING_UP', 'HIGH_VOL'].includes(a.regime.state), a.regime.state);
+  assert.ok(a.atrPct > 0);
+});
+test('risk sizing math: qty from risk, capped without leverage, honest refusal', () => {
+  const costs = require('../src/costs');
+  const entry = 500, stop = 490, capital = 100000, riskPct = 1;
+  const qty = Math.floor(Math.min((capital * riskPct / 100) / Math.abs(entry - stop), Math.floor(capital / entry)));
+  assert.strictEqual(qty, 100);
+  const rt = costs.roundTrip({ entryPrice: entry, exitPrice: 520, qty });
+  assert.ok(rt.charges > 0 && rt.charges < 500, `charges ${rt.charges}`);
+});
+
 console.log(`\n${pass}/${pass + fail} unit checks passed`);
 if (fail) { console.log('FAILED'); process.exit(1); }
 console.log('ALL UNIT CHECKS PASSED ✅');

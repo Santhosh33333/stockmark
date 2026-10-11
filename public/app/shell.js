@@ -980,7 +980,7 @@
         var cf = a.confluence; if (cf == null) return '—';
         if (typeof cf === 'number') return cf;
         var txt = (cf.score != null ? cf.score : '—');
-        if (cf.parts && cf.parts.length) txt += ' · ' + cf.parts.map(function (p) { return p.label; }).join(', ');
+        if (cf.parts && cf.parts.length) txt += ' · ' + cf.parts.filter(function (p) { return !p.missed; }).map(function (p) { return p.label; }).join(', ');
         return txt;
       })());
       gsec.appendChild(g);

@@ -88,6 +88,23 @@ function build(a, meta = {}) {
     add(d.dir === 'BULL' ? bull : bear, `Displacement candle (${d.dir})`, d.atrMult, `${d.atrMult}× ATR body at ₹${price}`);
   }
 
+  // ── ADX trend strength / Bollinger / regime ──
+  if (a.adx != null) {
+    add(a.adx >= 25 ? (a.plusDI != null && a.minusDI != null && a.plusDI >= a.minusDI ? bull : bear) : conflicts,
+      `ADX ${a.adx} (+DI ${a.plusDI ?? '—'} / −DI ${a.minusDI ?? '—'})`, a.adx,
+      a.adx >= 25 ? 'trend strength sufficient for momentum setups' : 'weak trend — momentum setups lack tailwind');
+  } else missing.push('ADX (needs more history)');
+  if (a.bollinger) {
+    const b = a.bollinger;
+    add(b.position === 'ABOVE_UPPER' ? bear : b.position === 'BELOW_LOWER' ? bull : conflicts,
+      `Bollinger ${b.period},${b.mult} — price ${b.position === 'INSIDE' ? 'inside' : b.position === 'ABOVE_UPPER' ? 'above upper' : 'below lower'} band`, b.widthPct,
+      `width ${b.widthPct}% (median ${b.medianWidthPct ?? '—'}%)`);
+  } else missing.push('Bollinger Bands (needs more history)');
+  if (a.regime && a.regime.state !== 'INSUFFICIENT_DATA') {
+    add(a.regime.state === 'TRENDING_UP' ? bull : a.regime.state === 'TRENDING_DOWN' ? bear : conflicts,
+      `Regime: ${a.regime.state.replace(/_/g, ' ')}`, null, a.regime.note);
+  } else missing.push('Market regime (' + (a.regime?.note || 'insufficient data') + ')');
+
   // ── Missing data ──
   if (!a.mtf?.timeframes?.some((t) => t.tf === '1H')) missing.push('1-hour series unavailable from provider');
   if (!a.mtf?.timeframes?.some((t) => t.tf === '5m' || t.tf === '15m')) missing.push('Intraday 5m/15m frames not requested (add ?intraday=1)');

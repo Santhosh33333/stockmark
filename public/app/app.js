@@ -390,9 +390,12 @@
   /* ── STOCK DETAIL ── */
   async function openStock(sym) {
     go('stock', sym);
-    state.detailLoading = true; render();
+    state.detailLoading = true; state.detailError = null; state.detailData = null;
+    state.ask = null; state.riskOut = null;
+    render();
     try {
-      const j = await api('/analysis/' + encodeURIComponent(sym));
+      const ns = (state.detailNoScore || []).join(',');
+      const j = await api('/analysis/' + encodeURIComponent(sym) + (ns ? '?noScore=' + encodeURIComponent(ns) : ''));
       state.detailData = j;
       state.detailLoading = false;
       render();
@@ -401,6 +404,130 @@
       state.detailLoading = false; state.detailError = e.message; render();
     }
   }
+  /* ── STOCK: score transparency + toggles ── */
+  function stockScoreCard(d) {
+    const cf = d.confluence || { score: 0, max: 100, parts: [], disabled: [] };
+    const off = new Set(state.detailNoScore || []);
+    const row = (p, cls, mark) => `<div class="set-row"><span class="lbl">${mark} ${esc(p.label)} <span class="tiny muted">+${p.pts}</span></span>
+      <button class="btn sm" onclick="window.__sa.stockScoreToggle('${esc(p.label).replace(/'/g, "\\'")}')">${off.has(p.label) ? 'Enable' : 'Disable'}</button></div>`;
+    return `<div class="section-title"><h2>Signal score — rule-based, not a probability</h2><span class="pill ${cf.score >= 50 ? 'buy' : 'none'}">${cf.score}/${cf.max ?? 100}</span></div>
+    <div class="card">
+      ${(cf.parts || []).filter((p) => !p.missed).map((p) => row(p, 'u', '✓')).join('')}
+      ${(cf.parts || []).filter((p) => p.missed).map((p) => `<div class="set-row"><span class="lbl muted">○ ${esc(p.label)} <span class="tiny muted">+${p.pts} missed</span></span>
+        <button class="btn sm" onclick="window.__sa.stockScoreToggle('${esc(p.label).replace(/'/g, "\\'")}')">Disable</button></div>`).join('')}
+      ${(cf.disabled || []).map((p) => `<div class="set-row"><span class="lbl muted">⊘ ${esc(p.label)} <span class="tiny muted">disabled by you</span></span>
+        <button class="btn sm" onclick="window.__sa.stockScoreToggle('${esc(p.label).replace(/'/g, "\\'")}')">Enable</button></div>`).join('') || ''}
+      <div class="tiny muted" style="margin-top:6px">${esc(cf.note || 'Rule-based confluence rating. Not a probability of profit.')}</div>
+      ${d.regime && d.regime.state !== 'INSUFFICIENT_DATA' ? `<div class="tiny" style="margin-top:4px">Regime: <b>${esc(d.regime.state.replace(/_/g, ' '))}</b> — ${esc(d.regime.note || '')}</div>` : `<div class="tiny d" style="margin-top:4px">Regime: insufficient data.</div>`}
+    </div>`;
+  }
+
+  /* ── STOCK: deterministic Ask box (no LLM, no invented facts) ── */
+  const ASK_PRESETS = ['Bullish breakout?', 'Why bearish?', 'Compare 15m vs 4H trends', 'Confirmed sweeps?', 'Is 1:2 R:R valid?', 'OI structure?'];
+  function answerAsk(q, d, b) {
+    const s = String(q || '').toLowerCase();
+    const L = [];
+    const ev = (arr) => (arr || []).map((e) => `${e.label}${e.detail ? ' — ' + e.detail : ''}`);
+    const has = (...ws) => ws.some((w) => s.includes(w));
+    L.push({ k: 'Instrument', v: `${d.symbol} (${d.exchange || 'NSE'}) · ₹${d.price}` });
+    L.push({ k: 'Source / freshness', v: `${d.source || 'Yahoo Finance'} · ${d.quality ? d.quality.status + ' — ' + (d.quality.note || '') : 'market data'} · last bar ${d.dataTo ? dt(d.dataTo) : '—'}` });
+    if (has('breakout', 'bullish')) {
+      L.push({ k: 'Observed facts', v: `Structure ${d.structure?.trend}, MTF ${d.mtf?.alignment}, regime ${d.regime?.state || 'n/a'}, vol ${d.volRatio}×, ADX ${d.adx ?? '—'}` });
+      L.push({ k: 'For a breakout', v: ev(b?.bullEvidence).slice(0, 4).join(' · ') || 'no bullish evidence right now' });
+      L.push({ k: 'Against', v: ev(b?.bearEvidence).slice(0, 4).join(' · ') || ev(b?.conflicts).slice(0, 3).join(' · ') || '—' });
+      L.push({ k: 'Invalidation', v: b?.levels?.invalidation ? `₹${b.levels.invalidation.price} (${b.levels.invalidation.label})` : 'none nearby' });
+    } else if (has('bearish', 'bear')) {
+      L.push({ k: 'Bearish evidence', v: ev(b?.bearEvidence).slice(0, 5).join(' · ') || 'no bearish evidence right now' });
+      L.push({ k: 'Bullish counter-evidence', v: ev(b?.bullEvidence).slice(0, 4).join(' · ') || '—' });
+      L.push({ k: 'Conflicts', v: ev(b?.conflicts).slice(0, 4).join(' · ') || '—' });
+    } else if (has('15m', '15m vs', 'compare') && has('4h')) {
+      const rows = (d.mtf?.timeframes || []).filter((t) => ['5m', '15m', '1H', '4H', 'D', 'W'].includes(t.tf));
+      L.push({ k: 'Trend by timeframe', v: rows.map((t) => `${t.tf}:${t.bias}(RSI ${t.rsi ?? '—'})`).join(' · ') || 'timeframes unavailable' });
+      L.push({ k: 'Confirmation', v: `Alignment ${d.mtf?.alignment} (score ${d.mtf?.score}). Confirmed signals use completed candles; the forming bar never confirms.` });
+    } else if (has('sweep', 'sweeps', 'liquidity')) {
+      const sw = [...(d.liquidity?.sellside || []).map((p) => ({ ...p, side: 'sell-side' })), ...(d.liquidity?.buyside || []).map((p) => ({ ...p, side: 'buy-side' }))];
+      L.push({ k: 'Confirmed sweeps', v: sw.filter((p) => p.swept).map((p) => `${p.side} ₹${p.level}`).join(' · ') || 'none swept in window' });
+      L.push({ k: 'Intact pools (stop-run candidates)', v: sw.filter((p) => !p.swept).map((p) => `${p.side} ₹${p.level} (${p.touches} touches)`).join(' · ') || 'none' });
+      L.push({ k: 'Honesty note', v: 'Sweeps are price action through prior extremes — candles alone cannot prove institutional orders.' });
+    } else if (has('1:2', 'risk', 'reward', 'r:r', 'rr')) {
+      const lv = b?.levels;
+      L.push({ k: 'Reference levels', v: lv ? `entry ≈ ₹${lv.entryReference}, invalidation ₹${lv.invalidation?.price ?? '—'}, first target ₹${lv.targets?.[0]?.price ?? '—'}` : 'levels unavailable' });
+      L.push({ k: 'Reference R:R', v: lv?.referenceRiskReward != null ? `≈ 1:${lv.referenceRiskReward} ${lv.referenceRiskReward >= 2 ? '(meets 1:2)' : '(BELOW 1:2 — fails a 1:2 minimum)'}` : 'cannot be determined — no actionable setup' });
+      L.push({ k: 'Warning', v: 'A target is a reference level, never a promise it will be reached.' });
+    } else if (has('oi', 'option', 'chain')) {
+      const oc = state.askChain;
+      L.push({ k: 'Option chain', v: oc ? `PCR ${oc.pcr ?? '—'}, max pain ${oc.maxPain?.strike ?? '—'}, ATM IV ${oc.atmIV ?? '—'}, spot ₹${oc.underlyingValue ?? '—'} (${dt(oc.updatedAt)})` : 'not loaded — open the Options tab for this symbol' });
+      L.push({ k: 'Limits', v: 'OI walls show positioning, not predictions. No options view is given on stale or missing chains.' });
+    } else if (has('backtest', 'out-of-sample', 'oos', 'strategy')) {
+      const st = d.stats || {};
+      L.push({ k: 'In-sample (this chart)', v: `${st.trades ?? 0} trades · win ${st.winRate ?? '—'}% · PF ${st.profitFactor ?? '—'} · max DD ${st.maxDrawdownPct ?? '—'}% over ${d.bars ?? '—'} bars` });
+      L.push({ k: 'Out-of-sample', v: 'Not run for these chart rules here — use the Strategy Lab (optimizer + walk-forward) before trusting any figure. In-sample is never proof.' });
+    } else {
+      L.push({ k: 'Summary', v: b?.headline || `${d.symbol} — no brief available` });
+      L.push({ k: 'Stance', v: b?.stance || '—' });
+      L.push({ k: 'Key risks', v: ev(b?.risks).slice(0, 3).join(' · ') || '—' });
+    }
+    L.push({ k: 'Missing data', v: ev(b?.missingData).slice(0, 4).join(' · ') || 'none reported' });
+    L.push({ k: 'Risk factors', v: ev(b?.risks).slice(0, 4).join(' · ') || 'standard market risk applies' });
+    return L;
+  }
+  function stockAskCard() {
+    const A = state.ask;
+    return `<div class="section-title"><h2>Ask — deterministic answers only</h2><span class="tiny muted">no AI invented facts</span></div>
+    <div class="card">
+      <div class="row wrap" style="gap:8px">
+        <input id="ask-q" placeholder="e.g. Is 1:2 R:R valid here?" style="flex:1;min-width:180px" onkeydown="if(event.key==='Enter')window.__sa.stockAsk()" />
+        <button class="btn sm primary" onclick="window.__sa.stockAsk()">${A && A.loading ? 'Asking…' : 'Ask'}</button>
+      </div>
+      <div class="row wrap" style="gap:6px;margin-top:8px">${ASK_PRESETS.map((p) => `<button class="btn sm" onclick="window.__sa.stockAsk('${p.replace(/'/g, "\\'")}')">${esc(p)}</button>`).join('')}</div>
+      ${A && A.error ? `<div class="tiny d" style="margin-top:8px">${esc(A.error)}</div>` : ''}
+      ${A && A.lines ? `<div style="margin-top:8px">${A.lines.map((l) => `<div class="set-row" style="align-items:flex-start"><span class="lbl">${esc(l.k)}</span><b style="flex:1;text-align:right;font-weight:500">${esc(l.v)}</b></div>`).join('')}</div>` : ''}
+    </div>`;
+  }
+
+  /* ── STOCK: setup risk panel (§5) ── */
+  function stockRiskCard(d) {
+    const last = (d.signals || []).slice(-1)[0];
+    const R = state.riskOut;
+    return `<div class="section-title"><h2>Setup quality &amp; risk</h2><span class="tiny muted">explicit rules, no assumed fills</span></div>
+    <div class="card">
+      <div class="row wrap" style="gap:8px;align-items:flex-end">
+        <label style="flex:1 1 90px">Entry ₹<input id="rk-entry" type="number" step="0.05" value="${last ? last.entry : (d.price ?? '')}" /></label>
+        <label style="flex:1 1 90px">Stop ₹<input id="rk-stop" type="number" step="0.05" value="${last ? last.invalidation : ''}" placeholder="${last ? '' : 'required'}" /></label>
+        <label style="flex:1 1 90px">Target ₹<input id="rk-target" type="number" step="0.05" value="${last && last.targets && last.targets[0] ? last.targets[0].price : ''}" placeholder="optional" /></label>
+        <label style="flex:0 0 90px">Capital ₹<input id="rk-cap" type="number" value="${(state.user && state.user.settings && state.user.settings.capital) || 100000}" /></label>
+        <label style="flex:0 0 64px">Risk %<input id="rk-risk" type="number" step="0.25" value="1" /></label>
+        <button class="btn sm primary" onclick="window.__sa.stockRisk()">Size it</button>
+      </div>
+      ${last ? `<div class="tiny muted" style="margin-top:6px">Prefilled from the latest chart signal (${dt(last.t)}): entry ₹${last.entry}, invalidation ₹${last.invalidation}${last.targets && last.targets[0] ? `, target ₹${last.targets[0].price} (R:R 1:${last.riskReward})` : ''}.</div>`
+        : `<div class="tiny muted" style="margin-top:6px">No chart signal — enter entry/stop/target manually. Nothing is issued until all three are explicit.</div>`}
+      ${R ? (R.ok === false ? `<div class="tiny d" style="margin-top:8px">${esc(R.error)}</div>` : `
+      <div class="stats-grid" style="margin-top:8px">
+        ${stat('Direction', R.dir === 'long' ? '▲ long' : '▼ short')}
+        ${stat('Qty', R.qty + (R.cappedByCapital ? ' (capped)' : ''))}
+        ${stat('Planned R:R', R.plannedRR != null ? '1:' + R.plannedRR : '—', R.meetsMinRR ? 'u' : R.meetsMinRR === false ? 'd' : '')}
+        ${stat('Meets min 1:' + R.minRR, R.meetsMinRR == null ? '—' : R.meetsMinRR ? 'yes' : 'NO', R.meetsMinRR ? 'u' : 'd')}
+        ${stat('Risk ₹', inr(R.riskAmount))}
+        ${stat('Loss at stop', inr(R.potentialLossAtStop), 'd')}
+        ${stat('Profit at target', R.potentialProfitAtTarget != null ? inr(R.potentialProfitAtTarget) : '—', 'u')}
+        ${stat('Est. costs', inr(R.estCosts))}
+      </div>
+      <div class="tiny muted" style="margin-top:4px">${esc(R.method)}</div>`) : ''}
+    </div>`;
+  }
+
+  /* ── STOCK: saveable reports (§8, local) ── */
+  function stockReports() { try { return JSON.parse(localStorage.getItem('tm_reports') || '[]'); } catch { return []; } }
+  function stockReportsCard(d) {
+    const reps = stockReports().filter((r) => r.symbol === d.symbol).slice(0, 5);
+    return `<div class="section-title"><h2>Saved reports</h2><span class="tiny muted">${reps.length} for ${esc(d.symbol)}</span></div>
+    <div class="card">
+      <button class="btn sm" onclick="window.__sa.stockSaveReport()">💾 Save this analysis</button>
+      ${reps.map((r) => `<div class="set-row"><span class="lbl">${dt(r.ts)} · ₹${r.price} · score ${r.score} · ${esc(r.regime || '')}</span>
+        <button class="btn sm" onclick="window.__sa.stockDelReport(${r.ts})">Delete</button></div>`).join('') || '<div class="tiny muted" style="margin-top:6px">No saved reports yet for this symbol.</div>'}
+    </div>`;
+  }
+
   function renderStock() {
     const d = state.detailData, s = state.user.settings;
     if (state.detailLoading) return `<div class="skel" style="height:280px"></div><div class="skel"></div><div class="skel"></div>`;
@@ -459,11 +586,18 @@
     <div class="stats-grid">
       ${stat('4H RSI', d.rsi4h ?? '—', d.rsi4h != null && d.rsi4h < 50 ? 'a' : '')}
       ${stat('Daily RSI', d.rsiDaily ?? '—', d.rsiDaily != null && d.rsiDaily > 55 ? 'a' : '')}
+      ${stat('ADX(14)', d.adx ?? '—', d.adx != null && d.adx >= 25 ? 'u' : '')}
+      ${stat('ATR %', d.atrPct != null ? d.atrPct + '%' : '—')}
+      ${stat('BB width %', d.bollinger ? d.bollinger.widthPct + '%' : '—')}
+      ${stat('Regime', d.regime ? d.regime.state.replace(/_/g, ' ') : '—', d.regime && /TRENDING/.test(d.regime.state) ? 'u' : d.regime && d.regime.state === 'BREAKOUT_WATCH' ? 'a' : '')}
       ${stat('Vol × 20MA', d.volRatio ?? '—', d.volRatio && d.volRatio > 1.3 ? 'u' : '')}
-      ${stat('ATR(14)', d.atr ?? '—')}
-      ${stat('Live zones', d.activeZones?.length ?? 0)}
       ${stat('Confluence', (d.confluence?.score ?? 0) + '%', (d.confluence?.score ?? 0) >= 50 ? 'u' : (d.confluence?.score ?? 0) > 0 ? 'a' : '')}
     </div>
+
+    ${stockScoreCard(d)}
+    ${stockAskCard()}
+    ${stockRiskCard(d)}
+    ${stockReportsCard(d)}
 
     <div class="section-title"><h2>Backtest on this chart (${st.trades} trades)</h2><span class="tiny muted">SL ${s.slPct}% · TP ${s.tpPct}%</span></div>
     <div class="stats-grid">
@@ -1695,6 +1829,58 @@
     openBacktest(sym) {
       if (sym) state.backtest.symbol = String(sym).toUpperCase();
       go('backtest');
+    },
+    stockScoreToggle(label) {
+      state.detailNoScore = state.detailNoScore || [];
+      const i = state.detailNoScore.indexOf(label);
+      if (i >= 0) state.detailNoScore.splice(i, 1); else state.detailNoScore.push(label);
+      if (state.detail) openStock(state.detail);
+    },
+    async stockAsk(preset) {
+      const d = state.detailData;
+      if (!d) { toast('Open a stock first', 'err'); return; }
+      const q = preset || ($('#ask-q') && $('#ask-q').value) || '';
+      if (!q.trim()) { toast('Type a question or tap a preset', 'err'); return; }
+      state.ask = { q, loading: true, lines: null, error: null };
+      render();
+      try {
+        let brief = null, chain = null;
+        try { brief = await api('/research/' + encodeURIComponent(state.detail)); } catch { brief = null; }
+        if (/oi|option|chain/i.test(q)) {
+          try {
+            const oc = await api('/options/' + encodeURIComponent(state.detail) + '/analytics');
+            if (oc && oc.ok !== false) chain = oc;
+          } catch { chain = null; }
+        }
+        state.askChain = chain;
+        state.ask = { q, loading: false, lines: answerAsk(q, d, brief && brief.ok !== false ? brief : null), error: null };
+      } catch (e) { state.ask = { q, loading: false, lines: null, error: e.message }; }
+      render();
+    },
+    async stockRisk() {
+      const num = (id) => { const el = $(id); return el && el.value !== '' && isFinite(+el.value) ? +el.value : null; };
+      const body = {
+        entry: num('#rk-entry'), stop: num('#rk-stop'), target: num('#rk-target'),
+        capital: num('#rk-cap') || 100000, riskPct: num('#rk-risk') ?? 1, minRR: 2,
+      };
+      try {
+        state.riskOut = await api('/risk/estimate', { method: 'POST', body });
+      } catch (e) { state.riskOut = { ok: false, error: e.message }; }
+      render();
+    },
+    stockSaveReport() {
+      const d = state.detailData; if (!d) return;
+      let reps = [];
+      try { reps = JSON.parse(localStorage.getItem('tm_reports') || '[]'); } catch { reps = []; }
+      reps.unshift({ ts: Date.now(), symbol: d.symbol, price: d.price, score: d.confluence?.score ?? 0, regime: d.regime?.state || null, rsi4h: d.rsi4h, rsiDaily: d.rsiDaily, adx: d.adx });
+      try { localStorage.setItem('tm_reports', JSON.stringify(reps.slice(0, 50))); toast('Report saved', 'ok'); } catch { toast('Storage full', 'err'); }
+      render();
+    },
+    stockDelReport(ts) {
+      let reps = [];
+      try { reps = JSON.parse(localStorage.getItem('tm_reports') || '[]'); } catch { reps = []; }
+      try { localStorage.setItem('tm_reports', JSON.stringify(reps.filter((r) => r.ts !== ts))); } catch { }
+      render();
     },
 
     /* ── Strategy Lab ── */

@@ -115,4 +115,63 @@ function resample4h(hourly) {
   return out;
 }
 
-module.exports = { sma, ema, rsi, atr, macdHistogram, resample4h };
+// Average Directional Index (Wilder). Returns { adx, plusDI, minusDI } arrays.
+// Needs >= 2*period bars for a settled reading; earlier values stay null.
+function adx(candles, period = 14) {
+  const n = candles.length;
+  const out = { adx: new Array(n).fill(null), plusDI: new Array(n).fill(null), minusDI: new Array(n).fill(null) };
+  if (n < 2 * period + 1) return out;
+  const tr = trueRange(candles);
+  let sTR = 0, sPlus = 0, sMinus = 0;
+  for (let i = 1; i <= period; i++) {
+    const c = candles[i], p = candles[i - 1];
+    const up = c.h - p.h, dn = p.l - c.l;
+    sTR += tr[i];
+    sPlus += up > dn && up > 0 ? up : 0;
+    sMinus += dn > up && dn > 0 ? dn : 0;
+  }
+  const dx = [];
+  const push = (i) => {
+    const plusDI = sTR > 0 ? (100 * sPlus) / sTR : 0;
+    const minusDI = sTR > 0 ? (100 * sMinus) / sTR : 0;
+    out.plusDI[i] = +plusDI.toFixed(2);
+    out.minusDI[i] = +minusDI.toFixed(2);
+    dx[i] = plusDI + minusDI > 0 ? (100 * Math.abs(plusDI - minusDI)) / (plusDI + minusDI) : 0;
+  };
+  push(period);
+  for (let i = period + 1; i < n; i++) {
+    const c = candles[i], p = candles[i - 1];
+    const up = c.h - p.h, dn = p.l - c.l;
+    sTR = sTR - sTR / period + tr[i];
+    sPlus = sPlus - sPlus / period + (up > dn && up > 0 ? up : 0);
+    sMinus = sMinus - sMinus / period + (dn > up && dn > 0 ? dn : 0);
+    push(i);
+  }
+  let sum = 0;
+  for (let i = period + 1; i <= 2 * period; i++) sum += dx[i];
+  out.adx[2 * period] = +(sum / period).toFixed(2);
+  for (let i = 2 * period + 1; i < n; i++) {
+    out.adx[i] = +(((out.adx[i - 1] * (period - 1)) + dx[i]) / period).toFixed(2);
+  }
+  return out;
+}
+
+// Bollinger Bands. Returns { middle, upper, lower, widthPct } arrays where
+// widthPct = (upper-lower)/middle*100 (BandWidth, volatility proxy).
+function bollinger(values, period = 20, mult = 2) {
+  const n = values.length;
+  const out = { middle: new Array(n).fill(null), upper: new Array(n).fill(null), lower: new Array(n).fill(null), widthPct: new Array(n).fill(null) };
+  const mid = sma(values, period);
+  for (let i = period - 1; i < n; i++) {
+    let sum = 0;
+    for (let k = i - period + 1; k <= i; k++) sum += (values[k] - mid[i]) ** 2;
+    const sd = Math.sqrt(sum / period);
+    out.middle[i] = mid[i];
+    out.upper[i] = mid[i] + mult * sd;
+    out.lower[i] = mid[i] - mult * sd;
+    out.widthPct[i] = mid[i] ? +(((out.upper[i] - out.lower[i]) / mid[i]) * 100).toFixed(3) : null;
+  }
+  return out;
+}
+
+module.exports = { sma, ema, rsi, atr, macdHistogram, resample4h, adx, bollinger };
