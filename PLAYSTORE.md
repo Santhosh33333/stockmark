@@ -78,15 +78,15 @@ asset-links. Two ways to avoid that:
 |---|---|---|
 | App icon | 512×512 PNG | ✅ `public/icons/icon-512.png` |
 | Feature graphic | 1024×500 PNG | ✅ `public/store/feature-graphic-1024x500.png` |
-| Phone screenshots | 2–8, 1080×1922 (9:16) | ✅ 6 in `public/store/screenshots/phone-*.png` |
+| Phone screenshots | 2–8, 1080×1922 (9:16) | ✅ 7 in `public/store/screenshots/phone-*.png` |
 | 7" tablet screenshots | ≥1, 1200×1920 | ✅ 2 in `public/store/screenshots/tablet-7in-*.png` |
 | 10" tablet screenshots | ≥1, 1600×2560 | ✅ 2 in `public/store/screenshots/tablet-10in-*.png` |
 | Short description | ≤80 chars | see below |
 | Full description | ≤4000 chars | see below |
 
 Screenshots are real captures of the running app (headless Chromium emulating a
-phone / 7" / 10" viewport against a live session) — dashboard, scanner,
-backtest, Strategy Lab, options analytics, auto paper-trading.
+phone / 7" / 10" viewport against a live session) — dashboard, scanner, stock
+analysis, backtest, Strategy Lab, options analytics, auto paper-trading.
 
 ### Short description (74 chars)
 
