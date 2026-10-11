@@ -83,7 +83,7 @@ router.post('/auth/login', async (req, res) => {
   const u = auth.authenticate(username || email, password);
   if (!u) return res.status(401).json({ error: 'Invalid email or password' });
 
-  const settings = auth.getSettings(u);
+  const settings = auth.effectiveSettings(u);
   const requireOtp = settings.loginOtp !== false && settings.mode !== 'LIVE';
   if (!requireOtp) {
     const token = auth.createSession(u.id);

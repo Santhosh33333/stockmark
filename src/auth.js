@@ -65,7 +65,7 @@ function publicUser(u) {
   return {
     id: u.id, username: u.username, displayName: u.display_name || u.username.split('@')[0],
     isAdmin: !!u.is_admin, createdAt: u.created_at, lastLogin: u.last_login,
-    settings: { ...DEFAULT_SETTINGS, ...(safeJson(u.settings) || {}) },
+    settings: effectiveSettings(u),
   };
 }
 const safeJson = (s) => { try { return JSON.parse(s || '{}'); } catch { return {}; } };
@@ -110,6 +110,20 @@ function updateSettings(userId, patch) {
   return merged;
 }
 const getSettings = (u) => ({ ...DEFAULT_SETTINGS, ...(safeJson(u.settings) || {}) });
+
+// OTP can be switched off per account (Settings → "Sign-in email OTP") or
+// globally for password-only sign-in. Global off is honoured through one helper
+// so every caller (login, settings UI, publicUser) agrees.
+//   • owner.json { "loginOtp": false }  → server.js maps this to LOGIN_OTP=off
+//   • LOGIN_OTP=off  (env)
+function otpDisabledEnv() {
+  return /^(off|false|0|no|disabled)$/i.test(String(process.env.LOGIN_OTP || '').trim());
+}
+const effectiveSettings = (u) => {
+  const s = getSettings(u);
+  if (otpDisabledEnv()) s.loginOtp = false;
+  return s;
+};
 
 // Seeds the private owner/admin account once (credentials come from server env, never exposed by API)
 function seedAdmin() {
@@ -170,4 +184,4 @@ function verifyOtp(email, code, purpose = 'signup') {
   return { ok: true, user: u };
 }
 
-module.exports = { createUser, authenticate, createSession, userForToken, destroySession, updateSettings, getSettings, publicUser, DEFAULT_SETTINGS, RISK_RANGES, sanitizeSettings, checkRate, seedAdmin, hashPassword, sendOtp, verifyOtp };
+module.exports = { createUser, authenticate, createSession, userForToken, destroySession, updateSettings, getSettings, effectiveSettings, otpDisabledEnv, publicUser, DEFAULT_SETTINGS, RISK_RANGES, sanitizeSettings, checkRate, seedAdmin, hashPassword, sendOtp, verifyOtp };

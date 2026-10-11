@@ -107,15 +107,21 @@ async function main() {
     const authHeaders = { Authorization: 'Bearer ' + token };
 
     const login = await call('POST', '/api/auth/login', { email, password: 'test1234' });
-    check('Sign in requests OTP', login.status === 200 && login.body.requiresOtp === true, login.body.message || login.body.error);
-    if (login.body.dev) {
-      const login2 = await call('POST', '/api/auth/verify-login-otp', { email, code: login.body.dev });
-      check('Sign in with OTP', login2.status === 200 && !!login2.body.token, login2.body.error);
+    if (login.body.token) {
+      // OTP disabled (LOGIN_OTP=off or per-account loginOtp:false) → password-only
+      check('Sign in (password-only, OTP off)', login.status === 200 && !!login.body.token, 'token issued directly');
+      const meNow = await call('GET', '/api/me', null, { Authorization: 'Bearer ' + login.body.token });
+      check('Password-only session works', meNow.status === 200 && meNow.body.user?.username === email, 'session valid');
     } else {
-      const { DatabaseSync } = require('node:sqlite');
-      const db = new DatabaseSync('./data/app.db');
-      const row = db.prepare('SELECT code FROM email_otps WHERE email = ? AND purpose = ? AND consumed = 0 ORDER BY id DESC LIMIT 1').get(email, 'login');
-      const login2 = await call('POST', '/api/auth/verify-login-otp', { email, code: row.code });
+      check('Sign in requests OTP', login.status === 200 && login.body.requiresOtp === true, login.body.message || login.body.error);
+      let code = login.body.dev;
+      if (!code) {
+        const { DatabaseSync } = require('node:sqlite');
+        const db = new DatabaseSync('./data/app.db');
+        const row = db.prepare('SELECT code FROM email_otps WHERE email = ? AND purpose = ? AND consumed = 0 ORDER BY id DESC LIMIT 1').get(email, 'login');
+        code = row && row.code;
+      }
+      const login2 = await call('POST', '/api/auth/verify-login-otp', { email, code });
       check('Sign in with OTP', login2.status === 200 && !!login2.body.token, login2.body.error);
     }
 

@@ -227,6 +227,12 @@ migrations are performed on existing data.
   persists to `localStorage`, double-click resets, narrow screens collapse to one
   column, and navigating away/back re-applies exactly one split (0 console errors).
 - Owner account intact; test accounts removed (DB: 1 owner, 0 test sessions).
+- **Password-only sign-in** (no email OTP) verified: `/auth/login` returns a session
+  token directly; end-to-end browser test signed in with email+password (no OTP
+  step shown, full app nav, 0 console errors); `/api/me` reports `loginOtp:false`.
+  Enabled via `owner.json` `{"loginOtp": false}`, env `LOGIN_OTP=off`, or
+  Settings → "Sign-in email OTP". Sign-up still verifies the address; LIVE mode
+  always keeps OTP on. Selftest covers both the OTP and password-only paths.
 
 ## Known limitations (honest)
 
