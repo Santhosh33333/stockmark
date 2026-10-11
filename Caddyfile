@@ -1,0 +1,6 @@
+# SITE_ADDRESS is read from the .env file. Options:
+#   • No domain (default): <your-vm-public-ip>.sslip.io  → free automatic HTTPS
+#   • Your own domain:     app.example.com               → free automatic HTTPS
+#   • Plain HTTP only:     :80                           → no TLS (raw IP; not advised)
+{$SITE_ADDRESS}
+reverse_proxy app:5124

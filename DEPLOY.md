@@ -79,8 +79,9 @@ cloudflared tunnel run trademind    # keep this running (or install it as a serv
 1. Push this repo to GitHub (already done: `Santhosh33333/stockmark`).
 2. Render dashboard → **New + → Blueprint** → pick the repo → **Apply**.
 3. Set the two secrets in the dashboard (**Environment → Secret**):
-   `ADMIN_EMAIL`, `ADMIN_PASSWORD` (the `render.yaml` already sets
-   `ALLOW_SIGNUP=off` and `NODE_VERSION=24.18.0`).
+   `ADMIN_EMAIL`, `ADMIN_PASSWORD`. `render.yaml` already sets `NODE_VERSION=24.18.0`
+   and `ALLOW_SIGNUP=on` — flip it to `off` there if you want the app to be
+   owner-only.
 
 **Free-tier reality:** the free plan sleeps after ~15 min idle (first request then
 takes a few seconds) and its disk is **not persistent**, so the SQLite DB resets
@@ -98,31 +99,72 @@ fly deploy
 ```
 
 `fly.toml` mounts the volume at `/data` and sets `DATA_DIR=/data`, so the DB
-survives. Fly's billing is pay-as-you-go with a small monthly free allowance —
-check your current account terms.
+survives. **Fly has no free tier any more** (removed Oct 2024) — new accounts are
+pay-as-you-go, roughly $2–5/month for a tiny machine. Use it if you want a managed
+volume without running a VM; for genuinely free persistence use option 4.
 
 ---
 
-## 4. Oracle Cloud **Always Free** VM — persistent, self-owned
+## 4. Oracle Cloud **Always Free** VM — free + persistent ⭐ best free host
 
-An `Always Free` ARM/AMD VM (needs a card for identity verification, but the VM
-itself is free with no time limit). Best option if you want a permanently free,
-fully persistent instance under your control:
+The only free option here that keeps your data **and** stays always-on (Render's
+free tier sleeps after idle and wipes the disk on restart). The VM needs a card for
+identity verification but is free with no time limit; the ARM Always-Free allowance
+is **2 OCPU / 12 GB RAM**, far more than this app needs.
+
+`docker-compose.yml` runs the app **and** Caddy (automatic HTTPS) together, so this
+is a genuine one-command deploy.
+
+**Create the VM (once, ~10 min):**
+1. Sign up at **cloud.oracle.com** → **Create instance**.
+2. Image **Ubuntu 24.04** · Shape **VM.Standard.A1.Flex** (ARM) · **2 OCPU / 12 GB**.
+   If ARM shows "out of capacity", retry later or use another region.
+3. Download the SSH key, create the instance, note its **public IP**.
+4. **VCN → Security Lists → Default** → add ingress rules for TCP **80** and **443**.
+
+**Install & run (SSH into the VM):**
 
 ```bash
-# on the VM, with Node 24 installed (nvm or nodesource)
+# 1) open the OS firewall (Oracle images ship with iptables rules that block it)
+sudo iptables -I INPUT 6 -m state --state NEW -p tcp --dport 80 -j ACCEPT
+sudo iptables -I INPUT 6 -m state --state NEW -p tcp --dport 443 -j ACCEPT
+sudo DEBIAN_FRONTEND=noninteractive apt-get install -y iptables-persistent
+sudo netfilter-persistent save
+
+# 2) Docker + Compose plugin
+curl -fsSL https://get.docker.com | sudo sh
+sudo usermod -aG docker $USER && newgrp docker
+
+# 3) get the app and configure
 git clone https://github.com/Santhosh33333/stockmark.git && cd stockmark
-npm ci --omit=dev
-ALLOW_SIGNUP=off ADMIN_EMAIL=you@example.com ADMIN_PASSWORD=change-me npm start
-# keep it alive with pm2 or a systemd unit; open port 5124 in the VCN security list
+cp .env.deploy.example .env
+nano .env        # set ADMIN_EMAIL, ADMIN_PASSWORD, SITE_ADDRESS=<public-ip>.sslip.io
+
+# 4) build and start (app + free HTTPS)
+docker compose up -d --build
 ```
 
-Put Caddy or nginx in front for free automatic HTTPS, or use option 1's tunnel to
-avoid exposing the VM directly.
+Open **`https://<your-public-ip>.sslip.io/app/`** — Caddy gets a free Let's Encrypt
+certificate automatically (no domain needed), so the session cookie is `Secure`.
+Data persists in `./data` on the boot volume and survives restarts and rebuilds.
+
+Update later with `git pull && docker compose up -d --build`.
+
+Prefer not to expose the VM? Delete the `caddy` service from
+`docker-compose.yml`, keep only `app`, and reach port 5124 with option 1's tunnel.
 
 ---
 
 ## 5. Any Docker host / VPS
+
+The included `docker-compose.yml` is the quickest route (app + free HTTPS):
+
+```bash
+cp .env.deploy.example .env      # set the secrets + SITE_ADDRESS
+docker compose up -d --build
+```
+
+Or by hand:
 
 ```bash
 docker build -t trademind .
@@ -174,6 +216,7 @@ Live orders are **OFF by default**. To power them on:
 - [ ] `ALLOW_SIGNUP=off` unless you actually want strangers to register.
 - [ ] Served over HTTPS (the session cookie then becomes `Secure`).
 - [ ] `owner.json`, `.env`, `data/` stay out of git (already in `.gitignore`).
+- [ ] Only ports 80/443 are open on the host; the app's 5124 stays internal.
 - [ ] Live trading stays **off** (default). It requires your own Dhan keys plus an
       explicit in-app confirmation.
 

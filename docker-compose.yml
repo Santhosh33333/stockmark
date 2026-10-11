@@ -1,0 +1,37 @@
+# Free, persistent, one-command deploy — Oracle Cloud Always-Free VM, any VPS,
+# or local Docker. SQLite data lives in ./data and survives restarts and rebuilds.
+#
+#   cp .env.deploy.example .env      # set ADMIN_EMAIL, ADMIN_PASSWORD, SITE_ADDRESS
+#   docker compose up -d --build
+#
+# Caddy gives automatic HTTPS for SITE_ADDRESS (see .env.deploy.example) — no
+# domain required thanks to sslip.io.
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      PORT: "5124"
+      HOST: "0.0.0.0"
+      DATA_DIR: "/app/data"
+    volumes:
+      - ./data:/app/data
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on:
+      - app
+    env_file: .env
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  caddy_data:
+  caddy_config:
