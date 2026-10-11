@@ -300,9 +300,11 @@ async function main() {
       check('Admin guard (anonymous → 403)', guard.status === 403);
     }
 
-    const mail = await call('GET', '/api/mail/status');
-    check('Email OTP sender status', mail.status === 200 && mail.body.mail?.provider,
-      `${mail.body.mail?.mode} · TTL ${mail.body.otpTtl}min`);
+    const otpGone = await call('POST', '/api/auth/verify-otp', { email, code: '123456' });
+    check('Legacy OTP endpoint removed (404)', otpGone.status === 404, `POST /api/auth/verify-otp → ${otpGone.status}`);
+
+    const forgotGone = await call('POST', '/api/auth/forgot-password', { email });
+    check('Email reset removed (404)', forgotGone.status === 404, `POST /api/auth/forgot-password → ${forgotGone.status}`);
 
     const landing = await fetch(BASE + '/');
     check('Landing page', landing.status === 200 && (await landing.text()).includes('TradeMind'));

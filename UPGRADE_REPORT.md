@@ -228,13 +228,17 @@ migrations are performed on existing data.
   persists to `localStorage`, double-click resets, narrow screens collapse to one
   column, and navigating away/back re-applies exactly one split (0 console errors).
 - Owner account intact; test accounts removed (DB: 1 owner, 0 test sessions).
-- **OTP removed — password-only auth**: `/auth/signup` and `/auth/login` now issue
-  a session token directly (no code step, no mailer, no OTP setting). The auth
-  screen's OTP form, the Settings "Sign-in email OTP" toggle and both "Email OTP
-  sender" sections were deleted; `app.css` OTP rules removed. Verified end-to-end
-  in-browser (email + password → app, no OTP step, 0 console errors); selftest now
-  covers sign-up / sign-in / wrong-password / duplicate-email. `src/mailer.js` and
-  the `email_otps` table remain dormant (unused) so the flow could be restored.
+- **OTP removed end to end — password-only auth**: `/auth/signup` and `/auth/login`
+  issue a session token directly (no code step). Deleted: `src/mailer.js`, the
+  `src/otp/` helpers, the `email_otps` table, the `email_verified` column, `config.mail`
+  / `config.otp`, the `nodemailer` dependency, every `/auth/*otp*` + `/mail/*` +
+  forgot/reset-password route, and the auth-screen reset form. Also fixed the sign-in
+  limiter: it is now keyed **per account (IP + email)** so one account's failed
+  attempts can no longer lock out a different account on the same device — only
+  *failed* attempts count, so normal sign-in/out never trips it. Password resets are
+  done by the owner from **Admin → Users**. Verified: 29/29 unit checks, 17/17 live
+  auth checks (signup, 12× login, lockout at 8, cross-account isolation, all removed
+  routes 404, owner reset, admin overview without a mail block).
 - **Bug fix**: the shell's `authJson` never sent the `Authorization` header, so the
   price-alert panel and poller (`/api/alerts/rules*`) returned 401 whenever the
   `sa_token` cookie was absent. It now sends `Bearer <sa_token>` like the rest of

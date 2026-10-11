@@ -1,10 +1,18 @@
 // Local account system (signup / signin). Passwords hashed with scrypt — no third-party service, no cost.
 const crypto = require('crypto');
-const { stmt, now, config } = require('./db');
+const { stmt, now } = require('./db');
 
 const SESSION_DAYS = 30;
-const loginAttempts = new Map();   // ip -> {count, first}
-const MAX_ATTEMPTS = 8, WINDOW_MS = 10 * 60 * 1000;
+
+// Sign-in throttling. The tight limit is keyed per (IP + account) so a failed
+// sign-in on one account can NEVER lock out a different account on the same
+// device or network — accounts stay independent. A looser per-IP cap still stops
+// an attacker from cycling through many emails. Only FAILED attempts are counted,
+// so ordinary signing in/out can never trip the limit.
+const attempts = new Map();          // key -> { count, first }
+const MAX_ATTEMPTS = 8;              // failed tries per (IP + account) / window
+const MAX_IP_ATTEMPTS = 40;          // failed tries per IP across all accounts / window
+const WINDOW_MS = 10 * 60 * 1000;
 
 function hashPassword(password, salt = crypto.randomBytes(16).toString('hex')) {
   const hash = crypto.scryptSync(String(password), salt, 64).toString('hex');
@@ -16,16 +24,36 @@ function verifyPassword(password, salt, expected) {
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
-function checkRate(ip) {
-  const rec = loginAttempts.get(ip);
-  if (!rec || now() - rec.first > WINDOW_MS) { loginAttempts.set(ip, { count: 1, first: now() }); return true; }
-  rec.count++;
-  return rec.count <= MAX_ATTEMPTS;
+const acctKey = (ip, account) => 'acct:' + ip + '|' + String(account || '').toLowerCase();
+function windowCount(key) {
+  const rec = attempts.get(key);
+  if (!rec || now() - rec.first > WINDOW_MS) return 0;
+  return rec.count;
+}
+function bump(key) {
+  const rec = attempts.get(key);
+  if (!rec || now() - rec.first > WINDOW_MS) attempts.set(key, { count: 1, first: now() });
+  else rec.count++;
+}
+// True when another attempt is allowed. `account` (email/username) scopes the
+// tight limit to that one account; omit it for a pure per-IP check.
+function checkRate(ip, account) {
+  if (windowCount('ip:' + ip) >= MAX_IP_ATTEMPTS) return false;
+  if (account && windowCount(acctKey(ip, account)) >= MAX_ATTEMPTS) return false;
+  return true;
+}
+// Call after a FAILED sign-in or sign-up.
+function noteFailure(ip, account) {
+  bump('ip:' + ip);
+  if (account) bump(acctKey(ip, account));
+}
+// Call after a successful sign-in — clears that account's failure counter.
+function noteSuccess(ip, account) {
+  if (account) attempts.delete(acctKey(ip, account));
 }
 
 const DEFAULT_SETTINGS = {
   mode: 'PAPER',                 // PAPER | SIGNAL | LIVE
-  loginOtp: true,                // email OTP on every sign-in
   capital: 100000,
   qtyPct: 20,
   maxPositions: 5,
@@ -150,20 +178,7 @@ function updateSettings(userId, patch) {
   return merged;
 }
 const getSettings = (u) => ({ ...DEFAULT_SETTINGS, ...(safeJson(u.settings) || {}) });
-
-// OTP can be switched off per account (Settings → "Sign-in email OTP") or
-// globally for password-only sign-in. Global off is honoured through one helper
-// so every caller (login, settings UI, publicUser) agrees.
-//   • owner.json { "loginOtp": false }  → server.js maps this to LOGIN_OTP=off
-//   • LOGIN_OTP=off  (env)
-function otpDisabledEnv() {
-  return /^(off|false|0|no|disabled)$/i.test(String(process.env.LOGIN_OTP || '').trim());
-}
-const effectiveSettings = (u) => {
-  const s = getSettings(u);
-  if (otpDisabledEnv()) s.loginOtp = false;
-  return s;
-};
+const effectiveSettings = (u) => getSettings(u);
 
 // Seeds the private owner/admin account once (credentials come from server env, never exposed by API)
 function seedAdmin() {
@@ -176,77 +191,8 @@ function seedAdmin() {
   return { id: Number(info.lastInsertRowid), username: email };
 }
 
-// ── Email OTP (free senders) ────────────────────────────────────────────
-async function sendOtp(email, purpose = 'signup') {
-  email = String(email || '').trim().toLowerCase();
-  const { isValidEmail } = require('./otp/validator');
-  if (!isValidEmail(email)) throw new Error('Enter a valid email address');
+// ── password reset ─────────────────────────────────────────────────────
+// There is no self-service email reset. The owner resets a password from
+// Admin → Users, which reuses setUserPassword below.
 
-  // resend cooldown
-  const recent = stmt.latestOtp.get(email, purpose);
-  if (recent && now() - recent.created_at < config.otp.resendCooldownSec * 1000) {
-    const wait = Math.ceil((config.otp.resendCooldownSec * 1000 - (now() - recent.created_at)) / 1000);
-    throw new Error(`Please wait ${wait}s before requesting another code`);
-  }
-
-  const { isSpam } = require('./otp/spamGuard');
-  const mailer = require('./mailer');
-  const otpType = cfgOtpType(mailer);
-  const code = mailer.generateOTP(config.otp.length, otpType);
-  const ttl = config.otp.ttlMinutes * 60000;
-  stmt.insertOtp.run(email, code, purpose, now() + ttl, now());
-  stmt.invalidateOtps.run(email, purpose === 'signup' ? 'login' : 'signup');
-
-  const { subject, html, text } = mailer.otpEmail(code, config.otp.ttlMinutes, purpose);
-  const sent = await mailer.send({ to: email, subject, html, text });
-  stmt.log.run(null, 'OTP SENT', `${purpose} → ${email} (${sent.provider})`, now());
-  return { sent, code: sent.ok ? undefined : code, email, purpose, expiresInMin: config.otp.ttlMinutes };
-}
-
-function cfgOtpType(mailer) {
-  try { return mailer.status().otpType || 'numeric'; } catch { return 'numeric'; }
-}
-
-function verifyOtp(email, code, purpose = 'signup') {
-  email = String(email || '').trim().toLowerCase();
-  const row = stmt.latestOtp.get(email, purpose);
-  if (!row) return { ok: false, error: 'No code requested. Tap "Resend code".' };
-  if (row.consumed) return { ok: false, error: 'Code already used.' };
-  if (row.expires_at < now()) return { ok: false, error: 'Code expired. Request a new one.' };
-  if (row.attempts >= config.otp.maxAttempts) return { ok: false, error: 'Too many wrong attempts. Request a new code.' };
-  if (String(code || '').trim() !== row.code) {
-    stmt.bumpOtp.run(row.id);
-    return { ok: false, error: 'Incorrect code. Check your email.' };
-  }
-  stmt.consumeOtp.run(row.id);
-  const u = stmt.userByUsername.get(email);
-  if (u) stmt.setEmailVerified.run(u.id);
-  return { ok: true, user: u };
-}
-
-// ── password reset (email code) ─────────────────────────────────────────
-// Reuses the free OTP mailer. When there is no such account we do NOT send and
-// report exists:false, so the API can stay generic and avoid email enumeration.
-async function sendResetCode(email) {
-  email = String(email || '').trim().toLowerCase();
-  const u = stmt.userByUsername.get(email);
-  if (!u) return { exists: false, sent: { ok: false, provider: 'dev' } };
-  const out = await sendOtp(email, 'reset');
-  return { exists: true, ...out };
-}
-
-function resetPassword(email, code, newPassword) {
-  email = String(email || '').trim().toLowerCase();
-  const u = stmt.userByUsername.get(email);
-  if (!u) return { ok: false, error: 'Invalid or expired reset code' };
-  if (String(newPassword || '').length < 6) return { ok: false, error: 'Password must be at least 6 characters' };
-  const out = verifyOtp(email, code, 'reset');
-  if (!out.ok) return out;
-  const { hash, salt } = hashPassword(newPassword);
-  stmt.setUserPassword.run(hash, salt, u.id);
-  stmt.deleteUserSessions.run(u.id);            // sign out everywhere else
-  stmt.log.run(u.id, 'PASSWORD RESET', 'via email code', now());
-  return { ok: true, user: stmt.userById.get(u.id) };
-}
-
-module.exports = { createUser, authenticate, createSession, userForToken, tokenIsValid, destroySession, updateSettings, getSettings, effectiveSettings, otpDisabledEnv, publicUser, DEFAULT_SETTINGS, RISK_RANGES, sanitizeSettings, checkRate, seedAdmin, hashPassword, sendOtp, verifyOtp, sendResetCode, resetPassword };
+module.exports = { createUser, authenticate, createSession, userForToken, tokenIsValid, destroySession, updateSettings, getSettings, effectiveSettings, publicUser, DEFAULT_SETTINGS, RISK_RANGES, sanitizeSettings, checkRate, noteFailure, noteSuccess, seedAdmin, hashPassword };

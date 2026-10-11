@@ -83,7 +83,7 @@ Sign-up and login use **email + password** only — no OTP and no email provider
 - `POST /auth/login` returns a session token directly.
 - Sessions are stored server-side and sent as a `Bearer` token (or the `sa_token` cookie).
 
-> Email OTP was removed. `src/mailer.js` and the `email_otps` table are left in place, unused, so the flow could be restored later — but nothing in the app requires it now.
+> Email OTP was removed **completely**: the `src/mailer.js` module, the `src/otp/` helpers, the `email_otps` table and the `nodemailer` dependency are all gone. Password resets are done by the owner from **Admin → Users**.
 
 ### Owner / admin account
 
@@ -219,7 +219,7 @@ src/
   indicators.js           SMA / EMA / RSI / ATR / MACD / 4H resample
   scanner.js              Parallel universe scanner + jobs + SSE
   paper.js                Paper-trading engine
-  mailer.js notify.js     Email OTP senders + Telegram/browser alerts
+  notify.js               Telegram / browser alerts
   dhan.js                 Optional Dhan live-execution bridge
   db.js                   node:sqlite schema + prepared statements
   routes/public.js        Market / scan / analysis / SSE
@@ -227,7 +227,6 @@ src/
   providers/yahoo.js      Free quotes + candles
   providers/symbols.js    NSE + BSE symbol masters
   providers/options.js    Option chain (Dhan primary, free NSE fallback)
-  otp/                    OTP generate / validate / spam-guard
 public/
   landing.html landing.css
   app/  index.html app.css app.js chart.js fx.js sw.js manifest.webmanifest
@@ -248,9 +247,7 @@ data/                     Runtime DB, cache, logs (git-ignored)
 npm test        # node scripts/selftest.js
 ```
 
-The suite boots a server (or targets `TRADEMIND_BASE`) and runs the live end-to-end flow: API health, universe, market status, strategy analysis, backtest stats, the full signup → OTP → login → session path, watchlist, settings, profile update, paper open/evaluate/close, a real scan, the **live option chain** (NIFTY strikes/OI/PCR), signal + alert feeds, the Dhan guard, admin gating (non-admin → 403), the owner console, mail status, and the landing/app/manifest/icon assets.
-
-> With a real email provider configured the API returns no dev OTP; the test reads the code from the `email_otps` table in `data/app.db`.
+The suite boots a server (or targets `TRADEMIND_BASE`) and runs the live end-to-end flow: API health, universe, market status, strategy analysis, backtest stats, the full signup → login → session path, watchlist, settings, profile update, paper open/evaluate/close, a real scan, the **live option chain** (NIFTY strikes/OI/PCR), signal + alert feeds, the Dhan guard, admin gating (non-admin → 403), the owner console, and the landing/app/manifest/icon assets.
 
 ---
 

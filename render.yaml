@@ -27,7 +27,6 @@ services:
         sync: false
       - key: ADMIN_PASSWORD
         sync: false
-      # Optional email / session extras (SESSION_SECRET, MAIL_PROVIDER, BREVO_API_KEY,
-      # MAIL_FROM, SMTP_*) are NOT declared here on purpose: adding new sync:false
-      # vars to a live Blueprint can stall the next auto-deploy. Add them by hand in
-      # the dashboard — see "Optional — make Forgot password? actually send" in DEPLOY.md.
+      # Optional session extra (SESSION_SECRET) is NOT declared here on purpose:
+      # adding a new sync:false var to a live Blueprint can stall the next
+      # auto-deploy. Add it by hand in the dashboard (Environment → Secret).

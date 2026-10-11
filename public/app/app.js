@@ -96,50 +96,6 @@
         b.title = show ? 'Hide password' : 'Show password';
       };
     });
-
-    // forgot-password panel
-    const authForm = $('#auth-form'), resetForm = $('#reset-form'), tabs = $('.auth-tabs');
-    const showReset = (on) => {
-      resetForm.classList.toggle('hidden', !on);
-      authForm.classList.toggle('hidden', on);
-      if (tabs) tabs.classList.toggle('hidden', on);
-      $('#auth-error').textContent = ''; $('#reset-error').textContent = '';
-    };
-    $('#forgot-link').onclick = (e) => { e.preventDefault(); showReset(true); };
-    $('#reset-back').onclick = (e) => { e.preventDefault(); showReset(false); };
-
-    $('#reset-send').onclick = async () => {
-      const btn = $('#reset-send'); const err = $('#reset-error'); const note = $('#reset-note');
-      err.textContent = '';
-      const email = resetForm.email.value.trim();
-      if (!email) { err.textContent = 'Enter your email address'; return; }
-      btn.disabled = true; btn.textContent = 'Sending…';
-      try {
-        const j = await api('/auth/forgot-password', { method: 'POST', body: { email } });
-        if (j.dev) note.innerHTML = `Mail isn't set up here — use this code: <code>${esc(j.dev)}</code>`;
-        else if (j.sent) note.textContent = 'Reset code sent — check your inbox (and spam).';
-        else if (!j.mailReady) note.textContent = "Email reset isn't switched on for this deployment. Ask the owner to reset your password from Admin → Users, or to add a free mail key (see DEPLOY.md).";
-        else note.textContent = 'If that email has an account, a reset code is on its way.';
-      } catch (e2) { err.textContent = e2.message; }
-      finally { btn.disabled = false; btn.textContent = 'Send reset code'; }
-    };
-
-    resetForm.onsubmit = async (e) => {
-      e.preventDefault();
-      const btn = $('#reset-submit'); btn.disabled = true;
-      const err = $('#reset-error'); err.textContent = '';
-      try {
-        const j = await api('/auth/reset-password', {
-          method: 'POST',
-          body: { email: resetForm.email.value.trim(), code: resetForm.code.value.trim(), password: resetForm.password.value },
-        });
-        state.token = j.token; state.user = j.user;
-        localStorage.setItem('sa_token', j.token);
-        showAuth(false); bootApp();
-        toast('Password updated — welcome back', 'ok');
-      } catch (err2) { err.textContent = err2.message; }
-      finally { btn.disabled = false; }
-    };
   }
 
   /* ── ROUTER ── */
@@ -906,7 +862,6 @@
       <div class="set-row"><span class="lbl">Memory (RSS)</span><b>${o.server.memoryMB} MB</b></div>
       <div class="set-row"><span class="lbl">Port</span><b>${o.server.port}</b></div>
       <div class="set-row"><span class="lbl">Last scan</span><b>${dt(o.scan.lastScanAt)}</b></div>
-      <div class="set-row"><span class="lbl">Email sender</span><b class="${o.mail.ready ? 'u' : ''}">${esc(o.mail.mode || o.mail.provider)}</b></div>
     </div>
     <div class="section-title"><h2>Data provider</h2><button class="btn sm" onclick="window.__sa.adminHealth()">Run health check</button></div>
     <div class="card" id="admin-health"><div class="tiny muted">Run a live provider probe for the latest status.</div></div>`;
@@ -917,7 +872,7 @@
     <div class="section-title"><h2>Accounts</h2><span class="tiny muted">${users.length} total</span></div>
     <div class="tbl-wrap"><table><thead><tr><th>User</th><th>Role</th><th>Trades</th><th>Signals</th><th>Joined</th><th>Actions</th></tr></thead><tbody>
       ${users.map((u) => `<tr>
-        <td><b>${esc(u.email)}</b><div class="tiny muted">${esc(u.displayName || '')}${u.verified ? ' · verified' : ' · unverified'}</div></td>
+        <td><b>${esc(u.email)}</b><div class="tiny muted">${esc(u.displayName || '')}</div></td>
         <td>${u.isAdmin ? '<span class="pill buy">OWNER</span>' : '<span class="pill none">user</span>'}</td>
         <td class="tiny">${u.trades.total} <span class="muted">(${u.trades.open} open)</span><div class="tiny ${u.trades.netPnl >= 0 ? 'u' : 'd'}">${u.trades.netPnl >= 0 ? '+' : ''}₹${u.trades.netPnl}</div></td>
         <td class="tiny">${u.signals}</td>
@@ -1270,8 +1225,7 @@
         const j = await api('/admin/health'); const p = j.provider;
         if (el) el.innerHTML = `<div class="row between"><span><b>${esc(p.name)}</b><div class="tiny muted">${esc(p.probe)} · ${p.latencyMs} ms</div></span>
           <span class="${p.ok ? 'u' : 'd'}">${p.ok ? inr(p.price, 2) : '✗ ' + esc(p.error || 'unavailable')}</span></div>
-          <div class="set-row"><span class="lbl">Market</span><b>${esc(j.market.state)} · ${esc(j.market.istTime)}</b></div>
-          <div class="set-row"><span class="lbl">Email sender</span><b class="${j.mail.ready ? 'u' : ''}">${esc(j.mail.mode)}</b></div>`;
+          <div class="set-row"><span class="lbl">Market</span><b>${esc(j.market.state)} · ${esc(j.market.istTime)}</b></div>`;
         toast(p.ok ? ('Provider OK · ' + p.latencyMs + 'ms') : 'Provider unavailable', p.ok ? 'ok' : 'err');
       } catch (e) { if (el) el.innerHTML = '<div class="tiny d">' + esc(e.message) + '</div>'; }
     },

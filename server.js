@@ -14,7 +14,6 @@ if (fs.existsSync(ownerFile)) {
     const o = JSON.parse(fs.readFileSync(ownerFile, 'utf8'));
     process.env.ADMIN_EMAIL = o.email;
     process.env.ADMIN_PASSWORD = o.password;
-    if (o.loginOtp === false) process.env.LOGIN_OTP = 'off'; // password-only sign-in
   } catch { }
 }
 const admin = auth.seedAdmin();

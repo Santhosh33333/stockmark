@@ -87,21 +87,9 @@ cloudflared tunnel run trademind    # keep this running (or install it as a serv
 takes a few seconds) and its disk is **not persistent**, so the SQLite DB resets
 on every deploy/restart. Use this to show the app publicly, not to keep accounts.
 
-**Optional — make “Forgot password?” actually send (free).** Create a free
-[Brevo](https://brevo.com) account (300 emails/day), verify a sender, then add these
-in the Render dashboard (**Environment → Secret**):
-
-```
-MAIL_PROVIDER = brevo
-BREVO_API_KEY = <your Brevo API key>
-MAIL_FROM     = <a sender you verified in Brevo>
-```
-
-**Use env vars — not the in-app Settings → Email.** The free plan's disk is
-ephemeral, so an in-app mail config is wiped on the next restart. With the env vars
-set, the sign-in screen's **Forgot password?** link will email a real reset code.
-(Prefer Gmail? Set `MAIL_PROVIDER=gmail`, `SMTP_USER=<you@gmail.com>`,
-`SMTP_PASS=<16-char app password>` instead.)
+**Password resets.** There is no email step — the app never sends mail. If a user
+forgets their password, the owner resets it from **Admin → Users** (or the owner
+changes `ADMIN_PASSWORD` and redeploys). Nothing else to configure.
 
 **Optional — no cold starts.** `.github/workflows/keepalive.yml` pings `/healthz`
 every 10 minutes from GitHub Actions so the free service stays warm. It uses ~720 of
@@ -214,10 +202,6 @@ expects the platform's `$PORT`. Mount `/app/data` (or set `DATA_DIR`) to persist
 | `ALLOW_SIGNUP` | on | `off` closes public registration (owner-only). **Recommended for public deploys.** |
 | `DATA_DIR` | `./data` | Where `app.db` lives — point at a mounted volume. |
 | `SESSION_SECRET` | derived from `ADMIN_PASSWORD` | Signs session tokens. Set a fixed value so sessions survive an `ADMIN_PASSWORD` change. |
-| `MAIL_PROVIDER` | auto-detected | `brevo` \| `smtp` \| `gmail` — enables OTP / password-reset email. |
-| `BREVO_API_KEY` | — | Free Brevo key (300 emails/day); also auto-selects the `brevo` provider. |
-| `MAIL_FROM` / `MAIL_FROM_NAME` | `no-reply@trademind.app` / `TradeMind` | Sender identity for outgoing mail. |
-| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` / `SMTP_SECURE` | — | Generic SMTP, or Gmail with an app password. |
 | `NSE_MIN_GAP_MS` | `3000` | Min gap between NSE option-chain calls (respects their limit). |
 | `ALERT_POLL_MS` | `60000` | Background price-alert poll interval; `0` disables. |
 | `SCAN_CONCURRENCY` | `12` | Parallel Yahoo requests (lower it on tiny instances). |

@@ -44,27 +44,13 @@ function setSessionCookie(req, res, token) {
 }
 router.use(attachUser);
 
-// One-time codes are secret. They may only be echoed back in the HTTP response
-// during LOCAL development — a loopback request to a non-production server.
-// On any real deployment the code must never travel back over HTTP, or anyone
-// who knows an email could request a reset/login code and simply read it.
-const IS_PROD = process.env.NODE_ENV === 'production';
-function isLoopback(req) {
-  const a = String((req.socket && req.socket.remoteAddress) || '');
-  return a === '127.0.0.1' || a === '::1' || a === '::ffff:127.0.0.1';
-}
-function devCode(req, out) {
-  return (!IS_PROD && isLoopback(req) && out && out.code) ? out.code : null;
-}
-
 // ── auth ─────────────────────────────────────────────────────────────────
 router.post('/auth/signup', async (req, res) => {
-  const ip = req.ip;
-  if (!auth.checkRate(ip)) return res.status(429).json({ error: 'Too many attempts. Try again in 10 minutes.' });
   if (!config.allowSignup) return res.status(403).json({ error: 'Sign-ups are disabled on this deployment' });
+  const body = req.body || {};
+  const username = (body.email || body.username || '').trim().toLowerCase();
+  if (!auth.checkRate(req.ip, username)) return res.status(429).json({ error: 'Too many attempts for this account. Try again in 10 minutes.' });
   try {
-    const body = req.body || {};
-    const username = (body.email || body.username || '').trim().toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(username)) return res.status(400).json({ error: 'Enter a valid email address' });
     const u = auth.createUser({ ...body, username });
     const token = auth.createSession(u.id);
@@ -75,106 +61,25 @@ router.post('/auth/signup', async (req, res) => {
   }
 });
 
-// Step 2 of signup: verify the email OTP → session issued
-router.post('/auth/verify-otp', (req, res) => {
-  const { email, code, purpose = 'signup' } = req.body || {};
-  const out = auth.verifyOtp(email, code, purpose);
-  if (!out.ok) return res.status(400).json({ error: out.error });
-  const token = auth.createSession(out.user.id);
-  stmt.log.run(out.user.id, 'EMAIL VERIFIED', 'OTP verified', now());
-  setSessionCookie(req, res, token);
-  res.json({ token, user: auth.publicUser(out.user) });
-});
-
-router.post('/auth/resend-otp', async (req, res) => {
-  try {
-    const { email, purpose = 'signup' } = req.body || {};
-    const out = await auth.sendOtp(email, purpose);
-    res.json({ ok: true, sent: out.sent.ok, dev: devCode(req, out), email: out.email });
-  } catch (e) { res.status(429).json({ error: e.message }); }
-});
-
 router.post('/auth/login', async (req, res) => {
   const ip = req.ip;
-  if (!auth.checkRate(ip)) return res.status(429).json({ error: 'Too many attempts. Try again in 10 minutes.' });
   const { email, username, password } = req.body || {};
-  const u = auth.authenticate(username || email, password);
-  if (!u) return res.status(401).json({ error: 'Invalid email or password' });
+  const account = String(username || email || '').trim().toLowerCase();
+  // Limits are scoped per account (IP + email), so heavy use of one account can
+  // never lock out a different account signing in from the same device/network.
+  if (!auth.checkRate(ip, account)) return res.status(429).json({ error: 'Too many attempts for this account. Try again in 10 minutes.' });
+  const u = auth.authenticate(account, password);
+  if (!u) {
+    auth.noteFailure(ip, account);
+    return res.status(401).json({ error: 'Invalid email or password' });
+  }
+  auth.noteSuccess(ip, account);
   const token = auth.createSession(u.id);
   setSessionCookie(req, res, token);
   res.json({ token, user: auth.publicUser(u) });
 });
 
-// Step 2 of login: verify OTP → session
-router.post('/auth/verify-login-otp', (req, res) => {
-  const { email, code } = req.body || {};
-  const out = auth.verifyOtp(email, code, 'login');
-  if (!out.ok) return res.status(400).json({ error: out.error });
-  const token = auth.createSession(out.user.id);
-  setSessionCookie(req, res, token);
-  res.json({ token, user: auth.publicUser(out.user) });
-});
-
-// ── password reset ──────────────────────────────────────────────────────
-// Step 1: request a reset code by email. Always answers generically so the API
-// never reveals whether an address has an account.
-router.post('/auth/forgot-password', async (req, res) => {
-  const ip = req.ip;
-  if (!auth.checkRate(ip)) return res.status(429).json({ error: 'Too many attempts. Try again in 10 minutes.' });
-  const email = String((req.body || {}).email || '').trim().toLowerCase();
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return res.status(400).json({ error: 'Enter a valid email address' });
-  const mailReady = require('../mailer').status().ready;
-  try {
-    const out = await auth.sendResetCode(email);
-    stmt.log.run(null, 'RESET REQUESTED', email, now());
-    res.json({ ok: true, mailReady, sent: !!(out.sent && out.sent.ok), dev: devCode(req, out) });
-  } catch {
-    res.json({ ok: true, mailReady, sent: false });   // generic: never reveal existence or timing
-  }
-});
-
-// Step 2: submit the code + a new password. On success the user is signed in.
-router.post('/auth/reset-password', (req, res) => {
-  const ip = req.ip;
-  if (!auth.checkRate(ip)) return res.status(429).json({ error: 'Too many attempts. Try again in 10 minutes.' });
-  const { email, code, password } = req.body || {};
-  try {
-    const out = auth.resetPassword(email, code, password);
-    if (!out.ok) return res.status(400).json({ error: out.error });
-    const token = auth.createSession(out.user.id);
-    setSessionCookie(req, res, token);
-    res.json({ ok: true, token, user: auth.publicUser(out.user) });
-  } catch (e) { res.status(400).json({ error: e.message }); }
-});
-
-router.get('/mail/status', (_req, res) => {
-  const mailer = require('../mailer');
-  res.json({ mail: mailer.status(), otpTtl: config.otp.ttlMinutes });
-});
-
-// Owner can paste FREE sender credentials here (Brevo key or Gmail app password)
-router.post('/admin/mail-config', requireAdmin, (req, res) => {
-  const mailer = require('../mailer');
-  const patch = {};
-  const b = req.body || {};
-  if (b.provider) patch.provider = b.provider;
-  if (b.from) patch.from = b.from;
-  if (b.fromName) patch.fromName = b.fromName;
-  if (b.brevoKey) patch.brevoKey = b.brevoKey;
-  if (b.smtp) patch.smtp = b.smtp;
-  const status = mailer.saveRuntimeConfig(patch);
-  stmt.log.run(req.user.id, 'MAIL CONFIG', status.provider, now());
-  res.json({ ok: true, mail: status });
-});
-
-router.post('/admin/mail-test', requireAdmin, async (req, res) => {
-  try {
-    const mailer = require('../mailer');
-    const out = await auth.sendOtp(req.user.username, 'login');
-    res.json({ ok: out.sent.ok, provider: out.sent.provider, dev: devCode(req, out), error: out.sent.error });
-  } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
+// No self-service email reset: the owner resets passwords from Admin → Users.
 router.post('/auth/logout', (req, res) => {
   auth.destroySession(req.token);
   res.clearCookie('sa_token');
@@ -582,7 +487,6 @@ router.post('/risk/kill', requireUser, (req, res) => {
 router.get('/admin/overview', requireAdmin, (_req, res) => {
   const dayAgo = now() - 86400000, weekAgo = now() - 7 * 86400000;
   const mem = process.memoryUsage();
-  const mailer = require('../mailer');
   res.json({
     server: {
       uptimeSec: Math.round(process.uptime()), memoryMB: +(mem.rss / 1048576).toFixed(1),
@@ -594,18 +498,16 @@ router.get('/admin/overview', requireAdmin, (_req, res) => {
     signals: { total: stmt.countSignals.get().c, last24h: stmt.countSignalsSince.get(dayAgo).c },
     trades: { total: stmt.countTrades.get().c, open: stmt.countOpenTrades.get().c },
     scan: { cachedSymbols: stmt.countScan.get().c, lastScanAt: stmt.lastScanAt.get().m || null },
-    mail: mailer.status(),
   });
 });
 
 router.get('/admin/users', requireAdmin, (_req, res) => {
   const users = stmt.allUsers.all().map((u) => {
-    const full = stmt.userById.get(u.id);
     const trades = stmt.trades.all(u.id, 100000);
     const closed = trades.filter((t) => t.status === 'CLOSED');
     return {
       id: u.id, email: u.username, displayName: u.display_name, isAdmin: !!u.is_admin,
-      createdAt: u.created_at, lastLogin: u.last_login, verified: !!full?.email_verified,
+      createdAt: u.created_at, lastLogin: u.last_login,
       trades: {
         total: trades.length, open: trades.filter((t) => t.status === 'OPEN').length, closed: closed.length,
         netPnl: +closed.reduce((a, t) => a + (t.pnl || 0), 0).toFixed(2),
@@ -689,8 +591,7 @@ router.get('/admin/health', requireAdmin, async (_req, res) => {
   } catch (e) {
     provider = { ok: false, name: 'none', probe: '^NSEI', error: e.message, latencyMs: Date.now() - t0 };
   }
-  const mailer = require('../mailer');
-  res.json({ provider, market: marketStatus(), mail: mailer.status(), checkedAt: now() });
+  res.json({ provider, market: marketStatus(), checkedAt: now() });
 });
 
 // ── data providers (owner only): free sources + credential management ─────

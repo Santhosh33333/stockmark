@@ -56,32 +56,6 @@ const config = {
     preOpen: '09:00',
   },
 
-  // Email OTP — FREE senders only:
-  //  • Brevo HTTP API  → free 300 emails/day  (BREVO_API_KEY)
-  //  • Gmail SMTP      → free with an App Password (SMTP_HOST/USER/PASS)
-  //  • dev             → nothing configured, OTP printed to server log & UI
-  mail: {
-    provider: process.env.MAIL_PROVIDER || (process.env.BREVO_API_KEY ? 'brevo' : process.env.SMTP_HOST ? 'smtp' : 'dev'),
-    from: process.env.MAIL_FROM || 'no-reply@trademind.app',
-    fromName: process.env.MAIL_FROM_NAME || 'TradeMind',
-    brevoKey: process.env.BREVO_API_KEY || '',
-    brevoUrl: 'https://api.brevo.com/v3/smtp/email',
-    smtp: {
-      host: process.env.SMTP_HOST || '',
-      port: Number(process.env.SMTP_PORT || 587),
-      secure: process.env.SMTP_SECURE === 'true',
-      user: process.env.SMTP_USER || '',
-      pass: process.env.SMTP_PASS || '',
-    },
-  },
-
-  otp: {
-    length: 6,
-    ttlMinutes: Number(process.env.OTP_TTL_MINUTES || 10),
-    maxAttempts: 5,
-    resendCooldownSec: 45,
-  },
-
   // Dhan (optional, live execution). Free API keys from https://dhanhq.co -> DhanHQ APIs
   // Base is the host root; code appends /v2/... so accept either "https://api.dhan.co"
   // or "https://api.dhan.co/v2" without doubling the version segment.

@@ -85,18 +85,6 @@ CREATE TABLE IF NOT EXISTS audit_log (
   ts         INTEGER NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS email_otps (
-  id          INTEGER PRIMARY KEY AUTOINCREMENT,
-  email       TEXT NOT NULL,
-  code        TEXT NOT NULL,
-  purpose     TEXT NOT NULL DEFAULT 'signup',   -- signup | login | reset
-  attempts    INTEGER NOT NULL DEFAULT 0,
-  consumed    INTEGER NOT NULL DEFAULT 0,
-  expires_at  INTEGER NOT NULL,
-  created_at  INTEGER NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_otp_email ON email_otps(email, purpose, created_at);
-
 CREATE TABLE IF NOT EXISTS iv_history (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
   symbol     TEXT NOT NULL,
@@ -126,9 +114,6 @@ CREATE TABLE IF NOT EXISTS price_alerts (
 CREATE INDEX IF NOT EXISTS idx_pa_user ON price_alerts(user_id, enabled);
 CREATE INDEX IF NOT EXISTS idx_pa_enabled ON price_alerts(enabled);
 `);
-
-// email verification column (added on existing databases too)
-try { db.exec(`ALTER TABLE users ADD COLUMN email_verified INTEGER NOT NULL DEFAULT 0`); } catch { /* already present */ }
 
 const stmt = {
   insertUser: db.prepare(`INSERT INTO users (username, display_name, pass_hash, salt, is_admin, created_at) VALUES (?,?,?,?,?,?)`),
@@ -160,14 +145,6 @@ const stmt = {
   getScan: db.prepare(`SELECT payload, updated_at FROM scan_cache WHERE symbol = ?`),
   allScan: db.prepare(`SELECT symbol, payload, updated_at FROM scan_cache`),
   log: db.prepare(`INSERT INTO audit_log (user_id, action, detail, ts) VALUES (?,?,?,?)`),
-  // email OTP
-  insertOtp: db.prepare(`INSERT INTO email_otps (email, code, purpose, expires_at, created_at) VALUES (?,?,?,?,?)`),
-  latestOtp: db.prepare(`SELECT * FROM email_otps WHERE email = ? AND purpose = ? AND consumed = 0 ORDER BY id DESC LIMIT 1`),
-  otpById: db.prepare(`SELECT * FROM email_otps WHERE id = ?`),
-  bumpOtp: db.prepare(`UPDATE email_otps SET attempts = attempts + 1 WHERE id = ?`),
-  consumeOtp: db.prepare(`UPDATE email_otps SET consumed = 1 WHERE id = ?`),
-  invalidateOtps: db.prepare(`UPDATE email_otps SET consumed = 1 WHERE email = ? AND purpose = ?`),
-  setEmailVerified: db.prepare(`UPDATE users SET email_verified = 1 WHERE id = ?`),
   userByEmail: db.prepare(`SELECT * FROM users WHERE username = ?`),
   // ── admin / owner console ──
   countUsers: db.prepare(`SELECT COUNT(*) c FROM users`),

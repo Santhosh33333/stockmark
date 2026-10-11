@@ -12,7 +12,7 @@ requires **no API keys** to run. Every data path has a free, key-less default.
 | Database | **`node:sqlite`** (Node built-in) | Free, bundled, no server | — |
 | Web/server | **Node.js + Express** (OSS) | Free | — |
 | Live streaming | **Server-Sent Events (SSE)** in-process | Free | WebSocket would need a paid broker licence — **not used** |
-| Email / OTP | **not used** — sign-in is email + password | Free (no provider) | Brevo / Gmail SMTP — *no longer needed* |
+| Email / OTP | **removed entirely** — sign-in is email + password | Free (no provider) | Brevo / Gmail SMTP — *not used, code deleted* |
 | Charts | Hand-rolled SVG / canvas (existing) | Free | TradingView paid — **not used** |
 | Hosting | Run locally, on your LAN, via a free Cloudflare Tunnel, or any free tier (Render/Fly free, Oracle Always-Free VM) | ₹0 on free tiers (see DEPLOY.md for real limits) | — |
 
@@ -33,8 +33,9 @@ requires **no API keys** to run. Every data path has a free, key-less default.
   spaced accordingly instead of bursting (which NSE blocks by IP).
 - If a free source rate-limits, the resilience layer backs off and the UI shows
   `DELAYED`/`STALE` rather than failing or silently switching to a paid source.
-- Brevo/SMTP support still exists in the code but is dormant — the app never sends
-  email and never needs a mail provider to run.
+- Email sending was removed from the codebase — the app never sends mail and never
+  needs a mail provider to run. Password resets are done by the owner from
+  **Admin → Users**.
 
 ## Proven with no configuration
 ```
