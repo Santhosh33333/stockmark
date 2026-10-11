@@ -58,7 +58,15 @@
       + '.side-resizer:hover::after,.side-resizer.active::after{background:linear-gradient(180deg,#22d3ee,#34d399)}'
       + 'html.tm-dragging{cursor:col-resize;user-select:none}html.tm-dragging *{cursor:col-resize!important}'
       + 'html.tm-side-collapsed .side-resizer{display:none}'
-      + '@media (max-width:959px){.side-resizer{display:none}}';
+      + '@media (max-width:959px){.side-resizer{display:none}}'
+      + '.tm-split{display:flex;align-items:flex-start}'
+      + '.tm-col{min-width:0}'
+      + '.tm-col-l{flex:0 0 var(--tm-split-left,58%);padding-right:5px}'
+      + '.tm-col-r{flex:1 1 0;padding-left:5px}'
+      + '.tm-divider{flex:0 0 9px;align-self:stretch;cursor:col-resize;position:relative;touch-action:none}'
+      + '.tm-divider::after{content:"";position:absolute;top:0;bottom:0;left:3.5px;width:2px;background:transparent;transition:background .15s}'
+      + '.tm-divider:hover::after,.tm-divider.active::after{background:linear-gradient(180deg,#22d3ee,#34d399)}'
+      + '@media (max-width:1100px){.tm-split{display:block}.tm-divider{display:none}.tm-col-l,.tm-col-r{flex:none;width:auto;padding:0}}';
     document.head.appendChild(st);
     var handle = document.createElement('div');
     handle.className = 'side-resizer'; handle.id = 'side-resizer';
@@ -86,6 +94,83 @@
     }
     handle.addEventListener('pointerup', end);
     handle.addEventListener('pointercancel', end);
+  })();
+
+  /* ── stock detail: two-column resizable panes (saved layout; desktop) ──
+     app.js renders the detail as one flat column inside #view. We wrap the
+     body (everything from the chart down) into a left chart/analysis pane and
+     a right tables pane, joined by a draggable divider. Pure DOM, no app.js
+     changes; on narrow screens the CSS collapses back to one column. */
+  var SPLIT_DEFAULT = 58, SPLIT_MIN = 30, SPLIT_MAX = 82;
+  function applySplitRatio(pct) {
+    pct = Math.max(SPLIT_MIN, Math.min(SPLIT_MAX, Math.round(pct)));
+    root.style.setProperty('--tm-split-left', pct + '%');
+    return pct;
+  }
+  try { var sv = parseFloat(localStorage.getItem('tm-split-ratio')); if (sv) applySplitRatio(sv); } catch (e) { }
+  function resetSplitRatio() { applySplitRatio(SPLIT_DEFAULT); try { localStorage.setItem('tm-split-ratio', String(SPLIT_DEFAULT)); } catch (e) { } setTimeout(function () { window.dispatchEvent(new Event('resize')); }, 60); }
+  function currentSplitPct() { return parseFloat(getComputedStyle(root).getPropertyValue('--tm-split-left')) || SPLIT_DEFAULT; }
+
+  function applySplit() {
+    var view = document.getElementById('view');
+    if (!view || view.querySelector(':scope > .tm-split')) return;
+    var chart = view.querySelector(':scope > .chart-box');
+    if (!chart) return;
+    var kids = Array.prototype.slice.call(view.children);
+    var chartIdx = kids.indexOf(chart);
+    if (chartIdx < 1) return; // need the header card above the chart
+    var body = kids.slice(chartIdx);
+    var grids = [];
+    body.forEach(function (el, i) { if (el.classList && el.classList.contains('stats-grid')) grids.push(i); });
+    if (grids.length < 2) return; // unexpected layout → leave untouched
+    var leftNodes = body.slice(0, grids[1] + 1);
+    var rightNodes = body.slice(grids[1] + 1);
+    if (!rightNodes.length) return;
+
+    var wrapper = h('div', 'tm-split');
+    var colL = h('div', 'tm-col tm-col-l');
+    var divider = h('div', 'tm-divider');
+    divider.title = 'Drag to resize panes · double-click to reset';
+    divider.setAttribute('role', 'separator'); divider.setAttribute('aria-orientation', 'vertical'); divider.setAttribute('aria-label', 'Resize detail panes');
+    var colR = h('div', 'tm-col tm-col-r');
+    leftNodes.forEach(function (n) { colL.appendChild(n); });
+    rightNodes.forEach(function (n) { colR.appendChild(n); });
+    wrapper.appendChild(colL); wrapper.appendChild(divider); wrapper.appendChild(colR);
+    view.appendChild(wrapper);
+
+    var dragging = false, startX = 0, startPct = 0;
+    divider.addEventListener('dblclick', resetSplitRatio);
+    divider.addEventListener('pointerdown', function (e) {
+      dragging = true; startX = e.clientX; startPct = currentSplitPct();
+      divider.classList.add('active'); root.classList.add('tm-dragging');
+      try { divider.setPointerCapture(e.pointerId); } catch (er) { }
+      e.preventDefault();
+    });
+    divider.addEventListener('pointermove', function (e) {
+      if (!dragging) return;
+      var w = wrapper.getBoundingClientRect().width || 1;
+      applySplitRatio(startPct + ((e.clientX - startX) / w) * 100);
+      window.dispatchEvent(new Event('resize'));
+    });
+    function end() {
+      if (!dragging) return;
+      dragging = false; divider.classList.remove('active'); root.classList.remove('tm-dragging');
+      try { localStorage.setItem('tm-split-ratio', String(currentSplitPct())); } catch (er) { }
+      setTimeout(function () { window.dispatchEvent(new Event('resize')); }, 60);
+    }
+    divider.addEventListener('pointerup', end);
+    divider.addEventListener('pointercancel', end);
+    // let the chart (and any canvas) re-measure at the new column width
+    setTimeout(function () { window.dispatchEvent(new Event('resize')); }, 30);
+  }
+
+  (function observeDetail() {
+    var view = document.getElementById('view');
+    if (!view) { setTimeout(observeDetail, 250); return; }
+    try {
+      new MutationObserver(function () { applySplit(); }).observe(view, { childList: true });
+    } catch (e) { }
+    applySplit();
   })();
 
   /* ── data-freshness + provider chip ─────────────────────────────────── */
@@ -239,6 +324,7 @@
       { label: 'Options strategy builder…', sub: 'Payoff · breakevens · max P/L', ic: '🧮', run: function () { openPayoff(); } },
       { label: 'Advanced backtest (with costs)…', sub: 'Brokerage · STT · slippage · train/test', ic: '📈', run: function () { openBacktest(); } },
       { label: 'Reset sidebar width', sub: 'Layout', ic: '▤', run: resetSideWidth },
+      { label: 'Reset detail pane split', sub: 'Layout · stock view', ic: '⫲', run: resetSplitRatio },
       { label: 'Sign out', sub: 'Session', ic: '⏻', run: function () { var b = $('#btn-logout'); if (b) b.click(); } }
     ];
     ACTS.forEach(function (a) { if (!ql || a.label.toLowerCase().indexOf(ql) > -1) add('Actions', { label: a.label, sub: a.sub, ic: a.ic, run: a.run }); });
@@ -850,5 +936,5 @@
   }
 
   /* ── expose for debugging / tests ──────────────────────────────────── */
-  window.__shell = { open: open, close: close, toggleTheme: toggleTheme, setCollapsed: setCollapsed, openResearch: openResearch, openRiskPanel: openRiskPanel, openOptions: openOptions, openPayoff: openPayoff, openBacktest: openBacktest, resetSideWidth: resetSideWidth };
+  window.__shell = { open: open, close: close, toggleTheme: toggleTheme, setCollapsed: setCollapsed, openResearch: openResearch, openRiskPanel: openRiskPanel, openOptions: openOptions, openPayoff: openPayoff, openBacktest: openBacktest, resetSideWidth: resetSideWidth, resetSplitRatio: resetSplitRatio };
 })();

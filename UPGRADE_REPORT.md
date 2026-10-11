@@ -134,7 +134,9 @@ Exposed in the app via the command palette → **Research brief**.
   palette, global search, freshness/provider chip, collapsible sidebar.
 - **New:** research + risk + options-analytics + strategy-builder panels, live
   SSE quote pill (auto-reconnect, pauses when hidden), **draggable sidebar with
-  saved width** (double-click / palette to reset), data-quality status,
+  saved width**, **resizable chart/detail panes** (two-column stock detail with a
+  draggable, persisted divider; collapses to one column on narrow screens),
+  (double-click / palette to reset either), data-quality status,
   accessible dialogs (aria-modal, Esc to close), loading/empty/error states.
 
 ## I. Zero-cost-first deployment — *done*
@@ -165,9 +167,9 @@ Exposed in the app via the command palette → **Research brief**.
 
 ```bash
 npm install
-npm run test:unit     # 20 deterministic checks (no network)
+npm run test:unit     # 25 deterministic checks (no network)
 npm start             # http://localhost:5124/app   (landing at /)
-npm test              # 52 live end-to-end checks against the running server
+npm test              # 57 live end-to-end checks against the running server
 ```
 
 Migrations run automatically on boot (idempotent `CREATE TABLE IF NOT EXISTS` +
@@ -187,6 +189,10 @@ migrations are performed on existing data.
 - In-browser: app shell loads with **0 console errors**; Risk-controls,
   Research, Options-analytics, Strategy-builder, Advanced-backtest and
   Expiry-comparison panels render live data; sidebar resize persists.
+- Layout: resizable sidebar + detail panes verified in-browser — wide-screen
+  two-column split honours `--tm-split-left` (58%→422px, 70%→509px), drag
+  persists to `localStorage`, double-click resets, narrow screens collapse to one
+  column, and navigating away/back re-applies exactly one split (0 console errors).
 - Owner account intact; test accounts removed (DB: 1 owner, 0 test sessions).
 
 ## Known limitations (honest)

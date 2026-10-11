@@ -37,7 +37,7 @@ _Phased rebuild of the existing repo. This is the honest state of each phase; de
 ## Phase 6 — Trading workspace ✅ (partial)
 - [x] Dashboard widgets are real (existing engine); added freshness/provider chip to the shell.
 - [x] Resizable sidebar with saved width (drag handle; double-click / palette to reset). Persisted layout.
-- [ ] Resizable chart/detail panes (inside `app.js`) — **deferred** (see Next steps).
+- [x] Resizable chart/detail panes: on wide screens the stock detail becomes two panes (chart+stats | tables) with a draggable, persisted divider; collapses back to one column on narrow screens. Applied inside `shell.js` (no `app.js` change).
 
 ## Phases 7–11 — Scanner / chart / backtest / paper / options ✅ (audited)
 - [x] Endpoints live and exercised (see tests). No fabricated data; unsupported fields show `—`.
@@ -73,7 +73,7 @@ _Phased rebuild of the existing repo. This is the honest state of each phase; de
 - [x] Backtest realism: Indian cost model (brokerage/STT/GST/stamp/slippage) + train/test split + trades CSV — also over HTTP (`?costs=1&train=0.7`) with an *Advanced backtest* panel.
 - [x] Paper history CSV export (`/api/paper/export.csv`).
 - [x] Live quote stream over SSE (`/api/stream/quotes`) — pushes only changed values, auto-reconnect.
-- [x] Resizable, persisted sidebar (saved layout).
+- [x] Resizable, persisted sidebar + chart/detail panes (saved layout; two-column stock detail on wide screens).
 - [x] `npm run test:unit` → 25/25; `npm test` → **57/57**; in-browser panels render, 0 console errors.
 - [ ] WebSocket streaming — **deferred** (no free NSE/Yahoo feed; needs paid broker licence). SSE stream covers live updates.
 - Full mapping of done vs deferred: see `UPGRADE_REPORT.md`.
