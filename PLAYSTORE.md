@@ -72,16 +72,71 @@ asset-links. Two ways to avoid that:
   `public/.well-known/assetlinks.json`: ours plus the one Play Console shows
   under *App signing key certificate*.
 
-## 3. Store listing assets you must supply
+## 3. Store listing assets
 
 | Asset | Spec | Status |
 |---|---|---|
 | App icon | 512×512 PNG | ✅ `public/icons/icon-512.png` |
-| Feature graphic | 1024×500 PNG/JPG | ❌ make one (logo + "Live NSE & BSE Smart-Money Scanner") |
-| Phone screenshots | ≥2, up to 8 (e.g. 1080×2400) | ❌ take on your phone from the installed PWA |
-| 7" + 10" tablet screenshots | ≥1 each class | ❌ same, or "not designed for tablets" is not accepted — capture once |
-| Short description | ≤80 chars | draft: "Live NSE & BSE smart-money scanner with paper trading." |
-| Full description | ≤4000 chars | describe scanner, Strategy Lab, options analytics, paper trading; state data is delayed and educational, not advice |
+| Feature graphic | 1024×500 PNG | ✅ `public/store/feature-graphic-1024x500.png` |
+| Phone screenshots | 2–8, 1080×1922 (9:16) | ✅ 6 in `public/store/screenshots/phone-*.png` |
+| 7" tablet screenshots | ≥1, 1200×1920 | ✅ 2 in `public/store/screenshots/tablet-7in-*.png` |
+| 10" tablet screenshots | ≥1, 1600×2560 | ✅ 2 in `public/store/screenshots/tablet-10in-*.png` |
+| Short description | ≤80 chars | see below |
+| Full description | ≤4000 chars | see below |
+
+Screenshots are real captures of the running app (headless Chromium emulating a
+phone / 7" / 10" viewport against a live session) — dashboard, scanner,
+backtest, Strategy Lab, options analytics, auto paper-trading.
+
+### Short description (74 chars)
+
+```
+NSE & BSE smart-money scanner, strategy lab, option chain & paper trading.
+```
+
+### Full description
+
+```
+TradeMind is a market-analysis workspace for NSE and BSE equities, built around
+Smart Money Concepts and honest, verified market data.
+
+SMART-MONEY ANALYSIS
+• Market structure: breaks of structure, changes of character, swing highs and
+  lows, liquidity sweeps, order blocks and fair-value gaps, marked on the chart
+  with the rule that fired.
+• Multi-timeframe alignment (15m / 1H / 4H / 1D) with plain-language "confirmed"
+  or "conflicting" labels — no repainting, only closed candles.
+
+STRATEGY LAB
+• Describe a strategy in plain English; it is parsed into explicit entry, stop
+  and target rules that you can read and edit.
+• Backtest it on real history with brokerage and slippage costs, see the full
+  trade log, equity curve, expectancy, profit factor and drawdown.
+• Auto-screen every F&O symbol for fresh setups, and run the same rules as
+  automatic paper trades (simulated only — never a real order).
+
+OPTION CHAIN ANALYTICS
+• Live NSE option chain with open interest, changes, IV, max pain, PCR,
+  expected move and OI-wall support/resistance for NIFTY and index options,
+  plus an expiry-to-expiry comparison.
+
+DISCIPLINE TOOLS
+• Setup planner: entry, stop, target, planned risk-reward and position size
+  from your own capital and risk per trade.
+• Paper trading with the same guardrails as a real desk: max positions, daily
+  loss limit and drawdown limits.
+
+TRUST AND LIMITS
+• Data comes from public NSE/BSE and Yahoo Finance endpoints and can be
+  delayed. Every panel shows its source and freshness, and the app says
+  "insufficient data" instead of guessing when a feed is missing or stale.
+• Analysis and education only. Not investment advice, and not a registered
+  advisor or broker. Markets carry risk; backtests describe a specific
+  historical run and do not indicate future results.
+
+No ads. No trackers. Your watchlists, settings and paper trades stay on your
+account.
+```
 
 ## 4. Data-safety form (answer truthfully)
 
