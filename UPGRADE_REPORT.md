@@ -15,6 +15,7 @@ marked **Deferred** are honest gaps, not silently dropped. Nothing is labelled
 | Item | Status | Where / evidence |
 |---|---|---|
 | Caching | ✅ Done | `src/net.js` `TtlCache`; quote cache (4s) in `src/providers/index.js` |
+| Response compression | ✅ Done | `src/compress.js` — **zero-dependency gzip** (`zlib`), applied to all text/JSON; app.js 88→22 KB, shell.js 69→18 KB, css 27→7 KB (~74% smaller). Skips SSE, `206`/range, `no-transform`, already-encoded, HEAD and <512 B bodies. |
 | Request de-duplication | ✅ Done | `net.dedupe` (in-flight) + `net.memo`; wired into Yahoo chart + provider quotes |
 | Retry with backoff | ✅ Done | `util.httpText` now uses exponential backoff + jitter + `Retry-After`; skips retrying permanent 4xx |
 | Rate-limit handling | ✅ Done | 429/503 counted + honoured via `Retry-After`; counters in `/api/metrics` |
@@ -180,7 +181,7 @@ Exposed in the app via the command palette → **Research brief**.
 npm install
 npm run test:unit     # 29 deterministic checks (no network)
 npm start             # http://localhost:5124/app   (landing at /)
-npm test              # 63 live end-to-end checks against the running server
+npm test              # 64 live end-to-end checks against the running server
 ```
 
 Migrations run automatically on boot (idempotent `CREATE TABLE IF NOT EXISTS` +
@@ -190,7 +191,7 @@ migrations are performed on existing data.
 ## Verified in this pass
 
 - `npm run test:unit` → **29/29**.
-- `npm test` (live) → **63/63**.
+- `npm test` (live) → **64/64**.
 - Live endpoints confirmed: `/api/metrics`, `/api/research/RELIANCE`,
   `/api/analysis/RELIANCE?intraday=1` (premium/discount, VWAP, swing labels,
   displacement, equal H/L, 5m/15m MTF), `/api/options/NIFTY/analytics`
@@ -204,6 +205,10 @@ migrations are performed on existing data.
 - Price alerts verified end-to-end: created INFY `below ₹1` via the UI form → armed
   row rendered → deleted → empty list; the fired RELIANCE rule auto-disarmed and
   never re-fired; 2 test signal rows + 1 test user removed afterward.
+- Compression verified with raw HTTP: `app.js` 87,759 → 22,269 bytes (gzip, body
+  round-trips), `shell.js` 68,784 → 18,372, `app.css` 27,417 → 6,924; SSE stays
+  uncompressed and streams; PNG/HEAD/no-`Accept-Encoding` untouched; tiny JSON
+  (<512 B) left uncompressed. App loads over gzip with 0 console errors.
 - Layout: resizable sidebar + detail panes verified in-browser — wide-screen
   two-column split honours `--tm-split-left` (58%→422px, 70%→509px), drag
   persists to `localStorage`, double-click resets, narrow screens collapse to one

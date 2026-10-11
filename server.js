@@ -25,6 +25,9 @@ app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.set('trust proxy', true);
 
+// Zero-dependency gzip for text/JSON responses (skips SSE, ranges, HEAD).
+app.use(require('./src/compress')());
+
 // Free price alerts: a gentle background poller lets armed rules fire even when
 // no browser tab is open. 0 disables it; only runs when alerts exist.
 const priceAlerts = require('./src/priceAlerts');

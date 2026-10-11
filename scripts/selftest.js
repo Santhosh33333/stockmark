@@ -331,6 +331,25 @@ async function main() {
     check('PWA manifest', manifest.status === 200);
     const icon = await fetch(BASE + '/icons/icon-512.png');
     check('Play Store icon', icon.status === 200 && (await icon.arrayBuffer()).byteLength > 3000);
+
+    // ── zero-dependency gzip compression (raw http: fetch hides encoding) ──
+    const gzRes = await new Promise((resolve) => {
+      const http = require('http');
+      const zlib = require('zlib');
+      const u = new URL(BASE);
+      const r = http.request({ host: u.hostname, port: u.port || 80, path: '/app/app.js', headers: { 'Accept-Encoding': 'gzip' } }, (rs) => {
+        const chunks = []; rs.on('data', (c) => chunks.push(c));
+        rs.on('end', () => {
+          const buf = Buffer.concat(chunks);
+          let dec = -1; try { dec = zlib.gunzipSync(buf).length; } catch { dec = -1; }
+          resolve({ enc: rs.headers['content-encoding'] || null, raw: buf.length, dec });
+        });
+      });
+      r.on('error', () => resolve({ enc: null, raw: 0, dec: -1 }));
+      r.end();
+    });
+    check('Response compression (gzip)', gzRes.enc === 'gzip' && gzRes.dec > 50000 && gzRes.dec > gzRes.raw,
+      gzRes.enc ? `${gzRes.raw} → ${gzRes.dec} bytes` : 'not compressed');
   } catch (err) {
     check('Unhandled error during tests', false, err.message);
   } finally {
