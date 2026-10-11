@@ -1,9 +1,9 @@
 # Render Blueprint — click "New + → Blueprint" and point it at this repo.
 #
-# Honest note: Render's FREE web plan has EPHEMERAL storage, so the SQLite DB is
-# reset on every redeploy/restart. That is fine for trying the app out. For FREE
-# persistence use the Cloudflare Tunnel or Oracle Always-Free path in DEPLOY.md.
-# (Attaching a Render disk requires a paid instance type.)
+# Honest note: Render's FREE web plan has EPHEMERAL storage, so the SQLite DB
+# (accounts, paper trades, alerts) is wiped on every redeploy/restart. Great for
+# a public demo; for FREE persistence use the Fly or Oracle Always-Free path in
+# DEPLOY.md. (Attaching a Render disk requires a paid instance type.)
 services:
   - type: web
     name: trademind
@@ -20,8 +20,9 @@ services:
       - key: NODE_ENV
         value: production
       - key: ALLOW_SIGNUP
-        value: "off"          # owner-only. Delete this var to allow public sign-ups.
-      # Set these two in the Render dashboard (Secret) — never commit them:
+        value: "on"           # open registration. Change to "off" for owner-only.
+      # Set these two in the Render dashboard (Environment → Secret) — never
+      # commit them. Without them no owner account is created and you can't log in:
       - key: ADMIN_EMAIL
         sync: false
       - key: ADMIN_PASSWORD
