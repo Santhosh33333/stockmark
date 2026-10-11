@@ -10,6 +10,7 @@
 const express = require('express');
 const auth = require('../auth');
 const { getSymbolList } = require('../providers/symbols');
+const market = require('../providers');
 const { marketStatus, pMap } = require('../util');
 const parser = require('../lab/parser');
 const schema = require('../lab/schema');
@@ -352,11 +353,24 @@ router.post('/lab/screen', requireUser, async (req, res) => {
     const scanned = results.filter((r) => r && r.status !== 'budget').length;
     const sigBarTs = (() => { for (const m of matches) return m.asOf; return null; })();
 
+    // Live last-traded prices for the matches only (cheap: a handful of quotes).
+    // Lets the user compare live price vs the setup's entry level right now.
+    let liveNote = null;
+    if (matches.length) {
+      try {
+        const qs = await market.fetchQuotes(matches.map((m) => (m.symbol.includes('.') ? m.symbol : `${m.symbol}.NS`)), { concurrency: 6 });
+        for (const m of matches) {
+          const q = qs[m.symbol] || qs[`${m.symbol}.NS`];
+          if (q && q.price != null) m.livePrice = +Number(q.price).toFixed(2);
+        }
+      } catch (e) { liveNote = 'Live quotes unavailable right now — entry levels below are from the signal bar.'; }
+    }
+
     res.json({
       ok: true,
-      universe, timeframe: spec.timeframe, marketOpen: open,
+      universe, timeframe: spec.timeframe, marketOpen: open, liveNote,
       signalBarTs: sigBarTs,
-      scanned, universeSize: list.length, matches: matches.map((m) => ({ symbol: m.symbol, name: m.name, exchange: m.exchange, asOf: m.asOf, lastClose: m.lastClose, setups: m.setups })),
+      scanned, universeSize: list.length, matches: matches.map((m) => ({ symbol: m.symbol, name: m.name, exchange: m.exchange, asOf: m.asOf, lastClose: m.lastClose, livePrice: m.livePrice ?? null, setups: m.setups })),
       skipped, errors,
       partial: stopped,
       method: 'Each symbol: latest ~' + days + ' days of verified ' + String(spec.timeframe).toUpperCase() + ' candles, strategy evaluated on the latest completed bar only. No signal, no report.',

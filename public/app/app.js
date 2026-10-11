@@ -1246,14 +1246,15 @@
     const ms = sc.matches || [];
     return `<div class="section-title"><h2>Auto-screen — who qualifies now</h2><span class="pill ${ms.length ? 'buy' : 'none'}">${ms.length} setup${ms.length === 1 ? '' : 's'} · ${sc.scanned}/${sc.universeSize} ${esc(sc.universe).toUpperCase()} scanned</span></div>
     <div class="card"><div class="tiny muted">${esc(sc.method)}</div>
+      <div class="tiny muted" style="margin-top:4px">${sc.marketOpen ? 'Market is OPEN — signal bar excludes the forming bar; live prices below are real-time.' : 'Market is CLOSED — figures below use the last completed (last-traded) bar.'} ${esc(sc.liveNote || '')}</div>
       <div class="tiny muted" style="margin-top:4px">${esc(sc.note || '')}${sc.partial ? ' (partial — time budget reached)' : ''}</div></div>
-    ${ms.length ? `<div class="tbl-wrap"><table><thead><tr><th>Symbol</th><th>Dir</th><th>Signal</th><th>Entry</th><th>Stop</th><th>Target</th><th>R:R</th><th>Close</th><th></th></tr></thead><tbody>
+    ${ms.length ? `<div class="tbl-wrap"><table><thead><tr><th>Symbol</th><th>Dir</th><th>Signal</th><th>Entry</th><th>Stop</th><th>Target</th><th>R:R</th><th>Live</th><th></th></tr></thead><tbody>
       ${ms.map((m) => (m.setups || []).map((s) => `<tr>
         <td><b>${esc(m.symbol)}</b><div class="tiny muted">${esc(m.name || '')}</div></td>
         <td>${s.dir === 'long' ? '▲' : '▼'}</td>
         <td>${s.fresh ? '<span class="pill buy">fresh</span>' : `<span class="tiny muted">running ${s.barsAgo} bar${s.barsAgo === 1 ? '' : 's'}</span>`}</td>
         <td>${inr(s.entry, 2)}</td><td>${inr(s.stop, 2)}</td><td>${s.target == null ? '—' : inr(s.target, 2)}</td>
-        <td>${s.planR == null ? '—' : '1:' + s.planR}</td><td>${inr(m.lastClose, 2)}</td>
+        <td>${s.planR == null ? '—' : '1:' + s.planR}</td><td>${m.livePrice == null ? inr(m.lastClose, 2) : `<b>${inr(m.livePrice, 2)}</b>`}</td>
         <td class="right"><button class="btn sm primary" onclick="window.__sa.labScreenBacktest('${esc(m.symbol)}')">Backtest</button></td>
       </tr>`).join('')).join('')}
     </tbody></table></div>`
