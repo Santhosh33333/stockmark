@@ -36,7 +36,8 @@ _Phased rebuild of the existing repo. This is the honest state of each phase; de
 
 ## Phase 6 — Trading workspace ✅ (partial)
 - [x] Dashboard widgets are real (existing engine); added freshness/provider chip to the shell.
-- [ ] Resizable panels — **deferred** (see Next steps).
+- [x] Resizable sidebar with saved width (drag handle; double-click / palette to reset). Persisted layout.
+- [ ] Resizable chart/detail panes (inside `app.js`) — **deferred** (see Next steps).
 
 ## Phases 7–11 — Scanner / chart / backtest / paper / options ✅ (audited)
 - [x] Endpoints live and exercised (see tests). No fabricated data; unsupported fields show `—`.

@@ -93,6 +93,12 @@ Exposed in the app via the command palette → **Research brief**.
   curve.
 - **CSV export**: backtest trades via `--csv` and the full paper-trade history via
   `GET /api/paper/export.csv`.
+- **Same options over HTTP**: `GET /api/backtest/:symbol?costs=1&mode=delivery&train=0.7`
+  returns the enriched `stats` (`costsApplied`, `totalCostsPct`, `costModel`,
+  `inSample`/`outOfSample`) and per-trade `grossPct`/`costPct`/`pct`. Surfaced in
+  the app via Ctrl/Cmd-K → **Advanced backtest (with costs)** (costs toggle,
+  delivery/intraday, train split, trades table). Verified in-browser: SBIN costs
+  ₹0.41%, cost model + Gross/Cost/Net columns render, 0 console errors.
 - Paper orders, positions, SL/TP, targets, portfolio stats, P&L, exits — existing
   and tested. Risk-based sizing + kill switch now enforced (see G).
 - Reality check (verified): on 10y daily, net of costs the improved preset is
@@ -117,7 +123,8 @@ Exposed in the app via the command palette → **Research brief**.
 - Dark-first + light theme, keyboard nav (`/`, `g`-shortcuts, Ctrl/Cmd-K), command
   palette, global search, freshness/provider chip, collapsible sidebar.
 - **New:** research + risk + options-analytics + strategy-builder panels, live
-  SSE quote pill (auto-reconnect, pauses when hidden), data-quality status,
+  SSE quote pill (auto-reconnect, pauses when hidden), **draggable sidebar with
+  saved width** (double-click / palette to reset), data-quality status,
   accessible dialogs (aria-modal, Esc to close), loading/empty/error states.
 
 ## I. Zero-cost-first deployment — *done*
@@ -160,7 +167,7 @@ migrations are performed on existing data.
 ## Verified in this pass
 
 - `npm run test:unit` → **25/25**.
-- `npm test` (live) → **54/54**.
+- `npm test` (live) → **56/56**.
 - Live endpoints confirmed: `/api/metrics`, `/api/research/RELIANCE`,
   `/api/analysis/RELIANCE?intraday=1` (premium/discount, VWAP, swing labels,
   displacement, equal H/L, 5m/15m MTF), `/api/options/NIFTY/analytics`
@@ -168,7 +175,8 @@ migrations are performed on existing data.
   `/api/risk/kill`, `/api/paper/export.csv`, `/api/stream/quotes` (SSE).
 - Backtest verified with costs + train/test + CSV (`--costs --train=0.7 --csv`).
 - In-browser: app shell loads with **0 console errors**; Risk-controls,
-  Research, Options-analytics and Strategy-builder panels render live data.
+  Research, Options-analytics, Strategy-builder and Advanced-backtest panels
+  render live data; sidebar resize persists.
 - Owner account intact; test accounts removed (DB: 1 owner, 0 test sessions).
 
 ## Known limitations (honest)

@@ -29,6 +29,7 @@
   function setCollapsed(on) {
     if (!shellEl) return;
     shellEl.classList.toggle('collapsed', on);
+    root.classList.toggle('tm-side-collapsed', on);
     var b = $('#side-collapse');
     if (b) { b.textContent = on ? '›' : '‹'; b.setAttribute('aria-expanded', String(!on)); b.title = on ? 'Expand sidebar' : 'Collapse sidebar'; }
     try { localStorage.setItem('tm-sidebar', on ? 'collapsed' : 'open'); } catch (e) { }
@@ -37,6 +38,55 @@
   }
   try { if (localStorage.getItem('tm-sidebar') === 'collapsed') setCollapsed(true); } catch (e) { }
   var collapseBtn = $('#side-collapse'); if (collapseBtn) collapseBtn.addEventListener('click', function () { setCollapsed(!(shellEl && shellEl.classList.contains('collapsed'))); });
+
+  /* ── resizable sidebar (saved layout; desktop) ─────────────────────── */
+  var SIDE_DEFAULT = 236, SIDE_MIN = 180, SIDE_MAX = 420;
+  function applySideWidth(w) {
+    w = Math.max(SIDE_MIN, Math.min(SIDE_MAX, Math.round(w)));
+    root.style.setProperty('--sidebar', w + 'px');
+    return w;
+  }
+  function saveSideWidth() { try { localStorage.setItem('tm-sidebar-w', String(currentSideWidth())); } catch (e) { } }
+  function currentSideWidth() { return parseInt(getComputedStyle(root).getPropertyValue('--sidebar'), 10) || SIDE_DEFAULT; }
+  try { var savedW = parseInt(localStorage.getItem('tm-sidebar-w'), 10); if (savedW) applySideWidth(savedW); } catch (e) { }
+  var resetSideWidth = function () { applySideWidth(SIDE_DEFAULT); saveSideWidth(); setTimeout(function () { window.dispatchEvent(new Event('resize')); }, 60); };
+  (function initResizer() {
+    var st = document.createElement('style'); st.id = 'tm-layout-style';
+    st.textContent =
+      '.side-resizer{position:fixed;top:0;left:calc(var(--sidebar) - 3px);width:8px;height:100dvh;cursor:col-resize;z-index:60;background:transparent;touch-action:none}'
+      + '.side-resizer::after{content:"";position:absolute;top:0;bottom:0;left:3px;width:2px;background:transparent;transition:background .15s}'
+      + '.side-resizer:hover::after,.side-resizer.active::after{background:linear-gradient(180deg,#22d3ee,#34d399)}'
+      + 'html.tm-dragging{cursor:col-resize;user-select:none}html.tm-dragging *{cursor:col-resize!important}'
+      + 'html.tm-side-collapsed .side-resizer{display:none}'
+      + '@media (max-width:959px){.side-resizer{display:none}}';
+    document.head.appendChild(st);
+    var handle = document.createElement('div');
+    handle.className = 'side-resizer'; handle.id = 'side-resizer';
+    handle.title = 'Drag to resize sidebar · double-click to reset';
+    handle.setAttribute('role', 'separator'); handle.setAttribute('aria-orientation', 'vertical'); handle.setAttribute('aria-label', 'Resize sidebar');
+    document.body.appendChild(handle);
+    var dragging = false, startX = 0, startW = 0;
+    handle.addEventListener('dblclick', resetSideWidth);
+    handle.addEventListener('pointerdown', function (e) {
+      dragging = true; startX = e.clientX; startW = currentSideWidth();
+      handle.classList.add('active'); root.classList.add('tm-dragging');
+      try { handle.setPointerCapture(e.pointerId); } catch (er) { }
+      e.preventDefault();
+    });
+    handle.addEventListener('pointermove', function (e) {
+      if (!dragging) return;
+      applySideWidth(startW + (e.clientX - startX));
+      window.dispatchEvent(new Event('resize'));
+    });
+    function end() {
+      if (!dragging) return;
+      dragging = false; handle.classList.remove('active'); root.classList.remove('tm-dragging');
+      saveSideWidth();
+      setTimeout(function () { window.dispatchEvent(new Event('resize')); }, 60);
+    }
+    handle.addEventListener('pointerup', end);
+    handle.addEventListener('pointercancel', end);
+  })();
 
   /* ── data-freshness + provider chip ─────────────────────────────────── */
   var NAMES = { yahoo: 'Yahoo Finance', angelone: 'Angel One', fyers: 'Fyers', tapetide: 'Tapetide', dhan: 'Dhan' };
@@ -187,6 +237,8 @@
       { label: 'Research brief for a symbol…', sub: 'Evidence-based analysis', ic: '🔬', run: openResearchPrompt },
       { label: 'Options analytics for a symbol…', sub: 'Chain · Greeks · OI · IV', ic: '🧾', run: openOptionsPrompt },
       { label: 'Options strategy builder…', sub: 'Payoff · breakevens · max P/L', ic: '🧮', run: function () { openPayoff(); } },
+      { label: 'Advanced backtest (with costs)…', sub: 'Brokerage · STT · slippage · train/test', ic: '📈', run: function () { openBacktest(); } },
+      { label: 'Reset sidebar width', sub: 'Layout', ic: '▤', run: resetSideWidth },
       { label: 'Sign out', sub: 'Session', ic: '⏻', run: function () { var b = $('#btn-logout'); if (b) b.click(); } }
     ];
     ACTS.forEach(function (a) { if (!ql || a.label.toLowerCase().indexOf(ql) > -1) add('Actions', { label: a.label, sub: a.sub, ic: a.ic, run: a.run }); });
@@ -196,6 +248,7 @@
       var U = q.toUpperCase();
       add('Research', { label: 'Research brief: ' + U, sub: 'Deterministic evidence + levels', ic: '🔬', run: function () { openResearch(U); } });
       add('Options', { label: 'Options analytics: ' + U, sub: 'Chain · Greeks · OI · IV', ic: '🧾', run: function () { openOptions(U); } });
+      add('Backtest', { label: 'Backtest: ' + U, sub: 'Cost-aware, train/test split', ic: '📈', run: function () { openBacktest(U); } });
     }
 
     // watchlist shortcuts
@@ -415,6 +468,11 @@
 
   /* ── options analytics + strategy builder (injected; uses real endpoints) ── */
   function fmtN(v) { return v == null ? '—' : Number(v).toLocaleString('en-IN'); }
+  function fmtDate(ts, short) {
+    if (!ts) return '—';
+    try { return new Date(ts).toLocaleDateString('en-IN', short ? { day: '2-digit', month: 'short', year: '2-digit' } : { day: '2-digit', month: 'short', year: 'numeric' }); }
+    catch (e) { return '—'; }
+  }
   function pill(text, color) { var p = h('span', 'tm-pill', text); if (color) p.style.color = color; return p; }
 
   function openOptionsPrompt() {
@@ -615,6 +673,97 @@
     render();
   }
 
+  /* ── advanced backtest (cost-aware; same deterministic engine) ──────── */
+  function openBacktest(sym) {
+    var body = openPanel('Advanced backtest');
+    body.appendChild(h('div', 'tm-mut', 'Runs the same deterministic SMC engine over real daily history. Optionally subtracts Indian brokerage / STT / GST / stamp / slippage and reports a chronological train/test split. No curve-fitting, no look-ahead.'));
+    var form = h('div'); form.style.marginTop = '12px';
+
+    var r1 = h('div'); r1.style.display = 'flex'; r1.style.gap = '8px'; r1.style.flexWrap = 'wrap'; r1.style.alignItems = 'center';
+    var symIn = h('input', 'tm-in'); symIn.placeholder = 'Symbol (e.g. RELIANCE)'; symIn.value = sym || ''; symIn.style.flex = '1 1 180px'; symIn.setAttribute('aria-label', 'Symbol');
+    var presetSel = document.createElement('select'); presetSel.className = 'tm-in'; presetSel.style.width = 'auto'; presetSel.setAttribute('aria-label', 'Preset');
+    [['improved', 'improved'], ['strict', 'strict']].forEach(function (p) { var o = document.createElement('option'); o.value = p[0]; o.textContent = p[1]; presetSel.appendChild(o); });
+    r1.appendChild(symIn); r1.appendChild(presetSel); form.appendChild(r1);
+
+    var r2 = h('div'); r2.style.display = 'flex'; r2.style.gap = '14px'; r2.style.flexWrap = 'wrap'; r2.style.alignItems = 'center'; r2.style.marginTop = '10px';
+    var costWrap = h('label'); costWrap.style.display = 'inline-flex'; costWrap.style.gap = '6px'; costWrap.style.alignItems = 'center'; costWrap.style.cursor = 'pointer';
+    var costChk = document.createElement('input'); costChk.type = 'checkbox'; costChk.checked = true;
+    costWrap.appendChild(costChk); costWrap.appendChild(document.createTextNode('Include costs'));
+    var modeSel = document.createElement('select'); modeSel.className = 'tm-in'; modeSel.style.width = 'auto'; modeSel.setAttribute('aria-label', 'Cost mode');
+    [['DELIVERY', 'Delivery'], ['INTRADAY', 'Intraday']].forEach(function (m) { var o = document.createElement('option'); o.value = m[0]; o.textContent = m[1]; modeSel.appendChild(o); });
+    var trainWrap = h('label'); trainWrap.style.display = 'inline-flex'; trainWrap.style.gap = '6px'; trainWrap.style.alignItems = 'center';
+    var trainIn = document.createElement('input'); trainIn.type = 'number'; trainIn.className = 'tm-in'; trainIn.style.width = '72px'; trainIn.min = '0'; trainIn.max = '0.9'; trainIn.step = '0.1'; trainIn.value = '0'; trainIn.setAttribute('aria-label', 'Train split');
+    trainWrap.appendChild(document.createTextNode('Train split')); trainWrap.appendChild(trainIn);
+    r2.appendChild(costWrap); r2.appendChild(modeSel); r2.appendChild(trainWrap); form.appendChild(r2);
+
+    var run = h('button', 'tm-btn', '▶ Run backtest'); run.type = 'button'; run.style.marginTop = '12px';
+    form.appendChild(run);
+    body.appendChild(form);
+    var out = h('div'); out.style.marginTop = '12px'; body.appendChild(out);
+
+    run.addEventListener('click', function () {
+      var s = String(symIn.value || '').trim().toUpperCase();
+      if (!s) { out.textContent = ''; out.appendChild(h('div', 'tm-bad', 'Enter a symbol.')); return; }
+      var q = ['preset=' + encodeURIComponent(presetSel.value)];
+      if (costChk.checked) { q.push('costs=1'); q.push('mode=' + modeSel.value); }
+      var v = Number(trainIn.value) || 0; if (v > 0 && v < 1) q.push('train=' + v);
+      out.textContent = ''; out.appendChild(h('div', 'tm-mut', 'Running… (fetching history)'));
+      fetch('/api/backtest/' + encodeURIComponent(s) + '?' + q.join('&'))
+        .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+        .then(function (res) {
+          out.textContent = '';
+          if (!res.ok) { out.appendChild(h('div', 'tm-bad', res.j.error || 'Backtest failed')); return; }
+          var j = res.j, st = j.stats || {};
+          var head = h('div'); head.style.display = 'flex'; head.style.gap = '10px'; head.style.alignItems = 'center'; head.style.flexWrap = 'wrap';
+          head.appendChild(pill(j.symbol));
+          head.appendChild(h('span', 'tm-mut', (j.bars || '—') + ' bars · ' + fmtDate(j.dataFrom) + ' → ' + fmtDate(j.dataTo) + ' · ' + j.preset));
+          out.appendChild(head);
+
+          var g = h('div', 'tm-grid');
+          row(g, 'Trades', st.trades);
+          row(g, 'Win rate', st.winRate != null ? st.winRate + '%' : '—');
+          row(g, 'Profit factor', st.profitFactor);
+          row(g, 'Net P&L (sum)', st.netProfitPct != null ? st.netProfitPct + '%' : '—', (st.netProfitPct || 0) < 0 ? 'tm-bad' : 'tm-good');
+          row(g, 'Max drawdown', st.maxDrawdownPct != null ? st.maxDrawdownPct + '%' : '—', 'tm-bad');
+          row(g, 'Avg trade', st.avgTradePct != null ? st.avgTradePct + '%' : '—');
+          if (st.costsApplied) row(g, 'Total costs', (st.totalCostsPct || 0) + '%');
+          out.appendChild(g);
+          if (st.costModel) out.appendChild(h('div', 'tm-mut', 'Cost model: ' + st.costModel.mode + ' · brokerage ' + st.costModel.brokeragePct + '% (min ₹' + st.costModel.brokerageMin + ') · slippage ' + st.costModel.slippagePct + '%/side · deployed ₹' + st.costModel.notional));
+
+          if (st.inSample && st.outOfSample) {
+            out.appendChild(h('div', 'tm-sec', 'Train / test split (chronological)'));
+            var sg = h('div', 'tm-grid');
+            row(sg, 'In-sample', st.inSample.trades + ' trades · ' + st.inSample.winRate + '% · PF ' + st.inSample.profitFactor + ' · ' + st.inSample.netProfitPct + '%');
+            row(sg, 'Out-of-sample', st.outOfSample.trades + ' trades · ' + st.outOfSample.winRate + '% · PF ' + st.outOfSample.profitFactor + ' · ' + st.outOfSample.netProfitPct + '%');
+            out.appendChild(sg);
+          }
+
+          var trs = (j.trades || []).slice(-20).reverse();
+          if (trs.length) {
+            out.appendChild(h('div', 'tm-sec', 'Trades (latest ' + trs.length + ')'));
+            var box = h('div', 'tm-scroll');
+            var t = document.createElement('table'); t.className = 'tm-tbl';
+            t.innerHTML = '<thead><tr><th>Entry</th><th>Exit</th><th>Reason</th><th>Gross%</th><th>Cost%</th><th>Net%</th></tr></thead>';
+            var tb = document.createElement('tbody');
+            trs.forEach(function (x) {
+              var tr = document.createElement('tr');
+              [fmtDate(x.entryTs, true), fmtDate(x.exitTs, true), x.reason, x.grossPct, x.costPct, x.pct].forEach(function (val, i) {
+                var td = document.createElement('td');
+                if (i >= 3) { td.textContent = (val == null ? '—' : (val >= 0 ? '+' : '') + Number(val).toFixed(2)); if (i === 5 && val != null) td.style.color = val >= 0 ? '#34d399' : '#fb7185'; }
+                else td.textContent = val == null ? '—' : String(val);
+                tr.appendChild(td);
+              });
+              tb.appendChild(tr);
+            });
+            t.appendChild(tb); box.appendChild(t); out.appendChild(box);
+          }
+          out.appendChild(h('p', 'tm-mut', 'Deterministic engine output over real history. Past performance is not indicative of future results.'));
+        })
+        .catch(function (e) { out.textContent = ''; out.appendChild(h('div', 'tm-bad', 'Failed: ' + e.message)); });
+    });
+    setTimeout(function () { if (!sym) symIn.focus(); }, 20);
+  }
+
   function openRiskPanel() {
     var body = openPanel('Risk controls');
     function load() {
@@ -660,5 +809,5 @@
   }
 
   /* ── expose for debugging / tests ──────────────────────────────────── */
-  window.__shell = { open: open, close: close, toggleTheme: toggleTheme, setCollapsed: setCollapsed, openResearch: openResearch, openRiskPanel: openRiskPanel, openOptions: openOptions, openPayoff: openPayoff };
+  window.__shell = { open: open, close: close, toggleTheme: toggleTheme, setCollapsed: setCollapsed, openResearch: openResearch, openRiskPanel: openRiskPanel, openOptions: openOptions, openPayoff: openPayoff, openBacktest: openBacktest, resetSideWidth: resetSideWidth };
 })();

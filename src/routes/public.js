@@ -216,6 +216,13 @@ router.get('/backtest/:symbol', async (req, res) => {
   const slPct = num(req.query.slPct); if (slPct != null) opts.slPct = slPct;
   const tpPct = num(req.query.tpPct); if (tpPct != null) opts.tpPct = tpPct;
   const maxBars = num(req.query.maxBars); if (maxBars != null) opts.maxBars = Math.max(1, Math.floor(maxBars));
+  // Realistic-cost + train/test options (opt-in; src/costs.js)
+  const useCosts = ['1', 'true', 'yes'].includes(String(req.query.costs || '').toLowerCase());
+  const costMode = String(req.query.mode || '').toUpperCase();
+  const train = num(req.query.train);
+  if (useCosts) opts.useCosts = true;
+  if (costMode === 'INTRADAY' || costMode === 'DELIVERY') opts.costs = { ...(opts.costs || {}), mode: costMode };
+  if (train != null && train > 0 && train < 1) opts.trainSplit = train;
   try {
     const data = await market.fetchSymbolData(yahooSym, {
       dailyRange: config.backtest.dailyRange,
@@ -227,7 +234,7 @@ router.get('/backtest/:symbol', async (req, res) => {
     res.json({
       symbol: raw, yahoo: yahooSym, preset,
       engine: 'SMC wick-rejection + order block + inducement (with 4H RSI gate)',
-      params: { preset, slPct: a.optsUsed.slPct, tpPct: a.optsUsed.tpPct, maxBars: a.optsUsed.maxBars },
+      params: { preset, slPct: a.optsUsed.slPct, tpPct: a.optsUsed.tpPct, maxBars: a.optsUsed.maxBars, costs: !!opts.useCosts, costMode: opts.useCosts ? (opts.costs?.mode || 'DELIVERY') : null, trainSplit: opts.trainSplit || 0 },
       bars: a.bars, stats: a.stats, equityCurve: a.stats.equityCurve || [],
       trades, monthly: monthlyReturns(trades),
       dataFrom: data.daily.length ? data.daily[0].t : null,

@@ -52,6 +52,11 @@ async function main() {
       `price ₹${a.body.price} · 4H RSI ${a.body.rsi4h} · zones ${a.body.zones?.length} · signals ${a.body.signals?.length} · ${Date.now() - t0}ms`);
     check('Backtest stats computed', a.body.stats && a.body.stats.trades >= 0,
       `winRate ${a.body.stats?.winRate}% · PF ${a.body.stats?.profitFactor} · DD ${a.body.stats?.maxDrawdownPct}%`);
+
+    const bt = await call('GET', '/api/backtest/RELIANCE?costs=1&train=0.7');
+    check('Backtest cost model + train split (API)',
+      bt.status === 200 && bt.body.stats?.costsApplied === true && typeof bt.body.stats?.totalCostsPct === 'number' && bt.body.params?.costs === true,
+      `costs ${bt.body.stats?.totalCostsPct}% · trades ${bt.body.stats?.trades} · split ${bt.body.stats?.inSample ? 'yes' : 'no'} · net ${bt.body.stats?.netProfitPct}%`);
     check('4H RSI series for chart', Array.isArray(a.body.rsi4hSeries) && a.body.rsi4hSeries.length > 10,
       `${a.body.rsi4hSeries?.length} 4H bars`);
     check('Structure + FVG + liquidity layers',
