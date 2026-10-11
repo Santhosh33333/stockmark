@@ -58,3 +58,17 @@ _Phased rebuild of the existing repo. This is the honest state of each phase; de
 - Landing: live NIFTY ₹22,520.45 / +1.30%, RSI 40.5, structure DOWN·BEAR, provider "Yahoo Finance · last update …" — 0 console errors.
 - App shell: `window.__shell` present; palette returns real symbols (RELIANCE, NIFTY 50, …); palette navigation + `g o` + Ctrl-K all work; freshness "live · Yahoo Finance"; collapse persists — 0 console errors.
 - All landing links resolve HTTP 200.
+
+## Phase 14 — Future-ready backend upgrade (A–J brief) ✅ (this pass)
+- [x] Resilience: TTL cache + in-flight dedup + retry/backoff/Retry-After + `/api/metrics`.
+- [x] Data-quality labels (LIVE/DELAYED/STALE/CLOSED/DEMO) on analysis, market status and the shell chip.
+- [x] SMC additions: premium/discount, displacement, VWAP, swing labels, equal H/L, signal reasons + confirmed/forming.
+- [x] Multi-timeframe now includes 5m/15m/1h/4h/D/W (`?intraday=1`).
+- [x] Deterministic research assistant `/api/research/:symbol` (no invented probability).
+- [x] Options analytics: Black-Scholes Greeks, max pain, OI, IV rank (real history), payoff builder.
+- [x] Risk management: per-trade/daily/drawdown limits, kill switch, `/api/risk/state`, audit logging.
+- [x] `npm run test:unit` → 20/20; `npm test` → **52/52**; in-browser panels render, 0 console errors.
+- [ ] WebSocket streaming — **deferred** (no free NSE/Yahoo feed; needs paid broker licence).
+- [ ] Backtest cost model (brokerage/taxes/slippage) + CSV export — **deferred**.
+- Full mapping of done vs deferred: see `UPGRADE_REPORT.md`.
+

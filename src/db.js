@@ -96,6 +96,16 @@ CREATE TABLE IF NOT EXISTS email_otps (
   created_at  INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_otp_email ON email_otps(email, purpose, created_at);
+
+CREATE TABLE IF NOT EXISTS iv_history (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  symbol     TEXT NOT NULL,
+  expiry     TEXT NOT NULL,
+  iv         REAL,
+  underlying REAL,
+  ts         INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_iv ON iv_history(symbol, expiry, ts);
 `);
 
 // email verification column (added on existing databases too)
@@ -160,6 +170,10 @@ const stmt = {
   deleteUserWatch: db.prepare(`DELETE FROM watchlist WHERE user_id = ?`),
   deleteUserTrades: db.prepare(`DELETE FROM paper_trades WHERE user_id = ?`),
   deleteUserSignals: db.prepare(`DELETE FROM signal_history WHERE user_id = ?`),
+  // ── option IV history (for real IV rank / percentile) ──
+  insertIv: db.prepare(`INSERT INTO iv_history (symbol, expiry, iv, underlying, ts) VALUES (?,?,?,?,?)`),
+  ivHistory: db.prepare(`SELECT iv, underlying, ts FROM iv_history WHERE symbol = ? AND expiry = ? ORDER BY ts DESC LIMIT ?`),
+  countIv: db.prepare(`SELECT COUNT(*) c FROM iv_history WHERE symbol = ?`),
 };
 
 const now = () => Date.now();

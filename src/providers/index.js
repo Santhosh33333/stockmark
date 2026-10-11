@@ -4,6 +4,7 @@
 // fetchQuotes, mapLimit — plus providerStatus()/testProvider() for Settings.
 const config = require('../../config');
 const { pMap } = require('../util');
+const net = require('../net');
 const store = require('./store');
 const yahoo = require('./yahoo');
 const angelone = require('./angelone');
@@ -65,12 +66,32 @@ async function fetchSymbolData(symbol, opts = {}) {
   const daily = await fetchChart(symbol, { interval: '1d', range: dailyRange });
   let hourly = { candles: [], meta: {} };
   try { hourly = await fetchChart(symbol, { interval: '1h', range: hourlyRange }); } catch { /* hourly optional */ }
-  return { daily: daily.candles, hourly: hourly.candles, meta: { ...(daily.meta || {}), source: daily.meta?.source || 'yahoo' } };
+  const out = { daily: daily.candles, hourly: hourly.candles, meta: { ...(daily.meta || {}), source: daily.meta?.source || 'yahoo' } };
+  // Optional intraday timeframes (5m/15m) for multi-timeframe confirmation.
+  // Yahoo serves these for short windows only; missing frames degrade quietly.
+  if (opts.intraday) {
+    const [m5, m15] = await Promise.all([
+      fetchChart(symbol, { interval: '5m', range: opts.range5m || '5d' }).catch(() => ({ candles: [] })),
+      fetchChart(symbol, { interval: '15m', range: opts.range15m || '1mo' }).catch(() => ({ candles: [] })),
+    ]);
+    out.intraday = { '5m': m5.candles || [], '15m': m15.candles || [] };
+  }
+  return out;
 }
 
 const hasPrice = (q) => !!q && Object.values(q).some((v) => v && v.price != null);
 
+// Short TTL cache for quotes: identical concurrent/repeat requests within a few
+// seconds reuse one upstream fetch (protects free rate limits, speeds the UI).
+const quoteCache = new net.TtlCache(4000, 'quotes');
+const quoteTtlMs = config.scan.quoteCacheMs || 4000;
+
 async function fetchQuotes(symbols, opts = {}) {
+  const key = [...new Set(symbols)].sort().join(',');
+  return net.memo(quoteCache, key, quoteTtlMs, () => fetchQuotesRaw(symbols, opts));
+}
+
+async function fetchQuotesRaw(symbols, opts = {}) {
   const providers = usable();
   let lastErr;
   for (const p of providers) {
@@ -140,4 +161,5 @@ async function testProvider(id) {
 module.exports = {
   fetchChart, fetchSymbolData, fetchQuote, fetchQuotes, mapLimit,
   providerStatus, testProvider, chain, usable,
+  metrics: () => ({ ...net.metrics(), lastUsed, cache: quoteCache.stats() }),
 };

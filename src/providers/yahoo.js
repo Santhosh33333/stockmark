@@ -1,11 +1,18 @@
 // Live market data from Yahoo Finance (free, no API key). NSE ".NS" and BSE ".BO" symbols.
 const config = require('../../config');
 const { httpJson, pMap, sleep } = require('../util');
+const net = require('../net');
 
 const BASE = config.yahooBase;
 const FALLBACK = config.yahooBase2;
 
-async function fetchChart(symbol, { interval = '1d', range = '6mo' } = {}) {
+// Concurrent identical chart requests are de-duplicated (scanner + UI overlap).
+function fetchChart(symbol, { interval = '1d', range = '6mo' } = {}) {
+  const key = `chart|${symbol}|${interval}|${range}`;
+  return net.dedupe(key, () => fetchChartUncached(symbol, { interval, range }));
+}
+
+async function fetchChartUncached(symbol, { interval = '1d', range = '6mo' } = {}) {
   const url = `${BASE}/v8/finance/chart/${encodeURIComponent(symbol)}?interval=${interval}&range=${range}&includePrePost=false`;
   let json;
   try {

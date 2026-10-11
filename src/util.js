@@ -3,12 +3,28 @@ const config = require('../config');
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-// ── HTTP with retry (free providers are occasionally flaky) ──────────────
-async function httpText(url, { timeoutMs = 20000, retry = 2, retryDelayMs = 700, headers = {}, method = 'GET', body } = {}) {
+// ── HTTP counters (surfaced through /api/metrics) ────────────────────────
+const httpCounters = { requests: 0, retries: 0, errors: 0, rateLimited: 0, timeouts: 0, notModified: 0 };
+const httpStats = () => ({ ...httpCounters });
+
+// Parse a Retry-After header (seconds or HTTP-date) into milliseconds.
+function retryAfterMs(res) {
+  const h = res && res.headers && res.headers.get ? res.headers.get('retry-after') : null;
+  if (!h) return 0;
+  const secs = Number(h);
+  if (isFinite(secs)) return Math.max(0, secs * 1000);
+  const when = Date.parse(h);
+  return isFinite(when) ? Math.max(0, when - Date.now()) : 0;
+}
+
+// ── HTTP with retry + exponential backoff + jitter (free providers are
+//    occasionally flaky and rate-limit with 429/503 + Retry-After) ─────────
+async function httpText(url, { timeoutMs = 20000, retry = 2, retryDelayMs = 700, maxDelayMs = 8000, headers = {}, method = 'GET', body } = {}) {
   let lastErr;
   for (let attempt = 0; attempt <= retry; attempt++) {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+    httpCounters.requests++;
     try {
       const res = await fetch(url, {
         method,
@@ -22,14 +38,33 @@ async function httpText(url, { timeoutMs = 20000, retry = 2, retryDelayMs = 700,
         },
       });
       const text = await res.text();
-      if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
-      return text;
+      if (!res.ok) {
+        // 4xx (except 429) are permanent — do not retry.
+        const permanent = res.status >= 400 && res.status < 500 && res.status !== 429;
+        const err = new Error(`HTTP ${res.status} for ${url}`);
+        err.status = res.status;
+        err.permanent = permanent;
+        err.retryAfterMs = retryAfterMs(res);
+        if (res.status === 429) httpCounters.rateLimited++;
+        httpCounters.errors++;
+        lastErr = err;
+        if (permanent || attempt >= retry) throw err;
+      } else {
+        return text;
+      }
     } catch (err) {
       lastErr = err;
-      if (attempt < retry) await sleep(retryDelayMs * (attempt + 1));
+      if (err.name === 'AbortError') httpCounters.timeouts++;
+      if (err.permanent) throw err;
+      if (attempt >= retry) { httpCounters.errors++; throw err; }
     } finally {
       clearTimeout(timer);
     }
+    httpCounters.retries++;
+    const backoff = Math.min(maxDelayMs, retryDelayMs * 2 ** attempt);
+    const jitter = Math.round(backoff * 0.25 * Math.random());
+    const wait = lastErr && lastErr.retryAfterMs ? Math.min(maxDelayMs, lastErr.retryAfterMs) : backoff + jitter;
+    await sleep(wait);
   }
   throw lastErr;
 }
@@ -130,4 +165,4 @@ const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 const round2 = (v) => Math.round(v * 100) / 100;
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
 
-module.exports = { sleep, httpText, httpJson, parseCsv, inr, inrLakh, inrFmt2, istNow, istParts, marketStatus, pMap, clamp, round2, uid };
+module.exports = { sleep, httpText, httpJson, parseCsv, inr, inrLakh, inrFmt2, istNow, istParts, marketStatus, pMap, clamp, round2, uid, httpStats };

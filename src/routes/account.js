@@ -5,6 +5,7 @@ const { stmt, now, config } = require('../db');
 const paper = require('../paper');
 const dhan = require('../dhan');
 const options = require('../providers/options');
+const optionsAnalytics = require('../optionsAnalytics');
 const market = require('../providers');
 const notify = require('../notify');
 const scanner = require('../scanner');
@@ -226,7 +227,10 @@ router.post('/paper/open', requireUser, (req, res) => {
     return res.status(403).json({ error: 'Mode is LIVE — use /api/dhan/order instead' });
   }
   const out = paper.openTrade(req.user.id, { symbol, name: req.body?.name || symbol, price, settings });
-  if (!out.ok) return res.status(400).json({ error: out.problems.join(', '), ...out });
+  if (!out.ok) {
+    stmt.log.run(req.user.id, 'PAPER ORDER BLOCKED', `${symbol} — ${(out.problems || []).join('; ')}`, now());
+    return res.status(400).json({ error: out.problems.join(', '), ...out });
+  }
   notify.recordSignal(req.user.id, { symbol, name: symbol, exchange: 'NSE', price }, `Paper trade opened @ ₹${price}`);
   res.json({ ok: true, trade: out.trade, exposure: out.exposure });
 });
@@ -314,6 +318,27 @@ router.get('/options/:symbol', requireUser, async (req, res) => {
   }
 });
 
+// Enriched chain: Black-Scholes greeks, max pain, OI analysis, IV rank.
+router.get('/options/:symbol/analytics', requireUser, async (req, res) => {
+  try {
+    const settings = auth.getSettings(req.user);
+    const chain = await options.getOptionChain({ settings, symbol: req.params.symbol, expiry: req.query.expiry });
+    const enriched = optionsAnalytics.enrichChain(chain, { r: Number(req.query.r) || optionsAnalytics.RISK_FREE });
+    res.json({ ok: true, ...enriched, cached: chain.cached || false, attempts: chain.attempts || [] });
+  } catch (e) {
+    res.status(502).json({ ok: false, error: e.message, attempts: e.attempts || [] });
+  }
+});
+
+// Options strategy builder: expiry payoff, max profit/loss, breakevens.
+// Body: { legs:[{type,strike,qty,premium}], underlying, lotSize }
+router.post('/options/strategy/payoff', requireUser, (req, res) => {
+  const { legs = [], underlying = null, lotSize = 1 } = req.body || {};
+  const out = optionsAnalytics.payoff(legs, { underlying, lotSize: Number(lotSize) || 1 });
+  if (!out.ok) return res.status(400).json(out);
+  res.json(out);
+});
+
 // ── Dhan live execution ─────────────────────────────────────────────────
 router.post('/dhan/test', requireUser, async (req, res) => {
   const settings = auth.getSettings(req.user);
@@ -326,15 +351,20 @@ router.post('/dhan/order', requireUser, async (req, res) => {
   if (settings.mode !== 'LIVE' || !settings.dhanEnabled) {
     return res.status(403).json({ error: 'Switch to LIVE mode and enable Dhan in settings first' });
   }
+  if (settings.killSwitch) return res.status(403).json({ error: 'Kill switch is ON — live orders are blocked' });
   const { symbol, qty, price, slPct, tpPct, exchange } = req.body || {};
   try {
-    const check = paper.riskCheck(settings, symbol, price, qty);
-    if (!check.ok) return res.status(400).json({ error: check.problems.join(', ') });
+    const q = Number(qty || 1);
+    const check = paper.riskCheck(settings, symbol, Number(price), q, req.user.id);
+    if (!check.ok) {
+      stmt.log.run(req.user.id, 'LIVE ORDER BLOCKED', `${symbol} — ${check.problems.join('; ')}`, now());
+      return res.status(400).json({ error: check.problems.join(', '), problems: check.problems });
+    }
     const out = await dhan.placeOrderWithProtections(settings, {
-      symbol, name: symbol, exchange: exchange || 'NSE', qty: Number(qty || 1), price: Number(price),
+      symbol, name: symbol, exchange: exchange || 'NSE', qty: q, price: Number(price),
       slPct: Number(slPct || settings.slPct), tpPct: Number(tpPct || settings.tpPct),
     });
-    const info = stmt.addTrade.run(req.user.id, symbol, symbol, Number(qty || 1), Number(price), now(),
+    const info = stmt.addTrade.run(req.user.id, symbol, symbol, q, Number(price), now(),
       Number(price) * (1 - (Number(slPct || settings.slPct)) / 100),
       Number(price) * (1 + (Number(tpPct || settings.tpPct)) / 100), 'LIVE');
     stmt.log.run(req.user.id, 'LIVE ORDER', `${symbol} qty ${qty} @ ${price} | ${JSON.stringify(out)}`, now());
@@ -342,6 +372,43 @@ router.post('/dhan/order', requireUser, async (req, res) => {
   } catch (e) {
     res.status(502).json({ error: e.message });
   }
+});
+
+// ── risk management: live state + kill switch ───────────────────────────
+router.get('/risk/state', requireUser, (req, res) => {
+  const settings = auth.getSettings(req.user);
+  const snap = paper.riskSnapshot(req.user.id);
+  const capital = Number(settings.capital || 100000);
+  res.json({
+    capital,
+    mode: settings.mode,
+    killSwitch: !!settings.killSwitch,
+    limits: {
+      maxRiskPerTradePct: settings.maxRiskPerTradePct,
+      maxDailyLossPct: settings.maxDailyLossPct,
+      maxDrawdownPct: settings.maxDrawdownPct,
+      maxPositions: settings.maxPositions,
+      slPct: settings.slPct, tpPct: settings.tpPct,
+    },
+    usage: {
+      dayPnl: snap.dayPnl,
+      dayPnlFmt: inr(snap.dayPnl, true),
+      dailyLossLimit: +(capital * (Number(settings.maxDailyLossPct || 3) / 100)).toFixed(2),
+      maxDrawdown: snap.maxDrawdown,
+      drawdownLimit: +(capital * (Number(settings.maxDrawdownPct || 15) / 100)).toFixed(2),
+      openCount: snap.openCount,
+      tradesToday: snap.tradesToday,
+      dailyLossBreached: snap.dayPnl <= -(capital * (Number(settings.maxDailyLossPct || 3) / 100)),
+      drawdownBreached: snap.maxDrawdown >= capital * (Number(settings.maxDrawdownPct || 15) / 100),
+    },
+  });
+});
+
+router.post('/risk/kill', requireUser, (req, res) => {
+  const on = !!(req.body && req.body.on);
+  const s = auth.updateSettings(req.user.id, { killSwitch: on });
+  stmt.log.run(req.user.id, 'KILL SWITCH', on ? 'ON — new positions blocked' : 'OFF', now());
+  res.json({ ok: true, killSwitch: !!s.killSwitch });
 });
 
 // ── owner / admin console ───────────────────────────────────────────────
@@ -506,7 +573,12 @@ router.post('/providers/test', requireAdmin, async (req, res) => {
 // Public freshness/source indicator (no secrets) for the topbar.
 router.get('/providers/source', (_req, res) => {
   const s = market.providerStatus();
-  res.json({ active: s.active, order: s.order, lastUsed: s.lastUsed, checkedAt: now() });
+  const dq = require('../dataquality');
+  const lastSource = s.lastUsed.quote || s.lastUsed.chart || s.active[0] || 'yahoo';
+  res.json({
+    active: s.active, order: s.order, lastUsed: s.lastUsed, checkedAt: now(),
+    quality: dq.classify({ source: lastSource }),
+  });
 });
 
 router.post('/admin/scan', requireAdmin, async (req, res) => {

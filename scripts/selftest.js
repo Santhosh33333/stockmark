@@ -61,6 +61,23 @@ async function main() {
       a.body.mtf && Array.isArray(a.body.mtf.timeframes) && a.body.mtf.timeframes.length >= 2 && typeof a.body.mtf.score === 'number',
       `${a.body.mtf?.timeframes?.map((t) => t.tf + ':' + t.bias).join(' ')} · ${a.body.mtf?.alignment} ${a.body.mtf?.score}`);
 
+    // ── new SMC context layers + data-quality + research ──
+    check('SMC context layers (premium/discount, VWAP, swing, displacement, equal H/L)',
+      !!a.body.premiumDiscount && !!a.body.vwap && !!a.body.swingStructure && !!a.body.displacement && Array.isArray(a.body.equalHighs),
+      `${a.body.premiumDiscount?.zone} · VWAP ₹${a.body.vwap?.session} · ${a.body.swingStructure?.bias} · disp ${a.body.displacement?.count} · EH ${a.body.equalHighs?.length}`);
+    check('Data-quality label present', !!a.body.quality && !!a.body.quality.status,
+      `${a.body.quality?.status} · ${a.body.quality?.source} · ${a.body.quality?.note}`);
+
+    const res = await call('GET', '/api/research/RELIANCE');
+    check('Research assistant (deterministic evidence)',
+      res.status === 200 && res.body.ok === true && Array.isArray(res.body.bullEvidence) && Array.isArray(res.body.bearEvidence) && res.body.probability?.calibrated === false,
+      `bull ${res.body.bullEvidence?.length} · bear ${res.body.bearEvidence?.length} · stance "${res.body.stance}" · R:R ${res.body.levels?.referenceRiskReward}`);
+
+    const metrics = await call('GET', '/api/metrics');
+    check('Operational metrics endpoint',
+      metrics.status === 200 && typeof metrics.body.http?.http?.requests === 'number' && !!metrics.body.providers,
+      `reqs ${metrics.body.http?.http?.requests} · retries ${metrics.body.http?.http?.retries} · uptime ${metrics.body.uptimeSec}s`);
+
     const email = `test.user${Date.now()}@example.com`;
     const signup = await call('POST', '/api/auth/signup', { email, password: 'test1234', displayName: 'Test User' });
     check('Sign up + OTP sent', signup.status === 200 && signup.body.requiresVerification === true,
@@ -108,6 +125,26 @@ async function main() {
 
     const set = await call('PUT', '/api/me/settings', { capital: 250000, slPct: 4, tpPct: 12 }, authHeaders);
     check('Settings saved', set.status === 200 && set.body.settings?.capital === 250000);
+
+    // ── risk management: state + kill switch guard ──
+    const riskState = await call('GET', '/api/risk/state', null, authHeaders);
+    check('Risk state endpoint',
+      riskState.status === 200 && riskState.body.limits && typeof riskState.body.usage?.dayPnl === 'number',
+      `risk ${riskState.body.limits?.maxRiskPerTradePct}% · dailyLoss ${riskState.body.limits?.maxDailyLossPct}% · dd ${riskState.body.limits?.maxDrawdownPct}%`);
+    const killOn = await call('POST', '/api/risk/kill', { on: true }, authHeaders);
+    check('Kill switch ON', killOn.status === 200 && killOn.body.killSwitch === true);
+    const blocked = await call('POST', '/api/paper/open', { symbol: 'INFY', price: 1500, name: 'Infosys' }, authHeaders);
+    check('Kill switch blocks new positions', blocked.status === 400 && /kill switch/i.test(blocked.body.error || ''),
+      blocked.body.error);
+    const killOff = await call('POST', '/api/risk/kill', { on: false }, authHeaders);
+    check('Kill switch OFF', killOff.status === 200 && killOff.body.killSwitch === false);
+
+    // ── options strategy builder (deterministic payoff maths) ──
+    const payoff = await call('POST', '/api/options/strategy/payoff',
+      { legs: [{ type: 'CE', strike: 25000, qty: 1, premium: 150 }], underlying: 24900, lotSize: 75 }, authHeaders);
+    check('Options payoff builder',
+      payoff.status === 200 && payoff.body.ok === true && payoff.body.maxLoss === -11250 && payoff.body.maxProfit === 'unlimited' && payoff.body.breakevens?.length >= 1,
+      `maxLoss ₹${payoff.body.maxLoss} · maxProfit ${payoff.body.maxProfit} · BE ${payoff.body.breakevens?.join(',')}`);
 
     // paper trading
     const open = await call('POST', '/api/paper/open', { symbol: 'SBIN', price: 820, name: 'State Bank of India' }, authHeaders);
@@ -164,6 +201,19 @@ async function main() {
       oc.status === 200
         ? `${oc.body.source} · ${oc.body.symbol} ${oc.body.expiry} · ${oc.body.strikes?.length} strikes · PCR ${oc.body.pcr} · und ₹${oc.body.underlyingValue}`
         : (oc.body.error || `status ${oc.status}`));
+
+    // Enriched analytics (greeks, max pain, IV) — tolerate upstream being blocked.
+    const ocA = await call('GET', '/api/options/NIFTY/analytics', null, authHeaders);
+    const ocAOk = ocA.status === 200 && ocA.body.ok === true && ocA.body.greeks && ocA.body.maxPain && ocA.body.ivRank;
+    if (oc.status === 200) {
+      check('Option analytics (greeks + max pain + IV)',
+        ocAOk,
+        ocAOk
+          ? `ATM IV ${ocA.body.atmIV} · maxPain ${ocA.body.maxPain?.strike} · delta ${ocA.body.strikes?.find?.((s) => s.strike === ocA.body.atm)?.ce?.greeks?.delta} · IVrank avail ${ocA.body.ivRank?.available}`
+          : (ocA.body.error || `status ${ocA.status}`));
+    } else {
+      check('Option analytics endpoint reachable', ocA.status === 200 || ocA.status === 502, `chain blocked upstream (${oc.status}) → analytics ${ocA.status}`);
+    }
 
     // ── user profile (editable display name) ──
     const prof = await call('PATCH', '/api/me', { displayName: 'Selftest User' }, authHeaders);

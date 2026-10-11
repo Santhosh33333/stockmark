@@ -41,6 +41,12 @@ const DEFAULTS = {
   structureMax: 6,        // BOS/CHoCH events kept in the payload
   liqTolAtr: 0.25,        // equal-high/low tolerance (x ATR)
   liqMax: 3,              // liquidity pools per side kept in the payload
+  // 6. extra context (additive; report-only)
+  rangeLookback: 60,      // bars used for the premium/discount dealing range
+  dispMult: 1.5,          // body >= N x ATR counts as a displacement candle
+  vwapWindow: 20,         // rolling VWAP window
+  formingLastBar: false,  // true while the market is open (last daily bar not closed)
+  intraday: null,         // { '5m': [...], '15m': [...] } optional MTF frames
 };
 
 // ── Detect a strong wick-rejection candle ───────────────────────────────
@@ -215,6 +221,107 @@ function liquidityPools(candles, swings, atrArr, tolAtr = 0.25) {
   return { buyside, sellside, tol: +tol.toFixed(2) };
 }
 
+// ── Premium / discount (dealing range) ───────────────────────────────────
+// Equilibrium = midpoint of the most recent dealing range (highest swing high
+// vs lowest swing low within `lookback` bars). Price above EQ = premium,
+// below = discount. Used to avoid buying into premium.
+function premiumDiscount(candles, swings, lookback = 60) {
+  const n = candles.length;
+  const from = Math.max(0, n - lookback);
+  const hs = swings.highs.filter((s) => s.idx >= from);
+  const ls = swings.lows.filter((s) => s.idx >= from);
+  let high = hs.length ? Math.max(...hs.map((s) => s.price)) : null;
+  let low = ls.length ? Math.min(...ls.map((s) => s.price)) : null;
+  if (high == null || low == null) {
+    const slice = candles.slice(from);
+    high = Math.max(...slice.map((c) => c.h));
+    low = Math.min(...slice.map((c) => c.l));
+  }
+  if (!(high > low)) return null;
+  const eq = (high + low) / 2;
+  const price = candles[n - 1].c;
+  const pct = (price - low) / (high - low);
+  const zone = Math.abs(pct - 0.5) <= 0.05 ? 'EQUILIBRIUM' : pct >= 0.5 ? 'PREMIUM' : 'DISCOUNT';
+  return {
+    high: +high.toFixed(2), low: +low.toFixed(2), equilibrium: +eq.toFixed(2),
+    positionPct: +pct.toFixed(3), zone,
+    premium: { top: +high.toFixed(2), bottom: +eq.toFixed(2) },
+    discount: { top: +eq.toFixed(2), bottom: +low.toFixed(2) },
+  };
+}
+
+// ── Displacement candles (large-body, high-conviction moves) ──────────────
+function displacement(candles, atrArr, mult = 1.5) {
+  const hits = [];
+  for (let i = 1; i < candles.length; i++) {
+    const c = candles[i];
+    const a = atrArr[i];
+    if (a == null || a <= 0) continue;
+    const body = Math.abs(c.c - c.o);
+    const range = c.h - c.l;
+    if (range <= 0) continue;
+    if (body >= mult * a && body / range >= 0.6) {
+      hits.push({ idx: i, t: c.t, dir: c.c >= c.o ? 'BULL' : 'BEAR', body: +body.toFixed(2), atrMult: +(body / a).toFixed(2) });
+    }
+  }
+  return { count: hits.length, last: hits[hits.length - 1] || null, recent: hits.slice(-6) };
+}
+
+// ── VWAP (session-anchored when intraday dates are available, else rolling) ─
+function vwap(candles, window = 20) {
+  if (!candles || !candles.length) return null;
+  const typ = (c) => (c.h + c.l + c.c) / 3;
+  // Anchor to the most recent IST session
+  const istDay = (t) => new Date(t + 5.5 * 3600000).toISOString().slice(0, 10);
+  const lastDay = istDay(candles[candles.length - 1].t);
+  let pv = 0, vv = 0, bars = 0;
+  for (let i = candles.length - 1; i >= 0; i--) {
+    if (istDay(candles[i].t) !== lastDay) break;
+    const v = candles[i].v > 0 ? candles[i].v : 1;
+    pv += typ(candles[i]) * v; vv += v; bars++;
+  }
+  const session = vv > 0 ? pv / vv : null;
+  // Rolling N-bar VWAP as a secondary reference
+  let rpv = 0, rvv = 0;
+  for (let i = Math.max(0, candles.length - window); i < candles.length; i++) {
+    const v = candles[i].v > 0 ? candles[i].v : 1;
+    rpv += typ(candles[i]) * v; rvv += v;
+  }
+  const rolling = rvv > 0 ? rpv / rvv : null;
+  const price = candles[candles.length - 1].c;
+  return {
+    session: session != null ? +session.toFixed(2) : null,
+    rolling: rolling != null ? +rolling.toFixed(2) : null,
+    sessionBars: bars,
+    aboveSession: session != null ? price > session : null,
+    aboveRolling: rolling != null ? price > rolling : null,
+  };
+}
+
+// ── Labelled swing structure (HH / HL / LH / LL progression) ──────────────
+function swingStructure(swings, max = 10) {
+  const pts = [
+    ...swings.highs.map((s) => ({ ...s, type: 'H' })),
+    ...swings.lows.map((s) => ({ ...s, type: 'L' })),
+  ].sort((a, b) => a.idx - b.idx);
+
+  const labelled = [];
+  let prevH = null, prevL = null;
+  for (const p of pts) {
+    let label;
+    if (p.type === 'H') { label = prevH == null ? 'H' : (p.price > prevH ? 'HH' : p.price < prevH ? 'LH' : 'EH'); prevH = p.price; }
+    else { label = prevL == null ? 'L' : (p.price > prevL ? 'HL' : p.price < prevL ? 'LL' : 'EL'); prevL = p.price; }
+    labelled.push({ ...p, label });
+  }
+  const last = labelled.slice(-max);
+  const labels = last.map((l) => l.label);
+  let bias = 'NEUTRAL';
+  const tail = labels.slice(-4);
+  if (tail.includes('HH') && tail.includes('HL')) bias = 'UP';
+  else if (tail.includes('LL') && tail.includes('LH')) bias = 'DOWN';
+  return { bias, labels, last: last[last.length - 1] || null, points: last };
+}
+
 // ── Confluence score: how many independent bullish factors line up ───────
 function confluenceScore(last, o, rsi4hNow, activeZoneCount, lastSignal, structure, fvgs, liquidity) {
   const parts = [];
@@ -233,7 +340,7 @@ function confluenceScore(last, o, rsi4hNow, activeZoneCount, lastSignal, structu
 }
 
 // ── Multi-timeframe context: weekly / daily / 4H / 1H agreement ─────────
-const TF_WEIGHT = { W: 4, D: 3, '4H': 2, '1H': 1 };
+const TF_WEIGHT = { W: 4, D: 3, '4H': 2, '1H': 1, '15m': 0.75, '5m': 0.5 };
 
 // Bias for one timeframe: structure trend, refined by price vs EMA(20) when
 // structure is RANGE. Returns null when there is not enough history.
@@ -258,12 +365,14 @@ function timeframeBias(tf, candles, o) {
   };
 }
 
-function multiTimeframe(daily, hourly, o) {
+function multiTimeframe(daily, hourly, o, intraday = {}) {
   const series = [
     ['W', toWeekly(daily || [])],
     ['D', daily || []],
     ['4H', resample4h(hourly || [])],
     ['1H', hourly || []],
+    ['15m', intraday['15m'] || []],
+    ['5m', intraday['5m'] || []],
   ];
   const timeframes = [];
   let wBull = 0, wBear = 0, wTotal = 0;
@@ -285,6 +394,19 @@ function multiTimeframe(daily, hourly, o) {
   else if (bull && bear) alignment = 'MIXED';
   const score = wTotal ? Math.round(((wBull - wBear) / wTotal) * 100) : 0;
   return { timeframes, bull, bear, neutral, alignment, score };
+}
+
+// ── Human-readable rule trace for a signal (what exactly triggered) ───────
+function buildReasons(o, entry, z) {
+  const r = [];
+  r.push(`Lower-wick rejection: lower wick ≥ ${o.wickMult}× body with close in top ${Math.round((1 - o.closePct) * 100)}% of range`);
+  r.push(`Bullish order block at ₹${z.bottom.toFixed(2)}–₹${z.top.toFixed(2)} (bearish candle + ≥${o.impAtrMult}×ATR impulse)`);
+  r.push(`Sweep of the order block low within ${o.sweepAtrMult}×ATR of ATR (inducement)`);
+  if (entry.filters && entry.filters.htfRsi) r.push(`4H RSI ${entry.htfRsi != null ? entry.htfRsi : '—'} < ${o.htfRsiMax}`);
+  if (entry.filters && entry.filters.ema) r.push(`Close above EMA(${o.emaLen})`);
+  if (entry.filters && entry.filters.rsiDaily) r.push(`Daily RSI > ${o.dailyRsiMin}`);
+  if (entry.filters && entry.filters.macdWeekly) r.push('Weekly MACD histogram rising');
+  return r;
 }
 
 // ── Main analysis ───────────────────────────────────────────────────────
@@ -379,6 +501,7 @@ function analyze(daily, hourly, opts = {}) {
             filters: { htfRsi: passHtf, wick: passWick, ema: passEma, rsiDaily: passRsiD, macdWeekly: passMacd },
           };
 
+          entry.reasons = buildReasons(o, entry, z);
           if (passHtf && passWick && passEma && passRsiD && passMacd) {
             entry.direction = 'BUY';
             signals.push(entry);
@@ -448,7 +571,12 @@ function analyze(daily, hourly, opts = {}) {
   const structure = marketStructure(daily, o.swingLen, swings);
   const allFvgs = fairValueGaps(daily);
   const liquidity = liquidityPools(daily, swings, atrA, o.liqTolAtr);
-  const mtf = multiTimeframe(daily, hourly, o);
+  const mtf = multiTimeframe(daily, hourly, o, (o.intraday) || {});
+  const premDisc = premiumDiscount(daily, swings, o.rangeLookback);
+  const disp = displacement(daily, atrA, o.dispMult);
+  const vw = vwap(hourly && hourly.length ? hourly : daily, o.vwapWindow);
+  const swStruct = swingStructure(swings);
+  const forming = !!o.formingLastBar;
   const rsi4hNow = rsi4h.length && rsi4h[rsi4h.length - 1] != null ? +rsi4h[rsi4h.length - 1].toFixed(1) : null;
   const lastSig = signals.length ? signals[signals.length - 1] : null;
   const confluence = confluenceScore(last, o, rsi4hNow, activeZones.length, lastSig, structure, allFvgs, liquidity);
@@ -474,10 +602,30 @@ function analyze(daily, hourly, opts = {}) {
     wickLastIdx: wickFlags.lastIndexOf(true),
     wickCount: wickFlags.filter(Boolean).length,
     activeZones: activeZones.map((z) => ({ top: +z.top.toFixed(2), bottom: +z.bottom.toFixed(2), createdIdx: z.createdIdx, swept: z.swept, age: n - 1 - z.createdIdx })),
-    signals: signals.map((s) => ({ t: s.t, price: s.price, htfRsi: s.htfRsi, dir: s.direction, zone: { top: +s.zone.top.toFixed(2), bottom: +s.zone.bottom.toFixed(2) } })),
+    signals: signals.map((s) => {
+      const entry = s.price;
+      const invalidation = entry * (1 - o.slPct / 100);
+      const target = entry * (1 + o.tpPct / 100);
+      return {
+        t: s.t, price: s.price, htfRsi: s.htfRsi, dir: s.direction,
+        timeframe: 'D',
+        zone: { top: +s.zone.top.toFixed(2), bottom: +s.zone.bottom.toFixed(2) },
+        entry: +entry.toFixed(2),
+        invalidation: +invalidation.toFixed(2),
+        targets: [{ label: `${o.tpPct}% target`, price: +target.toFixed(2) }],
+        riskReward: o.slPct > 0 ? +(o.tpPct / o.slPct).toFixed(2) : null,
+        confirmed: s.i < n - 1 || !forming,
+        reasons: s.reasons || [],
+      };
+    }),
     inducements: inducementMarks.map((s) => ({ t: s.t, price: s.price, htfRsi: s.htfRsi, filters: s.filters })),
     zones: recentZones,
-    lastSignal: signals.length ? { t: signals[signals.length - 1].t, price: signals[signals.length - 1].price, htfRsi: signals[signals.length - 1].htfRsi } : null,
+    lastSignal: signals.length ? {
+      t: signals[signals.length - 1].t, price: signals[signals.length - 1].price,
+      htfRsi: signals[signals.length - 1].htfRsi,
+      confirmed: signals[signals.length - 1].i < n - 1 || !forming,
+      reasons: signals[signals.length - 1].reasons || [],
+    } : null,
     signalCount: signals.length,
     structure: {
       trend: structure.trend,
@@ -498,6 +646,13 @@ function analyze(daily, hourly, opts = {}) {
       buyside: liquidity.buyside.slice(-o.liqMax),
       sellside: liquidity.sellside.slice(-o.liqMax),
     },
+    equalHighs: liquidity.buyside.slice(-o.liqMax),
+    equalLows: liquidity.sellside.slice(-o.liqMax),
+    premiumDiscount: premDisc,
+    displacement: disp,
+    vwap: vw,
+    swingStructure: swStruct,
+    formingLastBar: forming,
     mtf,
     confluence,
     stats,
@@ -529,4 +684,5 @@ const PRESETS = {
 module.exports = {
   analyze, DEFAULTS, PRESETS, wickRejectionAt, bearWickRejectionAt,
   findSwings, marketStructure, fairValueGaps, liquidityPools, confluenceScore, multiTimeframe,
+  premiumDiscount, displacement, vwap, swingStructure, buildReasons,
 };

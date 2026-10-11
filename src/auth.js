@@ -31,6 +31,11 @@ const DEFAULT_SETTINGS = {
   maxPositions: 5,
   maxTradesPerDay: 5,
   slPct: 3, tpPct: 10, maxBars: 25,
+  // risk guardrails
+  maxRiskPerTradePct: 1,         // % of capital risked between entry and stop
+  maxDailyLossPct: 3,            // hard stop for the day
+  maxDrawdownPct: 15,            // max peak-to-trough on closed trades
+  killSwitch: false,             // master block on NEW opens (paper + live)
   autoScan: false, autoScanPreset: 'fno', autoScanMinutes: 30,
   telegramToken: '', telegramChat: '',
   webhookPass: '',
@@ -38,6 +43,23 @@ const DEFAULT_SETTINGS = {
   notifyBrowser: true,
   theme: 'dark',
 };
+
+// Clamp/validate the risk-bearing settings so the UI can never push an absurd
+// value (e.g. 999% risk) into the engine.
+const RISK_RANGES = {
+  capital: [1000, 1e9], qtyPct: [1, 100], maxPositions: [1, 50], maxTradesPerDay: [1, 100],
+  slPct: [0.1, 50], tpPct: [0.1, 500], maxBars: [1, 500],
+  maxRiskPerTradePct: [0.1, 100], maxDailyLossPct: [0.1, 100], maxDrawdownPct: [0.5, 100],
+};
+function sanitizeSettings(patch) {
+  const out = { ...patch };
+  for (const [k, [lo, hi]] of Object.entries(RISK_RANGES)) {
+    if (k in out && out[k] != null && isFinite(Number(out[k]))) out[k] = Math.min(hi, Math.max(lo, Number(out[k])));
+  }
+  if ('killSwitch' in out) out.killSwitch = !!out.killSwitch;
+  if ('mode' in out && !['PAPER', 'SIGNAL', 'LIVE'].includes(out.mode)) delete out.mode;
+  return out;
+}
 
 function publicUser(u) {
   return {
@@ -83,7 +105,7 @@ function destroySession(token) { if (token) stmt.deleteSession.run(token); }
 
 function updateSettings(userId, patch) {
   const u = stmt.userById.get(userId);
-  const merged = { ...DEFAULT_SETTINGS, ...(safeJson(u.settings) || {}), ...patch };
+  const merged = { ...DEFAULT_SETTINGS, ...(safeJson(u.settings) || {}), ...sanitizeSettings(patch || {}) };
   stmt.updateSettings.run(JSON.stringify(merged), userId);
   return merged;
 }
@@ -148,4 +170,4 @@ function verifyOtp(email, code, purpose = 'signup') {
   return { ok: true, user: u };
 }
 
-module.exports = { createUser, authenticate, createSession, userForToken, destroySession, updateSettings, getSettings, publicUser, DEFAULT_SETTINGS, checkRate, seedAdmin, hashPassword, sendOtp, verifyOtp };
+module.exports = { createUser, authenticate, createSession, userForToken, destroySession, updateSettings, getSettings, publicUser, DEFAULT_SETTINGS, RISK_RANGES, sanitizeSettings, checkRate, seedAdmin, hashPassword, sendOtp, verifyOtp };

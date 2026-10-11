@@ -4,6 +4,9 @@ const { getSymbolList, buildUniverse, INDICES } = require('../providers/symbols'
 const market = require('../providers');
 const scanner = require('../scanner');
 const strategy = require('../strategy');
+const research = require('../research');
+const dq = require('../dataquality');
+const net = require('../net');
 const auth = require('../auth');
 const { stmt, now } = require('../db');
 const { marketStatus } = require('../util');
@@ -12,6 +15,20 @@ const config = require('../../config');
 const router = express.Router();
 
 router.get('/health', (_req, res) => res.json({ ok: true, ts: now(), service: 'TradeMind' }));
+
+// Operational metrics (no secrets): cache hit-rates, HTTP counters, provider use.
+router.get('/metrics', (_req, res) => {
+  const mem = process.memoryUsage();
+  res.json({
+    ts: now(),
+    uptimeSec: Math.round(process.uptime()),
+    memoryMB: { rss: +(mem.rss / 1048576).toFixed(1), heap: +(mem.heapUsed / 1048576).toFixed(1) },
+    node: process.version,
+    http: net.metrics(),
+    providers: market.providerStatus(),
+    market: marketStatus(),
+  });
+});
 
 router.get('/market/status', async (_req, res) => {
   const status = marketStatus();
@@ -25,6 +42,7 @@ router.get('/market/status', async (_req, res) => {
       change: q.change,
       changePct: q.change != null && q.prevClose ? +((q.change / q.prevClose) * 100).toFixed(2) : null,
       currency: q.currency || 'INR',
+      quality: q.price != null ? dq.classify({ source: q.source || market.providerStatus().lastUsed.quote, market: status }) : null,
     };
   });
   res.json({ status, indices });
@@ -74,12 +92,20 @@ function compactRow(r) {
 router.get('/analysis/:symbol', async (req, res) => {
   const raw = String(req.params.symbol || '').toUpperCase();
   const yahooSym = raw.endsWith('.NS') || raw.endsWith('.BO') || raw.startsWith('^') ? raw : `${raw}.NS`;
+  const wantIntraday = req.query.intraday === '1' || req.query.intraday === 'true';
   try {
-    const data = await market.fetchSymbolData(yahooSym);
-    const a = strategy.analyze(data.daily, data.hourly, strategy.DEFAULTS);
+    const data = await market.fetchSymbolData(yahooSym, { intraday: wantIntraday });
+    const mkt = marketStatus();
+    const opts = { ...strategy.DEFAULTS, formingLastBar: mkt.state === 'OPEN' };
+    if (data.intraday) opts.intraday = data.intraday;
+    const a = strategy.analyze(data.daily, data.hourly, opts);
     if (!a.ok) return res.status(422).json({ error: a.reason });
+    const source = data.meta?.source || market.providerStatus().lastUsed.chart || 'yahoo';
+    const last = data.daily[data.daily.length - 1];
+    const quality = dq.classify({ source, asOf: last?.t, market: mkt });
     res.json({
       symbol: raw, yahoo: yahooSym, ...a,
+      source, quality,
       candles: compressCandles(data.daily),
       candles4h: compressCandles(data.hourly),
       ...fourHourSeries(data.hourly),
@@ -87,6 +113,30 @@ router.get('/analysis/:symbol', async (req, res) => {
     });
   } catch (e) {
     res.status(502).json({ error: `Data fetch failed: ${e.message}` });
+  }
+});
+
+// Deterministic, evidence-backed research brief (no LLM, no invented numbers).
+router.get('/research/:symbol', async (req, res) => {
+  const raw = String(req.params.symbol || '').toUpperCase();
+  const yahooSym = raw.endsWith('.NS') || raw.endsWith('.BO') || raw.startsWith('^') ? raw : `${raw}.NS`;
+  try {
+    const data = await market.fetchSymbolData(yahooSym, { intraday: true });
+    const mkt = marketStatus();
+    const opts = { ...strategy.DEFAULTS, formingLastBar: mkt.state === 'OPEN' };
+    if (data.intraday) opts.intraday = data.intraday;
+    const a = strategy.analyze(data.daily, data.hourly, opts);
+    if (!a.ok) return res.status(422).json({ ok: false, error: a.reason });
+    const source = data.meta?.source || market.providerStatus().lastUsed.chart || 'yahoo';
+    const brief = research.build(a, {
+      symbol: raw, source,
+      dataFrom: data.daily.length ? data.daily[0].t : null,
+      dataTo: data.daily.length ? data.daily[data.daily.length - 1].t : null,
+    });
+    brief.quality = dq.classify({ source, asOf: data.daily[data.daily.length - 1]?.t, market: mkt });
+    res.json(brief);
+  } catch (e) {
+    res.status(502).json({ ok: false, error: `Research data fetch failed: ${e.message}` });
   }
 });
 

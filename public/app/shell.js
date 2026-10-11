@@ -62,8 +62,16 @@
       var src = NAMES[id] || id;
       var at = j.lastUsed && j.lastUsed.at;
       var age = at ? (Date.now() - at) : Infinity;
+      var q = j.quality || null;
       var cls = !at ? 'cached' : age < 5 * 60e3 ? 'live' : age < 20 * 60e3 ? 'cached' : 'stale';
-      paintFresh(cls, src, ago(at));
+      if (q && q.status) {
+        if (q.status === 'LIVE') cls = 'live';
+        else if (q.status === 'DELAYED') cls = 'cached';
+        else if (q.status === 'STALE' || q.status === 'UNAVAILABLE') cls = 'stale';
+        else if (q.status === 'CLOSED') cls = 'cached';
+      }
+      paintFresh(cls, src + (q && q.status ? ' · ' + q.status : ''), ago(at));
+      if (freshEl && q && q.note) freshEl.title = 'Market data — source: ' + src + ' · status: ' + q.status + ' · ' + q.note;
     }).catch(function () { paintFresh('off', 'offline', 'unavailable'); });
   }
   loadFreshness(); setInterval(loadFreshness, 45000);
@@ -118,9 +126,16 @@
       { label: 'Toggle light / dark theme', sub: 'Appearance', ic: '◐', run: toggleTheme },
       { label: 'Toggle sidebar', sub: 'Layout', ic: '▤', run: function () { setCollapsed(!(shellEl && shellEl.classList.contains('collapsed'))); } },
       { label: 'Collapse sidebar', sub: 'Layout', ic: '▤', run: function () { setCollapsed(true); } },
+      { label: 'Risk controls & kill switch', sub: 'Risk management', ic: '🛡', run: openRiskPanel },
+      { label: 'Research brief for a symbol…', sub: 'Evidence-based analysis', ic: '🔬', run: openResearchPrompt },
       { label: 'Sign out', sub: 'Session', ic: '⏻', run: function () { var b = $('#btn-logout'); if (b) b.click(); } }
     ];
     ACTS.forEach(function (a) { if (!ql || a.label.toLowerCase().indexOf(ql) > -1) add('Actions', { label: a.label, sub: a.sub, ic: a.ic, run: a.run }); });
+
+    // "Research <SYM>" shortcut when the query looks like a ticker
+    if (q && /^[\^A-Za-z0-9.&-]{1,15}$/.test(q)) {
+      add('Research', { label: 'Research brief: ' + q.toUpperCase(), sub: 'Deterministic evidence + levels', ic: '🔬', run: (function (sym) { return function () { openResearch(sym); }; })(q.toUpperCase()) });
+    }
 
     // watchlist shortcuts
     if (WATCH.length) WATCH.forEach(function (w) {
@@ -191,6 +206,7 @@
   var GO = { d: 'dashboard', s: 'scanner', b: 'backtest', o: 'options', p: 'paper', a: 'alerts', e: 'settings' };
   var pendingG = false, gTimer = null;
   document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && tmPanel) { closePanel(); return; }
     var appEl = document.getElementById('app');
     var appVisible = !!(appEl && !appEl.classList.contains('hidden'));
     if (!appVisible) { if (e.key === 'Escape' && cmdk && cmdk.classList.contains('open')) close(); return; }
@@ -215,6 +231,163 @@
     }
   });
 
+  /* ── panels: research brief + risk controls (injected, no app.js changes) ── */
+  function ensureShellStyle() {
+    if (document.getElementById('tm-shell-style')) return;
+    var st = document.createElement('style');
+    st.id = 'tm-shell-style';
+    st.textContent =
+      '.tm-modal{position:fixed;inset:0;z-index:9000;background:rgba(2,6,23,.62);backdrop-filter:blur(3px);display:flex;align-items:flex-start;justify-content:center;padding:6vh 16px;overflow:auto}'
+      + '.tm-card{width:min(720px,100%);background:var(--bg-1,#0b1220);color:var(--fg,#e5e7eb);border:1px solid var(--line,#1f2a44);border-radius:16px;box-shadow:0 24px 60px rgba(0,0,0,.5)}'
+      + '.tm-card-h{display:flex;align-items:center;gap:12px;padding:16px 18px;border-bottom:1px solid var(--line,#1f2a44)}'
+      + '.tm-card-h h2{margin:0;font-size:16px}'
+      + '.tm-card-h .tm-x{margin-left:auto;border:0;background:transparent;color:inherit;font-size:22px;cursor:pointer;line-height:1}'
+      + '.tm-card-b{padding:16px 18px;font-size:13.5px;line-height:1.55}'
+      + '.tm-pill{display:inline-block;padding:2px 10px;border-radius:999px;font-size:11px;font-weight:600;letter-spacing:.02em;border:1px solid currentColor}'
+      + '.tm-sec{margin:14px 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.08em;opacity:.7}'
+      + '.tm-li{display:flex;gap:8px;padding:5px 0;border-bottom:1px dashed rgba(148,163,184,.18)}'
+      + '.tm-li b{font-weight:600}.tm-mut{opacity:.7}'
+      + '.tm-grid{display:grid;grid-template-columns:1fr auto;gap:4px 12px}'
+      + '.tm-row{display:contents}.tm-row .v{text-align:right;font-variant-numeric:tabular-nums}'
+      + '.tm-btn{border:1px solid var(--line,#1f2a44);background:var(--bg-2,#0f1a30);color:inherit;border-radius:10px;padding:8px 14px;cursor:pointer;font:inherit}'
+      + '.tm-btn:hover{border-color:var(--accent,#22d3ee)}.tm-btn.danger{border-color:#f43f5e;color:#fb7185}'
+      + '.tm-in{width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--line,#1f2a44);background:var(--bg-2,#0f1a30);color:inherit;font:inherit}'
+      + '.tm-bad{color:#fb7185}.tm-good{color:#34d399}';
+    document.head.appendChild(st);
+  }
+  var tmPanel = null;
+  function h(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+  function closePanel() { if (tmPanel) { tmPanel.remove(); tmPanel = null; } }
+  function openPanel(title) {
+    ensureShellStyle(); closePanel();
+    var modal = h('div', 'tm-modal');
+    var card = h('div', 'tm-card'); card.setAttribute('role', 'dialog'); card.setAttribute('aria-modal', 'true');
+    var head = h('div', 'tm-card-h'); head.appendChild(h('h2', null, title));
+    var x = h('button', 'tm-x', '×'); x.setAttribute('aria-label', 'Close'); x.addEventListener('click', closePanel);
+    head.appendChild(x);
+    var body = h('div', 'tm-card-b');
+    card.appendChild(head); card.appendChild(body); modal.appendChild(card);
+    modal.addEventListener('mousedown', function (e) { if (e.target === modal) closePanel(); });
+    document.body.appendChild(modal);
+    tmPanel = modal;
+    return body;
+  }
+  function row(grid, label, value, cls) {
+    var r = h('div', 'tm-row');
+    r.appendChild(h('span', 'l tm-mut', label));
+    r.appendChild(h('span', 'v ' + (cls || ''), value));
+    grid.appendChild(r);
+  }
+
+  function openResearchPrompt() {
+    var body = openPanel('Research brief');
+    body.appendChild(h('div', 'tm-mut', 'Enter a symbol (e.g. RELIANCE, NIFTY, ^NSEI). Analysis uses live provider data and deterministic rules — no invented numbers.'));
+    var form = h('form'); form.style.marginTop = '12px';
+    var inp = h('input', 'tm-in'); inp.placeholder = 'Symbol'; inp.setAttribute('aria-label', 'Symbol');
+    var go = h('button', 'tm-btn', 'Analyse'); go.type = 'submit'; go.style.marginTop = '10px';
+    form.appendChild(inp); form.appendChild(go);
+    form.addEventListener('submit', function (e) { e.preventDefault(); var s = String(inp.value || '').trim().toUpperCase(); if (s) openResearch(s); });
+    body.appendChild(form);
+    setTimeout(function () { inp.focus(); }, 20);
+  }
+
+  function openResearch(sym) {
+    var body = openPanel('Research — ' + sym);
+    body.appendChild(h('div', 'tm-mut', 'Fetching live data & running deterministic analysis…'));
+    fetch('/api/research/' + encodeURIComponent(sym)).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); }).then(function (res) {
+      var j = res.j;
+      body.textContent = '';
+      if (!res.ok || !j.ok) { body.appendChild(h('div', 'tm-bad', 'Unavailable: ' + (j.error || 'no data'))); return; }
+      var head = h('div'); head.style.display = 'flex'; head.style.gap = '10px'; head.style.alignItems = 'center'; head.style.flexWrap = 'wrap';
+      var color = /BULLISH/.test(j.stance) ? '#34d399' : /BEARISH/.test(j.stance) ? '#fb7185' : '#fbbf24';
+      var pill = h('span', 'tm-pill', j.stance); pill.style.color = color; head.appendChild(pill);
+      if (j.quality) head.appendChild(h('span', 'tm-mut', j.quality.status + ' · ' + j.quality.source));
+      body.appendChild(head);
+      body.appendChild(h('p', null, j.headline));
+
+      function section(title, arr, good) {
+        if (!arr || !arr.length) return;
+        body.appendChild(h('div', 'tm-sec', title + ' (' + arr.length + ')'));
+        arr.forEach(function (it) {
+          var li = h('div', 'tm-li');
+          li.appendChild(h('span', null, good === true ? '▲' : good === false ? '▼' : '•'));
+          var t = h('div'); t.appendChild(h('b', null, it.label));
+          if (it.detail) t.appendChild(h('span', 'tm-mut', ' — ' + it.detail));
+          li.appendChild(t); body.appendChild(li);
+        });
+      }
+      section('Bullish evidence', j.bullEvidence, true);
+      section('Bearish evidence', j.bearEvidence, false);
+      section('Conflicting signals', j.conflicts, null);
+      section('Risks', j.risks, false);
+      section('Missing / unavailable data', j.missingData, null);
+
+      body.appendChild(h('div', 'tm-sec', 'Reference levels'));
+      var g = h('div', 'tm-grid');
+      var L = j.levels || {};
+      row(g, 'Entry reference', L.entryReference != null ? '₹' + L.entryReference : '—');
+      row(g, 'Invalidation', L.invalidation ? '₹' + L.invalidation.price + '  (' + L.invalidation.label + ')' : '—', 'tm-bad');
+      (L.targets || []).forEach(function (t, i) { row(g, 'Target ' + (i + 1), '₹' + t.price + '  (' + t.label + ')', 'tm-good'); });
+      row(g, 'Reference R:R', L.referenceRiskReward != null ? '1:' + L.referenceRiskReward : '—');
+      body.appendChild(g);
+
+      body.appendChild(h('div', 'tm-sec', 'Probability'));
+      body.appendChild(h('div', 'tm-mut', j.probability.note));
+      var ph = j.probability.historical || {};
+      var pg = h('div', 'tm-grid');
+      row(pg, 'Historical sample', ph.sampleSize != null ? ph.sampleSize + ' trades' : '—');
+      row(pg, 'Win rate (in-sample)', ph.winRate != null ? ph.winRate + '%' : '—');
+      row(pg, 'Profit factor', ph.profitFactor != null ? ph.profitFactor : '—');
+      row(pg, 'Max drawdown', ph.maxDrawdownPct != null ? ph.maxDrawdownPct + '%' : '—');
+      body.appendChild(pg);
+      body.appendChild(h('p', 'tm-mut', j.disclaimer));
+    }).catch(function (e) { body.appendChild(h('div', 'tm-bad', 'Failed: ' + e.message)); });
+  }
+
+  function openRiskPanel() {
+    var body = openPanel('Risk controls');
+    function load() {
+      body.textContent = '';
+      body.appendChild(h('div', 'tm-mut', 'Loading risk state…'));
+      fetch('/api/risk/state').then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); }).then(function (res) {
+        body.textContent = '';
+        if (!res.ok) { body.appendChild(h('div', 'tm-bad', res.j.error || 'Sign in to manage risk')); return; }
+        var j = res.j;
+        var head = h('div'); head.style.display = 'flex'; head.style.alignItems = 'center'; head.style.gap = '10px';
+        head.appendChild(h('span', 'tm-pill', 'Mode: ' + j.mode));
+        var ks = h('button', 'tm-btn' + (j.killSwitch ? ' danger' : ''), j.killSwitch ? 'Kill switch: ON — click to arm trading' : 'Kill switch: OFF — click to block new orders');
+        ks.addEventListener('click', function () {
+          ks.disabled = true;
+          fetch('/api/risk/kill', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ on: !j.killSwitch }) })
+            .then(function () { load(); });
+        });
+        head.appendChild(ks);
+        body.appendChild(head);
+
+        body.appendChild(h('div', 'tm-sec', 'Limits'));
+        var lg = h('div', 'tm-grid');
+        row(lg, 'Max risk per trade', j.limits.maxRiskPerTradePct + '% of capital');
+        row(lg, 'Max daily loss', j.limits.maxDailyLossPct + '%  (₹' + j.usage.dailyLossLimit + ')');
+        row(lg, 'Max drawdown', j.limits.maxDrawdownPct + '%  (₹' + j.usage.drawdownLimit + ')');
+        row(lg, 'Max open positions', j.limits.maxPositions);
+        row(lg, 'Stop / target', j.limits.slPct + '% / ' + j.limits.tpPct + '%');
+        body.appendChild(lg);
+
+        body.appendChild(h('div', 'tm-sec', 'Today'));
+        var ug = h('div', 'tm-grid');
+        row(ug, 'Day P&L', j.usage.dayPnlFmt, j.usage.dayPnl < 0 ? 'tm-bad' : 'tm-good');
+        row(ug, 'Open positions', j.usage.openCount);
+        row(ug, 'Trades closed today', j.usage.tradesToday);
+        row(ug, 'Peak drawdown', '₹' + j.usage.maxDrawdown, j.usage.drawdownBreached ? 'tm-bad' : '');
+        row(ug, 'Daily loss breached', j.usage.dailyLossBreached ? 'YES' : 'no', j.usage.dailyLossBreached ? 'tm-bad' : 'tm-good');
+        body.appendChild(ug);
+
+        body.appendChild(h('p', 'tm-mut', 'Live-mode orders remain disabled by default and require an explicit broker authorisation. The kill switch blocks every new position (paper and live) and is written to the audit log.'));
+      }).catch(function (e) { body.appendChild(h('div', 'tm-bad', 'Failed: ' + e.message)); });
+    }
+    load();
+  }
+
   /* ── expose for debugging / tests ──────────────────────────────────── */
-  window.__shell = { open: open, close: close, toggleTheme: toggleTheme, setCollapsed: setCollapsed };
+  window.__shell = { open: open, close: close, toggleTheme: toggleTheme, setCollapsed: setCollapsed, openResearch: openResearch, openRiskPanel: openRiskPanel };
 })();

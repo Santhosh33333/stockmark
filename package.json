@@ -8,6 +8,7 @@
     "start": "node server.js",
     "dev": "node --watch server.js",
     "test": "node scripts/selftest.js",
+    "test:unit": "node scripts/unittest.js",
     "preset:india": "node -e \"require('./src/providers/symbols.js').buildUniverse().then(u=>console.log('NSE:',u.nse.length,'BSE:',u.bse.length,'F&O:',u.fno.length))\""
   },
   "engines": {
