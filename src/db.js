@@ -113,6 +113,55 @@ CREATE TABLE IF NOT EXISTS price_alerts (
 );
 CREATE INDEX IF NOT EXISTS idx_pa_user ON price_alerts(user_id, enabled);
 CREATE INDEX IF NOT EXISTS idx_pa_enabled ON price_alerts(enabled);
+
+-- ── Strategy Lab: saved strategies, versions, backtest runs, audit ──────────
+CREATE TABLE IF NOT EXISTS strategies (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id       INTEGER NOT NULL,
+  name          TEXT NOT NULL,
+  description   TEXT,
+  spec          TEXT NOT NULL,                 -- current JSON spec (schema v1)
+  current_ver   INTEGER NOT NULL DEFAULT 1,
+  created_at    INTEGER NOT NULL,
+  updated_at    INTEGER NOT NULL,
+  forked_from   INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_strat_user ON strategies(user_id, updated_at);
+
+CREATE TABLE IF NOT EXISTS strategy_versions (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  strategy_id INTEGER NOT NULL,
+  version     INTEGER NOT NULL,
+  spec        TEXT NOT NULL,
+  label       TEXT,
+  created_at  INTEGER NOT NULL,
+  UNIQUE(strategy_id, version)
+);
+CREATE INDEX IF NOT EXISTS idx_sv_strategy ON strategy_versions(strategy_id, version);
+
+CREATE TABLE IF NOT EXISTS lab_runs (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id     INTEGER NOT NULL,
+  strategy_id INTEGER,
+  symbol      TEXT,
+  timeframe   TEXT,
+  from_ts     INTEGER,
+  to_ts       INTEGER,
+  spec        TEXT,
+  summary     TEXT,                            -- compact metrics only (no fabricated data)
+  created_at  INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_labrun_user ON lab_runs(user_id, created_at);
+
+CREATE TABLE IF NOT EXISTS strategy_audit (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id    INTEGER,
+  strategy_id INTEGER,
+  action     TEXT,
+  detail     TEXT,
+  ts         INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_sa_strategy ON strategy_audit(strategy_id, ts);
 `);
 
 const stmt = {
@@ -181,6 +230,20 @@ const stmt = {
   deletePriceAlert: db.prepare(`DELETE FROM price_alerts WHERE id = ? AND user_id = ?`),
   markAlertTriggered: db.prepare(`UPDATE price_alerts SET last_price = ?, last_checked = ?, triggered_at = ?, trigger_count = trigger_count + 1, enabled = 0 WHERE id = ?`),
   touchAlertChecked: db.prepare(`UPDATE price_alerts SET last_price = ?, last_checked = ? WHERE id = ?`),
+  // ── strategy lab persistence ──
+  insertStrategy: db.prepare(`INSERT INTO strategies (user_id, name, description, spec, current_ver, created_at, updated_at, forked_from) VALUES (?,?,?,?,?,?,?,?)`),
+  strategyById: db.prepare(`SELECT * FROM strategies WHERE id = ?`),
+  strategiesForUser: db.prepare(`SELECT id, name, description, current_ver, created_at, updated_at, forked_from FROM strategies WHERE user_id = ? ORDER BY updated_at DESC`),
+  updateStrategy: db.prepare(`UPDATE strategies SET name = ?, description = ?, spec = ?, current_ver = ?, updated_at = ? WHERE id = ?`),
+  deleteStrategy: db.prepare(`DELETE FROM strategies WHERE id = ?`),
+  insertStrategyVersion: db.prepare(`INSERT INTO strategy_versions (strategy_id, version, spec, label, created_at) VALUES (?,?,?,?,?)`),
+  strategyVersions: db.prepare(`SELECT id, version, label, created_at FROM strategy_versions WHERE strategy_id = ? ORDER BY version DESC`),
+  strategyVersion: db.prepare(`SELECT * FROM strategy_versions WHERE strategy_id = ? AND version = ?`),
+  insertLabRun: db.prepare(`INSERT INTO lab_runs (user_id, strategy_id, symbol, timeframe, from_ts, to_ts, spec, summary, created_at) VALUES (?,?,?,?,?,?,?,?,?)`),
+  labRunsForUser: db.prepare(`SELECT id, strategy_id, symbol, timeframe, from_ts, to_ts, summary, created_at FROM lab_runs WHERE user_id = ? ORDER BY created_at DESC LIMIT ?`),
+  deleteLabRun: db.prepare(`DELETE FROM lab_runs WHERE id = ?`),
+  insertStrategyAudit: db.prepare(`INSERT INTO strategy_audit (user_id, strategy_id, action, detail, ts) VALUES (?,?,?,?,?)`),
+  strategyAudit: db.prepare(`SELECT * FROM strategy_audit WHERE strategy_id = ? ORDER BY ts DESC LIMIT ?`),
 };
 
 const now = () => Date.now();

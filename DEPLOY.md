@@ -91,6 +91,20 @@ on every deploy/restart. Use this to show the app publicly, not to keep accounts
 forgets their password, the owner resets it from **Admin → Users** (or the owner
 changes `ADMIN_PASSWORD` and redeploys). Nothing else to configure.
 
+**Keep a fixed set of accounts alive across restarts.** The free plan's disk is wiped
+on every restart/redeploy, so normal *sign-ups* are lost when the service updates. To
+make specific accounts durable, set `SEED_USERS` in the dashboard (**Environment →
+Secret**):
+
+```
+SEED_USERS = alice@example.com:secret1,bob@example.com:secret2
+```
+
+Each `email:password` pair is re-created on boot (idempotent — existing accounts are
+left untouched), so those logins work even after an update. Their paper-trade data
+still resets with the disk; for durable *data* you need a paid persistent disk or an
+external database.
+
 **Optional — no cold starts.** `.github/workflows/keepalive.yml` pings `/healthz`
 every 10 minutes from GitHub Actions so the free service stays warm. It uses ~720 of
 the 750 free instance-hours/month; delete the file if you'd rather let it sleep.
@@ -202,6 +216,7 @@ expects the platform's `$PORT`. Mount `/app/data` (or set `DATA_DIR`) to persist
 | `ALLOW_SIGNUP` | on | `off` closes public registration (owner-only). **Recommended for public deploys.** |
 | `DATA_DIR` | `./data` | Where `app.db` lives — point at a mounted volume. |
 | `SESSION_SECRET` | derived from `ADMIN_PASSWORD` | Signs session tokens. Set a fixed value so sessions survive an `ADMIN_PASSWORD` change. |
+| `SEED_USERS` | — | `email:password,email:password` — re-created on boot so a fixed set of accounts survives an ephemeral disk. |
 | `NSE_MIN_GAP_MS` | `3000` | Min gap between NSE option-chain calls (respects their limit). |
 | `ALERT_POLL_MS` | `60000` | Background price-alert poll interval; `0` disables. |
 | `SCAN_CONCURRENCY` | `12` | Parallel Yahoo requests (lower it on tiny instances). |

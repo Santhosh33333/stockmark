@@ -6,6 +6,7 @@ const auth = require('./src/auth');
 const config = require('./config');
 const publicRoutes = require('./src/routes/public');
 const accountRoutes = require('./src/routes/account');
+const labRoutes = require('./src/routes/lab');
 
 // Owner credentials live ONLY in the local private file owner.json (never exposed by any API)
 const ownerFile = path.join(__dirname, 'owner.json');
@@ -18,6 +19,27 @@ if (fs.existsSync(ownerFile)) {
 }
 const admin = auth.seedAdmin();
 if (admin) console.log('[TradeMind] owner account ready:', admin.username);
+
+// Optional: keep a fixed set of accounts alive across restarts. Free hosts often
+// have an ephemeral disk that is wiped on redeploy, which deletes normal sign-ups;
+// seeding from SEED_USERS re-creates them on every boot so their logins always work.
+// Format:  SEED_USERS="alice@x.com:secret1,bob@x.com:secret2"
+// Idempotent — existing accounts (and their data) are left untouched.
+(function seedExtraUsers() {
+  const raw = String(process.env.SEED_USERS || '').trim();
+  if (!raw) return;
+  for (const pair of raw.split(',')) {
+    const i = pair.indexOf(':');
+    if (i < 1) continue;
+    const email = pair.slice(0, i).trim().toLowerCase();
+    const password = pair.slice(i + 1).trim();
+    if (!email || password.length < 6) continue;
+    try {
+      const u = auth.createUser({ username: email, password, displayName: email.split('@')[0] });
+      console.log('[TradeMind] seeded user:', u.username);
+    } catch { /* already exists — leave as-is */ }
+  }
+})();
 
 const app = express();
 app.disable('x-powered-by');
@@ -37,6 +59,7 @@ if (alertPollMs > 0) priceAlerts.start(alertPollMs);
 // ── API ────────────────────────────────────────────────────────────────
 app.use('/api', publicRoutes.router);
 app.use('/api', accountRoutes.router);
+app.use('/api', labRoutes.router);
 
 // ── Marketing landing page (public/) ───────────────────────────────────
 app.get('/', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'landing.html')));
