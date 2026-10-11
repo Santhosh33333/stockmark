@@ -1,14 +1,22 @@
 // Central configuration. Everything defaults to FREE public endpoints.
 const path = require('path');
 
+// Data folder. Defaults to ./data; set DATA_DIR to a mounted volume when hosting
+// so the SQLite database survives redeploys (Render disk, Fly volume, etc.).
+const dataDir = process.env.DATA_DIR ? path.resolve(process.env.DATA_DIR) : path.join(__dirname, 'data');
+
 const config = {
   port: Number(process.env.PORT || 5124),
   host: process.env.HOST || '0.0.0.0',
 
   // Local folders (created at runtime)
-  dataDir: path.join(__dirname, 'data'),
-  dbFile: path.join(__dirname, 'data', 'app.db'),
-  universeCache: path.join(__dirname, 'data', 'universe.json'),
+  dataDir,
+  dbFile: path.join(dataDir, 'app.db'),
+  universeCache: path.join(dataDir, 'universe.json'),
+
+  // Public sign-ups. On by default (local use). Set ALLOW_SIGNUP=off on a public
+  // deployment so only the seeded owner account can get in.
+  allowSignup: !/^(off|false|0|no)$/i.test(String(process.env.ALLOW_SIGNUP || '')),
 
   // Free public data providers (no API key required)
   yahooBase: 'https://query1.finance.yahoo.com',

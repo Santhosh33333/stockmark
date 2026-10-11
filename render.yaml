@@ -1,0 +1,28 @@
+# Render Blueprint — click "New + → Blueprint" and point it at this repo.
+#
+# Honest note: Render's FREE web plan has EPHEMERAL storage, so the SQLite DB is
+# reset on every redeploy/restart. That is fine for trying the app out. For FREE
+# persistence use the Cloudflare Tunnel or Oracle Always-Free path in DEPLOY.md.
+# (Attaching a Render disk requires a paid instance type.)
+services:
+  - type: web
+    name: trademind
+    runtime: node
+    plan: free
+    region: singapore
+    buildCommand: npm ci --omit=dev
+    startCommand: npm start
+    healthCheckPath: /healthz
+    autoDeploy: true          # redeploys on every push to main
+    envVars:
+      - key: NODE_VERSION
+        value: 24.18.0
+      - key: NODE_ENV
+        value: production
+      - key: ALLOW_SIGNUP
+        value: "off"          # owner-only. Delete this var to allow public sign-ups.
+      # Set these two in the Render dashboard (Secret) — never commit them:
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false

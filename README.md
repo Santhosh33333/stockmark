@@ -38,7 +38,7 @@ The strategy engine exists as **two twins that share identical rules**:
 
 ## Quick start
 
-**Requirements:** Node.js **20+** (uses the built-in `node:sqlite` — no native build).
+**Requirements:** Node.js **22.5+** (Node 24 recommended — uses the built-in `node:sqlite`, so there is no native build step).
 
 ```bash
 npm install
@@ -68,6 +68,8 @@ Everything is optional — the defaults work out of the box with free endpoints.
 | --- | --- | --- |
 | `PORT` | `5124` | HTTP port |
 | `HOST` | `0.0.0.0` | Bind address |
+| `DATA_DIR` | `./data` | Where `app.db` and caches live — point at a mounted volume when hosting |
+| `ALLOW_SIGNUP` | on | Set `off` on a public deployment to allow only the owner account |
 | `SCAN_CONCURRENCY` | `12` | Parallel Yahoo requests |
 | `SCAN_DAILY_RANGE` | `8mo` | Daily candle window for the scanner |
 | `SCAN_HOURLY_RANGE` | `45d` | Hourly window (resampled to 4H) |
@@ -264,7 +266,16 @@ The suite boots a server (or targets `TRADEMIND_BASE`) and runs the live end-to-
 
 ## Deploying
 
-Any Node 20 host works (Render, Railway, Fly, a VPS). Set `PORT` (many platforms inject it), keep `HOST=0.0.0.0`, and point the platform health check at `/healthz`. Persist the `data/` directory for the SQLite DB and caches.
+Any Node **22.5+** host works (Render, Railway, Fly, a VPS). The repo ships a
+`Dockerfile`, a Render `render.yaml` blueprint, a `fly.toml`, and a `Procfile`.
+
+Set `PORT` (most platforms inject it), keep `HOST=0.0.0.0`, point the platform
+health check at `/healthz`, and set `ADMIN_EMAIL` / `ADMIN_PASSWORD` as secrets.
+Persist the database by mounting a volume and pointing `DATA_DIR` at it. On a
+public deployment set `ALLOW_SIGNUP=off` so only the owner can sign in.
+
+Step-by-step free options (LAN, Cloudflare Tunnel, Render, Fly, Oracle Always
+Free) with honest free-tier caveats are in **[DEPLOY.md](DEPLOY.md)**.
 
 ---
 

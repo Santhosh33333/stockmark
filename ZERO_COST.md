@@ -12,9 +12,9 @@ requires **no API keys** to run. Every data path has a free, key-less default.
 | Database | **`node:sqlite`** (Node built-in) | Free, bundled, no server | — |
 | Web/server | **Node.js + Express** (OSS) | Free | — |
 | Live streaming | **Server-Sent Events (SSE)** in-process | Free | WebSocket would need a paid broker licence — **not used** |
-| Email OTP | **dev mode** shows the code on-screen | Free | Brevo (free 300/day) or Gmail SMTP — *optional* |
+| Email / OTP | **not used** — sign-in is email + password | Free (no provider) | Brevo / Gmail SMTP — *no longer needed* |
 | Charts | Hand-rolled SVG / canvas (existing) | Free | TradingView paid — **not used** |
-| Hosting | Run locally, or any free tier (Render/Railway/Fly free, Oracle Always-Free VM, etc.) | ₹0 on free tiers | — |
+| Hosting | Run locally, on your LAN, via a free Cloudflare Tunnel, or any free tier (Render/Fly free, Oracle Always-Free VM) | ₹0 on free tiers (see DEPLOY.md for real limits) | — |
 
 ## What is NOT required
 - No paid market-data subscription.
@@ -33,8 +33,8 @@ requires **no API keys** to run. Every data path has a free, key-less default.
   spaced accordingly instead of bursting (which NSE blocks by IP).
 - If a free source rate-limits, the resilience layer backs off and the UI shows
   `DELAYED`/`STALE` rather than failing or silently switching to a paid source.
-- Brevo free tier (if ever enabled) is 300 emails/day; the app never exceeds it
-  silently — it falls back to on-screen dev codes.
+- Brevo/SMTP support still exists in the code but is dormant — the app never sends
+  email and never needs a mail provider to run.
 
 ## Proven with no configuration
 ```

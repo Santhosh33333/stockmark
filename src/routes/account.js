@@ -35,19 +35,27 @@ const parseCookie = (header = '', name) => {
   const m = header.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
   return m ? decodeURIComponent(m[1]) : null;
 };
+// Session cookie. `secure` follows the request scheme, so an HTTPS deployment gets
+// a Secure cookie while local http still works (we trust x-forwarded-proto).
+function setSessionCookie(req, res, token) {
+  const proto = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim();
+  const secure = req.secure || proto === 'https';
+  res.cookie('sa_token', token, { httpOnly: true, sameSite: 'lax', secure, maxAge: 30 * 86400000 });
+}
 router.use(attachUser);
 
 // ── auth ─────────────────────────────────────────────────────────────────
 router.post('/auth/signup', async (req, res) => {
   const ip = req.ip;
   if (!auth.checkRate(ip)) return res.status(429).json({ error: 'Too many attempts. Try again in 10 minutes.' });
+  if (!config.allowSignup) return res.status(403).json({ error: 'Sign-ups are disabled on this deployment' });
   try {
     const body = req.body || {};
     const username = (body.email || body.username || '').trim().toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(username)) return res.status(400).json({ error: 'Enter a valid email address' });
     const u = auth.createUser({ ...body, username });
     const token = auth.createSession(u.id);
-    res.cookie('sa_token', token, { httpOnly: true, sameSite: 'lax', maxAge: 30 * 86400000 });
+    setSessionCookie(req, res, token);
     res.json({ token, user: auth.publicUser(u) });
   } catch (e) {
     res.status(400).json({ error: e.message });
@@ -61,7 +69,7 @@ router.post('/auth/verify-otp', (req, res) => {
   if (!out.ok) return res.status(400).json({ error: out.error });
   const token = auth.createSession(out.user.id);
   stmt.log.run(out.user.id, 'EMAIL VERIFIED', 'OTP verified', now());
-  res.cookie('sa_token', token, { httpOnly: true, sameSite: 'lax', maxAge: 30 * 86400000 });
+  setSessionCookie(req, res, token);
   res.json({ token, user: auth.publicUser(out.user) });
 });
 
@@ -80,7 +88,7 @@ router.post('/auth/login', async (req, res) => {
   const u = auth.authenticate(username || email, password);
   if (!u) return res.status(401).json({ error: 'Invalid email or password' });
   const token = auth.createSession(u.id);
-  res.cookie('sa_token', token, { httpOnly: true, sameSite: 'lax', maxAge: 30 * 86400000 });
+  setSessionCookie(req, res, token);
   res.json({ token, user: auth.publicUser(u) });
 });
 
@@ -90,7 +98,7 @@ router.post('/auth/verify-login-otp', (req, res) => {
   const out = auth.verifyOtp(email, code, 'login');
   if (!out.ok) return res.status(400).json({ error: out.error });
   const token = auth.createSession(out.user.id);
-  res.cookie('sa_token', token, { httpOnly: true, sameSite: 'lax', maxAge: 30 * 86400000 });
+  setSessionCookie(req, res, token);
   res.json({ token, user: auth.publicUser(out.user) });
 });
 

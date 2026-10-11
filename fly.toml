@@ -1,0 +1,31 @@
+# Fly.io config (optional — Dockerfile based). Persistent SQLite needs a volume:
+#   fly volumes create trademind_data --size 1 --region sin
+#   fly secrets set ADMIN_EMAIL=you@example.com ADMIN_PASSWORD=change-me ALLOW_SIGNUP=off
+app = "trademind"
+primary_region = "sin"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  PORT = "5124"
+  HOST = "0.0.0.0"
+  DATA_DIR = "/data"
+
+[[mounts]]
+  source = "trademind_data"
+  destination = "/data"
+
+[http_service]
+  internal_port = 5124
+  force_https = true
+  auto_stop_machines = "suspend"
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [[http_service.checks]]
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "20s"
+    method = "GET"
+    path = "/healthz"
