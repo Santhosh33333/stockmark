@@ -76,6 +76,63 @@
   }
   loadFreshness(); setInterval(loadFreshness, 45000);
 
+  /* ── live quote stream (free, SSE — no paid WebSocket needed) ────────── */
+  // Subscribes to /api/stream/quotes; the server pushes only changed values.
+  // EventSource auto-reconnects; we also pause while the tab is hidden.
+  var liveEl = null, liveES = null;
+  function ensureLiveStyle() {
+    if (document.getElementById('tm-live-style')) return;
+    var st = document.createElement('style'); st.id = 'tm-live-style';
+    st.textContent =
+      '.tm-live{display:inline-flex;align-items:center;gap:7px;padding:5px 10px;border:1px solid var(--line,#1f2a44);border-radius:999px;font-size:12px;background:var(--bg-2,#0f1a30);white-space:nowrap}'
+      + '.tm-live .d{width:7px;height:7px;border-radius:50%;background:#64748b;flex:0 0 auto}'
+      + '.tm-live.live .d{background:#34d399;box-shadow:0 0 0 0 rgba(52,211,153,.6);animation:tmpulse 1.8s infinite}'
+      + '.tm-live.err .d{background:#fb7185}'
+      + '.tm-live .v{font-variant-numeric:tabular-nums;font-weight:600}'
+      + '.tm-live .c.up{color:#34d399}.tm-live .c.down{color:#fb7185}'
+      + '@keyframes tmpulse{0%{box-shadow:0 0 0 0 rgba(52,211,153,.55)}70%{box-shadow:0 0 0 7px rgba(52,211,153,0)}100%{box-shadow:0 0 0 0 rgba(52,211,153,0)}}'
+      + '@media (prefers-reduced-motion: reduce){.tm-live.live .d{animation:none}}'
+      + '@media (max-width:900px){.tm-live{display:none}}';
+    document.head.appendChild(st);
+  }
+  function liveConnect() {
+    if (liveES || typeof EventSource === 'undefined' || !liveEl) return;
+    try { liveES = new EventSource('/api/stream/quotes?symbols=^NSEI,^NSEBANK&interval=5000'); }
+    catch (e) { return; }
+    liveES.addEventListener('quotes', function (ev) {
+      var d; try { d = JSON.parse(ev.data || '{}'); } catch (e) { return; }
+      var ch = d.changed || {};
+      var sym = ch['^NSEI'] ? 'NIFTY' : ch['^NSEBANK'] ? 'BANK' : null;
+      if (!sym) return;
+      var q = ch[sym === 'NIFTY' ? '^NSEI' : '^NSEBANK'];
+      var pct = q.changePct != null ? q.changePct : (q.change != null && q.prevClose ? (q.change / q.prevClose) * 100 : null);
+      var up = pct == null ? true : pct >= 0;
+      var v = q.price != null ? Number(q.price).toLocaleString('en-IN', { maximumFractionDigits: 2 }) : '—';
+      var c = pct == null ? '' : (up ? '+' : '') + Number(pct).toFixed(2) + '%';
+      liveEl.className = 'tm-live live';
+      liveEl.innerHTML = '<span class="d"></span><span class="lbl">' + sym + ' <b class="v">' + v + '</b> <span class="c ' + (up ? 'up' : 'down') + '">' + c + '</span></span>';
+      liveEl.title = 'Live stream (SSE) · ' + sym + ' ' + v + ' ' + c + ' · ' + (d.ts ? new Date(d.ts).toLocaleTimeString() : '');
+    });
+    liveES.addEventListener('heartbeat', function () { if (liveEl) { liveEl.className = 'tm-live live'; } });
+    liveES.onerror = function () { if (liveEl) { liveEl.classList.remove('live'); liveEl.classList.add('err'); } };
+  }
+  function initLive() {
+    var top = document.querySelector('.topbar-right');
+    if (!top) return;
+    ensureLiveStyle();
+    liveEl = document.createElement('div');
+    liveEl.className = 'tm-live'; liveEl.id = 'tm-live';
+    liveEl.title = 'Live stream (SSE) — connecting…';
+    liveEl.innerHTML = '<span class="d"></span><span class="lbl">NIFTY <b class="v">—</b></span>';
+    top.insertBefore(liveEl, top.firstChild);
+    liveConnect();
+  }
+  initLive();
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) { if (liveES) { try { liveES.close(); } catch (e) { } liveES = null; } }
+    else liveConnect();
+  });
+
   /* ── symbol + watchlist cache for search ───────────────────────────── */
   var SYMS = [], symMap = {}, loadedSyms = false;
   function loadSymbols() {
