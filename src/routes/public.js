@@ -88,6 +88,45 @@ function compactRow(r) {
   };
 }
 
+// Live quote stream (Server-Sent Events). Free providers expose no WebSocket,
+// so the server polls upstream and pushes ONLY changed values — honest streaming
+// with automatic client reconnect (EventSource) and a heartbeat per interval.
+router.get('/stream/quotes', async (req, res) => {
+  const symbols = String(req.query.symbols || '^NSEI,^NSEBANK').split(',').map((s) => s.trim()).filter(Boolean).slice(0, 50);
+  const interval = Math.max(2000, Math.min(30000, Number(req.query.interval) || 4000));
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream; charset=utf-8',
+    'Cache-Control': 'no-cache, no-transform',
+    Connection: 'keep-alive',
+    'X-Accel-Buffering': 'no',
+  });
+  res.write('retry: 3000\n\n');
+  const send = (event, data) => { try { res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`); } catch { } };
+  const keyOf = (v) => `${v.price}|${v.change}|${v.changePct}|${v.volume ?? ''}`;
+  const last = new Map();
+  let closed = false;
+  const tick = async () => {
+    if (closed) return;
+    try {
+      const q = await market.fetchQuotes(symbols, { concurrency: 6 });
+      const changed = {};
+      for (const s of symbols) {
+        const v = q[s]; if (!v || v.price == null) continue;
+        const k = keyOf(v);
+        if (last.get(s) !== k) { last.set(s, k); changed[s] = v; }
+      }
+      const mkt = marketStatus();
+      if (Object.keys(changed).length) send('quotes', { ts: now(), market: mkt, changed });
+      else send('heartbeat', { ts: now(), market: mkt });
+    } catch (e) {
+      send('error', { ts: now(), message: e.message });
+    }
+  };
+  await tick();
+  const iv = setInterval(tick, interval);
+  req.on('close', () => { closed = true; clearInterval(iv); });
+});
+
 // Full analysis of one symbol (fresh network fetch) — used by the stock detail page
 router.get('/analysis/:symbol', async (req, res) => {
   const raw = String(req.params.symbol || '').toUpperCase();

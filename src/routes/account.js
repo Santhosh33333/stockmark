@@ -218,6 +218,25 @@ router.get('/paper/stats', requireUser, async (req, res) => {
   res.json({ stats, positions, capital: settings.capital, mode: settings.mode });
 });
 
+// Paper trade history as CSV (safe escaping; opens in Excel/Sheets).
+router.get('/paper/export.csv', requireUser, (req, res) => {
+  const trades = stmt.trades.all(req.user.id, 100000);
+  const esc = (v) => { const s = v == null ? '' : String(v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+  const iso = (ts) => (ts ? new Date(ts).toISOString() : '');
+  const head = ['id', 'symbol', 'name', 'qty', 'entry_price', 'entry_ts', 'exit_price', 'exit_ts', 'sl', 'tp', 'status', 'exit_reason', 'pnl', 'pnl_pct', 'mode'];
+  const lines = [head.join(',')];
+  for (const t of trades) {
+    const pnlPct = t.status === 'CLOSED' && t.entry_price ? (((t.exit_price - t.entry_price) / t.entry_price) * 100).toFixed(2) : '';
+    lines.push([
+      t.id, esc(t.symbol), esc(t.name), t.qty, t.entry_price, iso(t.entry_ts),
+      t.exit_price ?? '', iso(t.exit_ts), t.sl, t.tp, t.status, esc(t.exit_reason), t.pnl ?? '', pnlPct, t.mode,
+    ].join(','));
+  }
+  res.set('Content-Type', 'text/csv; charset=utf-8');
+  res.set('Content-Disposition', `attachment; filename="trademind-paper-trades.csv"`);
+  res.send(lines.join('\n'));
+});
+
 router.post('/paper/open', requireUser, (req, res) => {
   const settings = auth.getSettings(req.user);
   const symbol = String(req.body?.symbol || '').toUpperCase();

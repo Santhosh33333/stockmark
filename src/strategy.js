@@ -4,6 +4,7 @@
 //  web scanner, paper trader and TradingView all use IDENTICAL rules.
 // ═══════════════════════════════════════════════════════════════════════
 const { sma, ema, rsi, atr, macdHistogram, resample4h } = require('./indicators');
+const costs = require('./costs');
 
 const DEFAULTS = {
   // 1. Strong wick rejection candle
@@ -47,6 +48,10 @@ const DEFAULTS = {
   vwapWindow: 20,         // rolling VWAP window
   formingLastBar: false,  // true while the market is open (last daily bar not closed)
   intraday: null,         // { '5m': [...], '15m': [...] } optional MTF frames
+  // 7. backtest realism (opt-in; never affects live signal generation)
+  useCosts: false,        // subtract brokerage/STT/GST/slippage from trade P&L
+  costs: null,            // overrides for src/costs.js DEFAULTS
+  trainSplit: 0,          // e.g. 0.7 → also report in-sample + out-of-sample stats
 };
 
 // ── Detect a strong wick-rejection candle ───────────────────────────────
@@ -537,30 +542,54 @@ function analyze(daily, hourly, opts = {}) {
     });
   }
   const closed = trades.filter((t) => !/^open/i.test(t.reason));
-  const wins = closed.filter((t) => t.pct > 0);
-  const losses = closed.filter((t) => t.pct <= 0);
-  const grossProfit = wins.reduce((a, t) => a + t.pct, 0);
-  const grossLoss = Math.abs(losses.reduce((a, t) => a + t.pct, 0));
-  const netPct = closed.reduce((a, t) => a + t.pct, 0);
-  const equity = []; let run = 0;
-  for (const t of closed) { run += t.pct; equity.push(run); }
-  let peak = 0, maxDD = 0;
-  for (const e of equity) { peak = Math.max(peak, e); maxDD = Math.max(maxDD, peak - e); }
-  const stats = {
-    trades: closed.length,
-    wins: wins.length,
-    losses: losses.length,
-    winRate: closed.length ? +(wins.length / closed.length * 100).toFixed(1) : 0,
-    profitFactor: grossLoss > 0 ? +(grossProfit / grossLoss).toFixed(2) : (grossProfit > 0 ? 99 : 0),
-    netProfitPct: +netPct.toFixed(2),
-    grossProfitPct: +grossProfit.toFixed(2),
-    grossLossPct: +grossLoss.toFixed(2),
-    maxDrawdownPct: +maxDD.toFixed(2),
-    avgTradePct: closed.length ? +(netPct / closed.length).toFixed(2) : 0,
-    bestTradePct: closed.length ? +Math.max(...closed.map((t) => t.pct)).toFixed(2) : 0,
-    worstTradePct: closed.length ? +Math.min(...closed.map((t) => t.pct)).toFixed(2) : 0,
-    equityCurve: equity,
-  };
+  // Apply the cost model (opt-in) so P&L is net of brokerage/STT/GST/slippage.
+  let totalCostPct = 0;
+  for (const t of trades) {
+    t.grossPct = +t.pct.toFixed(4);
+    if (o.useCosts) {
+      const notional = Number((o.costs && o.costs.notional) || 100000);
+      const qty = Math.max(1, Math.floor(notional / t.entry));
+      const rt = costs.roundTrip({ entryPrice: t.entry, exitPrice: t.exit, qty, cfg: o.costs });
+      t.costPct = rt.costPct;
+      t.pct = +(t.pct - rt.costPct).toFixed(4);
+      if (!/^open/i.test(t.reason)) totalCostPct += rt.costPct;
+    } else { t.costPct = 0; }
+  }
+  function summarize(list) {
+    const wins = list.filter((t) => t.pct > 0);
+    const losses = list.filter((t) => t.pct <= 0);
+    const gp = wins.reduce((a, t) => a + t.pct, 0);
+    const gl = Math.abs(losses.reduce((a, t) => a + t.pct, 0));
+    const net = list.reduce((a, t) => a + t.pct, 0);
+    const eq = []; let run = 0;
+    for (const t of list) { run += t.pct; eq.push(+run.toFixed(4)); }
+    let peak = 0, dd = 0;
+    for (const e of eq) { peak = Math.max(peak, e); dd = Math.max(dd, peak - e); }
+    return {
+      trades: list.length, wins: wins.length, losses: losses.length,
+      winRate: list.length ? +(wins.length / list.length * 100).toFixed(1) : 0,
+      profitFactor: gl > 0 ? +(gp / gl).toFixed(2) : (gp > 0 ? 99 : 0),
+      netProfitPct: +net.toFixed(2),
+      grossProfitPct: +gp.toFixed(2), grossLossPct: +gl.toFixed(2),
+      maxDrawdownPct: +dd.toFixed(2),
+      avgTradePct: list.length ? +(net / list.length).toFixed(2) : 0,
+      expectancyPct: list.length ? +(net / list.length).toFixed(2) : 0,
+      bestTradePct: list.length ? +Math.max(...list.map((t) => t.pct)).toFixed(2) : 0,
+      worstTradePct: list.length ? +Math.min(...list.map((t) => t.pct)).toFixed(2) : 0,
+      equityCurve: eq,
+    };
+  }
+  const stats = summarize(closed);
+  stats.costsApplied = !!o.useCosts;
+  stats.totalCostsPct = +totalCostPct.toFixed(2);
+  if (o.useCosts) stats.costModel = costs.merge(o.costs);
+  // Train / test split: in-sample vs out-of-sample (no look-ahead — chronological).
+  if (o.trainSplit > 0 && closed.length >= 4) {
+    const at = Math.max(1, Math.min(closed.length - 1, Math.floor(closed.length * o.trainSplit)));
+    stats.inSample = summarize(closed.slice(0, at));
+    stats.outOfSample = summarize(closed.slice(at));
+    stats.trainSplit = o.trainSplit;
+  }
 
   const last = daily[n - 1];
   const prev = daily[n - 2];
@@ -658,7 +687,10 @@ function analyze(daily, hourly, opts = {}) {
     stats,
     trades: trades.map((t) => ({
       entryTs: t.entryTs, exitTs: t.exitTs, entry: +t.entry.toFixed(2), exit: +t.exit.toFixed(2),
-      sl: +t.sl.toFixed(2), tp: +t.tp.toFixed(2), reason: t.reason, pct: +t.pct.toFixed(2), bars: t.bars,
+      sl: +t.sl.toFixed(2), tp: +t.tp.toFixed(2), reason: t.reason, pct: +t.pct.toFixed(2),
+      grossPct: t.grossPct != null ? +t.grossPct.toFixed(2) : +t.pct.toFixed(2),
+      costPct: t.costPct != null ? +t.costPct.toFixed(4) : 0,
+      bars: t.bars,
     })),
     bars: n,
     optsUsed: o,

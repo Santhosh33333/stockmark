@@ -166,6 +166,31 @@ async function main() {
         `net ${after.body.stats?.netPnlFmt} · ${after.body.stats?.closedCount} closed`);
     }
 
+    // paper history CSV export
+    const csv = await call('GET', '/api/paper/export.csv', null, authHeaders);
+    check('Paper history CSV export', csv.status === 200 && typeof csv.body === 'string' && csv.body.startsWith('id,symbol,name'),
+      `${String(csv.body).split('\n').length - 1} data rows`);
+
+    // live quote stream (SSE) — read the first frame then disconnect
+    try {
+      const ctrl = new AbortController();
+      const to = setTimeout(() => ctrl.abort(), 12000);
+      const sres = await fetch(`${BASE}/api/stream/quotes?symbols=^NSEI`, { signal: ctrl.signal });
+      const reader = sres.body.getReader();
+      const dec = new TextDecoder();
+      let buf = '';
+      while (buf.length < 40) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+      }
+      clearTimeout(to);
+      try { await reader.cancel(); } catch { }
+      check('Live quote stream (SSE)', sres.status === 200 && /retry:|event:/.test(buf), buf.replace(/\n/g, ' ').slice(0, 60));
+    } catch (e) {
+      check('Live quote stream (SSE)', false, e.message);
+    }
+
     // scanner (indices preset = 8 symbols, fast & live)
     const scan = await call('POST', '/api/scan/start', { preset: 'indices', useCache: false });
     check('Scan started', scan.status === 200 && !!scan.body.jobId, `${scan.body.total} symbols`);

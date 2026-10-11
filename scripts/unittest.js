@@ -8,6 +8,7 @@ const strategy = require('../src/strategy');
 const oa = require('../src/optionsAnalytics');
 const dq = require('../src/dataquality');
 const research = require('../src/research');
+const costs = require('../src/costs');
 
 let pass = 0, fail = 0;
 function test(name, fn) {
@@ -169,6 +170,36 @@ test('research.build produces evidence arrays without inventing a probability', 
   assert.strictEqual(r.probability.historical.sampleSize, 12);
   assert.ok(r.levels.invalidation && r.levels.invalidation.price <= 100);
   assert.ok(typeof r.headline === 'string' && r.headline.length > 10);
+});
+
+// ── Trading cost model ───────────────────────────────────────────────────
+test('cost model: round-trip cost is a sane fraction of notional', () => {
+  const rt = costs.roundTrip({ entryPrice: 50000, exitPrice: 50000, qty: 1 });
+  assert.ok(rt.costPct > 0.25 && rt.costPct < 0.7, `costPct ${rt.costPct}`);
+  assert.ok(rt.breakdown.stt > 0 && rt.breakdown.slippage > 0 && rt.breakdown.gst > 0);
+});
+test('cost model: intraday has no STT on buy and no stamp on sell', () => {
+  const buy = costs.sideCosts(100000, 'BUY', { mode: 'INTRADAY' });
+  const sell = costs.sideCosts(100000, 'SELL', { mode: 'INTRADAY' });
+  assert.strictEqual(buy.stt, 0);
+  assert.strictEqual(sell.stamp, 0);
+  assert.ok(sell.stt > 0);
+});
+test('cost model: delivery charges stamp on buy only', () => {
+  const buy = costs.sideCosts(100000, 'BUY', { mode: 'DELIVERY' });
+  const sell = costs.sideCosts(100000, 'SELL', { mode: 'DELIVERY' });
+  assert.ok(buy.stamp > 0 && sell.stamp === 0);
+});
+test('cost model: breakeven % is positive', () => {
+  assert.ok(costs.breakevenPct(1200) > 0);
+});
+test('analyze accepts useCosts + trainSplit and flags the cost model', () => {
+  const candles = Array.from({ length: 260 }, (_, i) => c(100 + i, 101 + i, 99 + i, 100.5 + i, 1000, Date.UTC(2024, 0, 1 + i)));
+  const a = strategy.analyze(candles, [], { useCosts: true, trainSplit: 0.7, costs: { mode: 'DELIVERY' } });
+  assert.ok(a.ok, a.reason);
+  assert.strictEqual(a.stats.costsApplied, true);
+  assert.ok(a.stats.costModel && a.stats.costModel.mode === 'DELIVERY');
+  assert.strictEqual(typeof a.stats.totalCostsPct, 'number');
 });
 
 console.log(`\n${pass}/${pass + fail} unit checks passed`);

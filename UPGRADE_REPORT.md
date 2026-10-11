@@ -21,8 +21,8 @@ marked **Deferred** are honest gaps, not silently dropped. Nothing is labelled
 | Health / monitoring | ✅ Done | `GET /api/health`, `GET /api/metrics` (cache hit-rate, HTTP counters, providers, memory) |
 | Error boundaries | ✅ Done (server) | Route try/catch + global Express error handler; provider facade never hard-fails |
 | Automated tests | ✅ Done | `npm run test:unit` (20 deterministic) + `npm test` (52 live checks) |
-| SSE reconnect | ⚠️ Partial | Stream uses `retry:` hint; client EventSource reconnects natively |
-| WebSocket streaming | ⛔ Deferred | **No free NSE/Yahoo WebSocket feed exists.** Streaming requires a paid broker real-time licence. The SSE scan stream + 4s quote cache cover live updates today. |
+| SSE reconnect | ✅ Done | `/api/stream/quotes` (SSE) with `retry:` hint; EventSource auto-reconnects |
+| Live streaming | ✅ Done (SSE) | **No free NSE/Yahoo WebSocket exists**, so `/api/stream/quotes` streams over Server-Sent Events: the server polls upstream and pushes **only changed values**, with heartbeats. This is honest streaming, not a stub. |
 | Frontend partial re-render on tick | ⚠️ Partial | Existing SPA updates targeted DOM nodes; a full virtual-DOM diff was out of scope |
 
 ## B. Live market data — *done*
@@ -73,14 +73,25 @@ Exposed in the app via the command palette → **Research brief**.
 - ⛔ Historical expired-option backtesting deferred (no free source of historical
   contract data).
 
-## F. Backtesting & paper trading — *done (core)*
+## F. Backtesting & paper trading — *done*
 
-- Event-driven engine over real candles with SL/TP/time exits (existing, tested).
-- Paper orders, positions, SL/TP, targets, portfolio stats, P&L, exits (existing).
-- **New:** risk-based position sizing, per-trade/day/drawdown limits enforced,
-  kill switch, audit log on every block.
-- ⛔ Deferred: explicit brokerage/tax/slippage cost model, CSV export, separate
-  train/test split — noted as the next backtest increment.
+- Event-driven engine over real candles with SL/TP/time exits, **no look-ahead**.
+- **Cost model** (`src/costs.js`, unit-tested) applied to every trade: brokerage
+  (₹20/order or 0.03%), STT, NSE exchange fee, SEBI fee, stamp duty, GST and
+  slippage/spread — delivery **and** intraday variants, sized to a realistic
+  ₹1,00,000 notional. Toggle with `--costs`; each trade reports `grossPct` vs
+  `costPct` vs net `pct`.
+- **Train/test split** (`--train=0.7`): chronological in-sample vs out-of-sample
+  win-rate, profit factor and net, so results are never presented as one blended
+  curve.
+- **CSV export**: backtest trades via `--csv` and the full paper-trade history via
+  `GET /api/paper/export.csv`.
+- Paper orders, positions, SL/TP, targets, portfolio stats, P&L, exits — existing
+  and tested. Risk-based sizing + kill switch now enforced (see G).
+- Reality check (verified): on 10y daily, net of costs the improved preset is
+  roughly break-even to negative — reported honestly, no profit promises.
+- ⛔ Deferred: historical expired-option backtesting (no free source of historical
+  contract data).
 
 ## G. Risk management & automation — *done*
 
@@ -140,13 +151,14 @@ migrations are performed on existing data.
 
 ## Verified in this pass
 
-- `npm run test:unit` → **20/20**.
-- `npm test` (live) → **52/52**.
+- `npm run test:unit` → **25/25**.
+- `npm test` (live) → **54/54**.
 - Live endpoints confirmed: `/api/metrics`, `/api/research/RELIANCE`,
   `/api/analysis/RELIANCE?intraday=1` (premium/discount, VWAP, swing labels,
   displacement, equal H/L, 5m/15m MTF), `/api/options/NIFTY/analytics`
   (Greeks + max pain + IV), `/api/options/strategy/payoff`, `/api/risk/state`,
-  `/api/risk/kill`.
+  `/api/risk/kill`, `/api/paper/export.csv`, `/api/stream/quotes` (SSE).
+- Backtest verified with costs + train/test + CSV (`--costs --train=0.7 --csv`).
 - In-browser: app shell loads with **0 console errors**; Risk-controls and
   Research panels render live data.
 - Owner account intact; test accounts removed (DB: 1 owner, 0 test sessions).
@@ -154,7 +166,7 @@ migrations are performed on existing data.
 ## Known limitations (honest)
 
 - Yahoo is **DELAYED** (labelled as such); true real-time needs a broker feed.
-- No free WebSocket stream → live updates use SSE + short-TTL polling.
+- **No free WebSocket** → live updates use the SSE stream + short-TTL polling.
 - IV rank needs several sessions of snapshots before it reports a number.
-- Backtest cost model (brokerage/taxes/slippage) and CSV export are deferred.
+- Historical expired-option backtesting deferred (no free contract history).
 - 5m/15m frames depend on Yahoo's short intraday windows and degrade gracefully.

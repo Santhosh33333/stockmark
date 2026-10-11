@@ -67,8 +67,10 @@ _Phased rebuild of the existing repo. This is the honest state of each phase; de
 - [x] Deterministic research assistant `/api/research/:symbol` (no invented probability).
 - [x] Options analytics: Black-Scholes Greeks, max pain, OI, IV rank (real history), payoff builder.
 - [x] Risk management: per-trade/daily/drawdown limits, kill switch, `/api/risk/state`, audit logging.
-- [x] `npm run test:unit` → 20/20; `npm test` → **52/52**; in-browser panels render, 0 console errors.
-- [ ] WebSocket streaming — **deferred** (no free NSE/Yahoo feed; needs paid broker licence).
-- [ ] Backtest cost model (brokerage/taxes/slippage) + CSV export — **deferred**.
+- [x] Backtest realism: Indian cost model (brokerage/STT/GST/stamp/slippage) + train/test split + trades CSV.
+- [x] Paper history CSV export (`/api/paper/export.csv`).
+- [x] Live quote stream over SSE (`/api/stream/quotes`) — pushes only changed values, auto-reconnect.
+- [x] `npm run test:unit` → 25/25; `npm test` → **54/54**; in-browser panels render, 0 console errors.
+- [ ] WebSocket streaming — **deferred** (no free NSE/Yahoo feed; needs paid broker licence). SSE stream covers live updates.
 - Full mapping of done vs deferred: see `UPGRADE_REPORT.md`.
 
