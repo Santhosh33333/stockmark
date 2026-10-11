@@ -16,7 +16,7 @@
     scanRows: [], scanJob: null, scanPreset: 'fno', scanOpts: {},
     scanTimer: null, es: null, alerts: [], universe: null, watchlist: [],
     symbols: [], selected: null, detail: null, chart: null, paper: null, alertCount: 0,
-    options: { symbol: 'NIFTY', expiry: null, data: null, loading: false, error: null, source: null },
+    options: { symbol: 'NIFTY', expiry: null, data: null, analytics: null, analyticsError: null, loading: false, error: null, source: null, nextRefresh: 0 },
     optSyms: null, optSymsLoading: false, optFilter: '',
     backtest: { symbol: 'RELIANCE', preset: 'improved', slPct: 1.5, tpPct: 3, maxBars: 25, data: null, loading: false, error: null },
     lab: {
@@ -688,8 +688,61 @@
         <span class="tiny muted">· ${o.data.strikes.length} strikes</span>
       </div>` : ''}
     </div>
-    <div id="opt-body">${o.loading ? `<div class="card empty"><div class="big">🧾</div>Loading live option chain…</div>` : o.error ? `<div class="card empty"><div class="big">⚠️</div>${esc(o.error)}</div>` : o.data ? optChainHtml(o.data) : `<div class="card empty"><div class="big">🧾</div>Pick an underlying and tap Load.</div>`}</div>
+    <div id="opt-body">${o.loading ? `<div class="card empty"><div class="big">🧾</div>Loading live option chain…</div>` : o.error ? `<div class="card empty"><div class="big">⚠️</div>${esc(o.error)}</div>` : o.data ? optAnalyticsHtml(o.analytics) + optChainHtml(o.data) : `<div class="card empty"><div class="big">🧾</div>Pick an underlying and tap Load.</div>`}</div>
     <div style="height:20px"></div>`;
+  }
+
+  function optFresh(d) {
+    if (!d || !d.updatedAt) return { label: 'age unknown', cls: '' };
+    const ageS = Math.max(0, Math.round((Date.now() - d.updatedAt) / 1000));
+    const age = ageS < 60 ? ageS + 's ago' : Math.round(ageS / 60) + 'm ago';
+    if (ageS < 120) return { label: 'fresh · ' + age, cls: 'buy' };
+    if (ageS < 900) return { label: 'delayed · ' + age, cls: 'none' };
+    return { label: 'STALE · ' + age, cls: 'd' };
+  }
+  function optAnalyticsHtml(a) {
+    if (!a) {
+      return `<div class="card"><div class="tiny muted">Analytics (Greeks · expected move · OI walls) unavailable${state.options.analyticsError ? ': ' + esc(state.options.analyticsError) : ' for this expiry'}. The chain above is unaffected.</div></div>`;
+    }
+    const S = a.underlyingValue;
+    const rows = a.strikes || [];
+    const atmRow = rows.find((s) => s.strike === a.atm) || rows.slice().sort((x, y) => Math.abs(x.strike - S) - Math.abs(y.strike - S))[0];
+    const straddle = atmRow && atmRow.ce && atmRow.pe && atmRow.ce.ltp != null && atmRow.pe.ltp != null ? atmRow.ce.ltp + atmRow.pe.ltp : null;
+    const expPct = straddle != null && S > 0 ? (straddle / S) * 100 : null;
+    const lo = straddle != null && S > 0 ? S - straddle : null;
+    const hi = straddle != null && S > 0 ? S + straddle : null;
+    // OI-based walls: heaviest PE OI below spot ≈ support, heaviest CE OI above spot ≈ resistance.
+    const peBelow = (a.oi && a.oi.highestPeOi || []).filter((w) => S == null || w.strike < S)[0] || null;
+    const ceAbove = (a.oi && a.oi.highestCeOi || []).filter((w) => S == null || w.strike > S)[0] || null;
+    const mp = a.maxPain ? a.maxPain.strike : null;
+    const mpDist = mp != null && S > 0 ? ((mp - S) / S) * 100 : null;
+    const g = (leg) => (atmRow && atmRow[leg] && atmRow[leg].greeks) || null;
+    const gce = g('ce'), gpe = g('pe');
+    const gf = (v, d = 3) => (v == null || !isFinite(v) ? '—' : Number(v).toFixed(d));
+    const ctx = [];
+    if (a.pcr != null) ctx.push(a.pcr >= 1.2 ? `PCR ${a.pcr} — heavy put writing, often supportive while it holds.` : a.pcr <= 0.8 ? `PCR ${a.pcr} — heavy call writing, rallies may stall at the walls above.` : `PCR ${a.pcr} — positioning roughly balanced.`);
+    if (a.ivSkew != null) ctx.push(a.ivSkew > 2 ? `Put IV trades ${a.ivSkew} pts over call IV — paying up for downside protection.` : a.ivSkew < -2 ? `Call IV trades ${-a.ivSkew} pts over put IV — upside demand leads.` : 'IV skew is flat — no strong directional fear premium.');
+    if (mp != null) ctx.push(`Max pain ${mp.toLocaleString('en-IN')}${mpDist != null ? ` (${mpDist >= 0 ? '+' : ''}${mpDist.toFixed(2)}% from spot)` : ''} — writers profit most if expiry pins nearby.`);
+    if (peBelow || ceAbove) ctx.push(`OI walls: ${peBelow ? `support ≈ ${peBelow.strike.toLocaleString('en-IN')} (${oiFmt(peBelow.oi)} PE OI)` : 'no PE wall below'} · ${ceAbove ? `resistance ≈ ${ceAbove.strike.toLocaleString('en-IN')} (${oiFmt(ceAbove.oi)} CE OI)` : 'no CE wall above'}. Walls are positioning, not predictions.`);
+    return `
+    <div class="section-title"><h2>Chain analytics</h2><span class="tiny muted">${a.greeks && a.greeks.available ? 'Black-Scholes Greeks · ' : ''}expiry ${esc(a.expiry || '')}</span></div>
+    <div class="stats-grid">
+      ${stat('Expected move', straddle != null ? '±' + inr(straddle, S > 50000 ? 0 : 1) + (expPct != null ? ' (' + expPct.toFixed(2) + '%)' : '') : '—')}
+      ${stat('Expected range', lo != null ? inr(lo, 0) + ' → ' + inr(hi, 0) : '—')}
+      ${stat('Max pain', mp != null ? mp.toLocaleString('en-IN') : '—')}
+      ${stat('ATM IV', a.atmIV != null ? a.atmIV.toFixed(2) : '—')}
+      ${stat('IV rank', a.ivRank && a.ivRank.available ? a.ivRank.rank + ' (pct ' + a.ivRank.percentile + ', n=' + a.ivRank.samples + ')' : 'collecting ' + ((a.ivRank && a.ivRank.samples) || 0) + '/5')}
+      ${stat('IV skew (P−C)', a.ivSkew != null ? (a.ivSkew >= 0 ? '+' : '') + a.ivSkew : '—')}
+      ${stat('Support (PE wall)', peBelow ? peBelow.strike.toLocaleString('en-IN') : '—')}
+      ${stat('Resistance (CE wall)', ceAbove ? ceAbove.strike.toLocaleString('en-IN') : '—')}
+    </div>
+    ${(gce || gpe) ? `<div class="card"><div class="tiny muted">ATM Greeks (${atmRow.strike.toLocaleString('en-IN')})</div>
+      <div class="row wrap" style="gap:14px;margin-top:6px">
+        <div>CE Δ <b>${gf(gce && gce.delta)}</b> · Γ <b>${gf(gce && gce.gamma, 4)}</b> · Θ <b>${gf(gce && gce.theta, 2)}</b> · ν <b>${gf(gce && gce.vega, 2)}</b></div>
+        <div>PE Δ <b>${gf(gpe && gpe.delta)}</b> · Γ <b>${gf(gpe && gpe.gamma, 4)}</b> · Θ <b>${gf(gpe && gpe.theta, 2)}</b> · ν <b>${gf(gpe && gpe.vega, 2)}</b></div>
+      </div></div>` : `<div class="card"><div class="tiny muted">Greeks unavailable for this expiry (need spot + IV from the provider).</div></div>`}
+    <div class="card">${ctx.map((t) => `<div class="tiny" style="margin:3px 0">· ${esc(t)}</div>`).join('')}
+      <div class="tiny muted" style="margin-top:6px">Expected move = ATM straddle (CE+PE premium) — the market-priced ± range to expiry, not a forecast. Analysis, not advice.</div></div>`;
   }
 
   function optChainHtml(d) {
@@ -717,6 +770,7 @@
       </tr>`;
     }).join('');
     const t = d.totals;
+    const fr = optFresh(d);
     return `
     <div class="card">
       <div class="row wrap between" style="gap:10px">
@@ -724,7 +778,7 @@
         <div><div class="tiny muted">PCR (OI)</div><b style="font-size:20px" class="${d.pcr != null ? (d.pcr >= 1 ? 'u' : 'd') : ''}">${d.pcr ?? '—'}</b></div>
         <div><div class="tiny muted">Total CE OI</div><b>${oiFmt(t.ceOi)}</b></div>
         <div><div class="tiny muted">Total PE OI</div><b>${oiFmt(t.peOi)}</b></div>
-        <div><div class="tiny muted">Updated</div><b class="tiny">${dt(d.updatedAt)}</b></div>
+        <div><div class="tiny muted">Updated</div><b class="tiny">${dt(d.updatedAt)}</b> <span class="pill ${fr.cls}">${esc(fr.label)}</span> <button class="btn sm" onclick="window.__sa.loadOptions()">⟳</button></div>
       </div>
       <div class="tiny muted" style="margin-top:8px">PCR &gt; 1 = more put writing (often supportive); &lt; 1 = more call writing. OI in contracts. This is analysis, not advice.</div>
     </div>
@@ -1349,7 +1403,7 @@
     else if (route === 'scanner') { v.innerHTML = renderScanner(); wireScanVirtual(); }
     else if (route === 'backtest') { v.innerHTML = renderBacktest(); if (state.backtest.data) setTimeout(drawBacktest, 20); }
     else if (route === 'lab') { v.innerHTML = renderLab(); if (state.lab.result && state.lab.result.equityCurve) setTimeout(drawLabEquity, 20); }
-    else if (route === 'options') { v.innerHTML = renderOptions(); if (!state.optSyms) setTimeout(actions.loadOptSyms, 20); if (!state.options.data && !state.options.loading && !state.options.error) setTimeout(actions.loadOptions, 40); }
+    else if (route === 'options') { v.innerHTML = renderOptions(); if (!state.optSyms) setTimeout(actions.loadOptSyms, 20); if (!state.options.data && !state.options.loading && !state.options.error) setTimeout(() => actions.loadOptions(), 40); else if (state.options.data && !state.options.loading && Date.now() > (state.options.nextRefresh || 0)) setTimeout(() => actions.loadOptions(true), 40); }
     else if (route === 'stock') v.innerHTML = renderStock();
     else if (route === 'paper') v.innerHTML = await renderPaper();
     else if (route === 'alerts') v.innerHTML = await renderAlerts();
@@ -1409,24 +1463,36 @@
       if (c) c.textContent = (optMatches().indices.length + optMatches().stocks.length) + ' shown';
     },
     setOptExpiry(e) { state.options.expiry = e; actions.loadOptions(); },
-    async loadOptions() {
+    async loadOptions(quiet) {
       if (state.options.loading) return;
       const el = $('#opt-sym');
       const sym = String((el && el.value) || state.options.symbol || 'NIFTY').trim().toUpperCase();
       if (!sym) return;
       state.options.symbol = sym;
-      state.options.loading = true;
+      state.options.loading = !quiet;
       state.options.error = null;
-      render();
+      if (!quiet) render();
       try {
         const q = state.options.expiry ? '?expiry=' + encodeURIComponent(state.options.expiry) : '';
         const d = await api('/options/' + encodeURIComponent(sym) + q);
         state.options.data = d;
         state.options.source = d.source;
         state.options.expiry = d.expiry;
+        state.options.nextRefresh = Date.now() + 60000;
+        if (!quiet) render();
+        // Enriched analytics (greeks, max pain, IV rank, OI walls). The chain
+        // stays visible even if this fails — never block real data on extras.
+        try {
+          const a = await api('/options/' + encodeURIComponent(sym) + '/analytics' + (d.expiry ? '?expiry=' + encodeURIComponent(d.expiry) : ''));
+          if (a && a.ok !== false && state.options.symbol === sym) { state.options.analytics = a; state.options.analyticsError = null; }
+        } catch (ae) {
+          if (state.options.symbol === sym) { state.options.analytics = null; state.options.analyticsError = ae.message; }
+        }
+        render();
       } catch (e) {
         state.options.data = null;
-        state.options.error = e.message;
+        state.options.analytics = null;
+        state.options.error = 'Option Chain unavailable' + (e.message ? ': ' + e.message : '. No option data has been generated.');
       } finally {
         state.options.loading = false;
         render();
