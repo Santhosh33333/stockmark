@@ -188,7 +188,7 @@ Exposed in the app via the command palette → **Research brief**.
 npm install
 npm run test:unit     # 29 deterministic checks (no network)
 npm start             # http://localhost:5124/app   (landing at /)
-npm test              # 64 live end-to-end checks against the running server
+npm test              # 63 live end-to-end checks against the running server (total varies with live upstreams)
 ```
 
 Migrations run automatically on boot (idempotent `CREATE TABLE IF NOT EXISTS` +
@@ -198,7 +198,8 @@ migrations are performed on existing data.
 ## Verified in this pass
 
 - `npm run test:unit` → **29/29**.
-- `npm test` (live) → **64/64**.
+- `npm test` (live) → **63/63** (the total is 63–64 depending on live upstream
+  availability — a transient NSE option-chain block flips one check).
 - Live endpoints confirmed: `/api/metrics`, `/api/research/RELIANCE`,
   `/api/analysis/RELIANCE?intraday=1` (premium/discount, VWAP, swing labels,
   displacement, equal H/L, 5m/15m MTF), `/api/options/NIFTY/analytics`
@@ -227,12 +228,17 @@ migrations are performed on existing data.
   persists to `localStorage`, double-click resets, narrow screens collapse to one
   column, and navigating away/back re-applies exactly one split (0 console errors).
 - Owner account intact; test accounts removed (DB: 1 owner, 0 test sessions).
-- **Password-only sign-in** (no email OTP) verified: `/auth/login` returns a session
-  token directly; end-to-end browser test signed in with email+password (no OTP
-  step shown, full app nav, 0 console errors); `/api/me` reports `loginOtp:false`.
-  Enabled via `owner.json` `{"loginOtp": false}`, env `LOGIN_OTP=off`, or
-  Settings → "Sign-in email OTP". Sign-up still verifies the address; LIVE mode
-  always keeps OTP on. Selftest covers both the OTP and password-only paths.
+- **OTP removed — password-only auth**: `/auth/signup` and `/auth/login` now issue
+  a session token directly (no code step, no mailer, no OTP setting). The auth
+  screen's OTP form, the Settings "Sign-in email OTP" toggle and both "Email OTP
+  sender" sections were deleted; `app.css` OTP rules removed. Verified end-to-end
+  in-browser (email + password → app, no OTP step, 0 console errors); selftest now
+  covers sign-up / sign-in / wrong-password / duplicate-email. `src/mailer.js` and
+  the `email_otps` table remain dormant (unused) so the flow could be restored.
+- **Bug fix**: the shell's `authJson` never sent the `Authorization` header, so the
+  price-alert panel and poller (`/api/alerts/rules*`) returned 401 whenever the
+  `sa_token` cookie was absent. It now sends `Bearer <sa_token>` like the rest of
+  the app (verified: 0 console errors, alerts eval authenticated).
 
 ## Known limitations (honest)
 

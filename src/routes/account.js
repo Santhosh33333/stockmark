@@ -44,14 +44,11 @@ router.post('/auth/signup', async (req, res) => {
   try {
     const body = req.body || {};
     const username = (body.email || body.username || '').trim().toLowerCase();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(username)) return res.status(400).json({ error: 'Enter a valid email address — an OTP will be sent there' });
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(username)) return res.status(400).json({ error: 'Enter a valid email address' });
     const u = auth.createUser({ ...body, username });
-    const out = await auth.sendOtp(username, 'signup');
-    res.json({
-      requiresVerification: true, email: username,
-      dev: out.code || null,
-      message: out.sent.ok ? 'OTP sent to your email' : 'Email service not configured — use the code shown below (owner can connect a free sender in Settings)',
-    });
+    const token = auth.createSession(u.id);
+    res.cookie('sa_token', token, { httpOnly: true, sameSite: 'lax', maxAge: 30 * 86400000 });
+    res.json({ token, user: auth.publicUser(u) });
   } catch (e) {
     res.status(400).json({ error: e.message });
   }
@@ -82,21 +79,9 @@ router.post('/auth/login', async (req, res) => {
   const { email, username, password } = req.body || {};
   const u = auth.authenticate(username || email, password);
   if (!u) return res.status(401).json({ error: 'Invalid email or password' });
-
-  const settings = auth.effectiveSettings(u);
-  const requireOtp = settings.loginOtp !== false && settings.mode !== 'LIVE';
-  if (!requireOtp) {
-    const token = auth.createSession(u.id);
-    res.cookie('sa_token', token, { httpOnly: true, sameSite: 'lax', maxAge: 30 * 86400000 });
-    return res.json({ token, user: auth.publicUser(u) });
-  }
-  try {
-    const out = await auth.sendOtp((username || email).toLowerCase(), 'login');
-    res.json({
-      requiresOtp: true, email: (username || email).toLowerCase(), dev: out.code || null,
-      message: out.sent.ok ? 'Enter the code emailed to you' : 'No email service configured — use the code shown below',
-    });
-  } catch (e) { res.status(429).json({ error: e.message }); }
+  const token = auth.createSession(u.id);
+  res.cookie('sa_token', token, { httpOnly: true, sameSite: 'lax', maxAge: 30 * 86400000 });
+  res.json({ token, user: auth.publicUser(u) });
 });
 
 // Step 2 of login: verify OTP → session

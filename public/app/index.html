@@ -9,7 +9,7 @@
 <link rel="manifest" href="manifest.webmanifest" />
 <link rel="icon" type="image/svg+xml" href="/logo.svg" />
 <link rel="apple-touch-icon" href="/icons/icon-192.png" />
-<link rel="stylesheet" href="app.css?v=7" />
+<link rel="stylesheet" href="app.css?v=8" />
 <link rel="stylesheet" href="/future.css?v=1" />
 </head>
 <body>
@@ -47,24 +47,6 @@
       </label>
       <p class="auth-error" id="auth-error"></p>
       <button class="btn primary block" type="submit" id="auth-submit">Sign in</button>
-      <button class="btn block hidden" id="auth-resend" type="button" style="margin-top:8px">Resend code</button>
-    </form>
-
-    <!-- OTP step (email code) -->
-    <form id="otp-form" class="hidden" autocomplete="one-time-code">
-      <p class="otp-info" id="otp-info">Enter the 6-digit code we emailed you.</p>
-      <div class="otp-dev hidden" id="otp-dev"></div>
-      <div class="otp-inputs" id="otp-inputs">
-        <input maxlength="1" inputmode="numeric" pattern="[0-9]" />
-        <input maxlength="1" inputmode="numeric" pattern="[0-9]" />
-        <input maxlength="1" inputmode="numeric" pattern="[0-9]" />
-        <input maxlength="1" inputmode="numeric" pattern="[0-9]" />
-        <input maxlength="1" inputmode="numeric" pattern="[0-9]" />
-        <input maxlength="1" inputmode="numeric" pattern="[0-9]" />
-      </div>
-      <p class="auth-error" id="otp-error"></p>
-      <button class="btn primary block" type="submit" id="otp-submit">Verify &amp; continue</button>
-      <button class="btn block" type="button" id="otp-resend" style="margin-top:8px">Resend code</button>
     </form>
     <p class="auth-foot">Signals are educational analysis, not investment advice. Indian market data in ₹ (INR).</p>
   </div>
@@ -155,8 +137,8 @@
 <div class="kbdhint" aria-hidden="true">Press <span class="kbd">Ctrl</span>+<span class="kbd">K</span> to search · <span class="kbd">g</span> then a key to jump</div>
 
 <script src="chart.js?v=7"></script>
-<script src="app.js?v=7"></script>
+<script src="app.js?v=8"></script>
 <script src="fx.js?v=7"></script>
-<script src="shell.js?v=16"></script>
+<script src="shell.js?v=17"></script>
 </body>
 </html>

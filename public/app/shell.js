@@ -1100,6 +1100,7 @@
   function notifyPerm() { return (typeof Notification !== 'undefined') ? Notification.permission : 'unsupported'; }
   function authJson(method, url, body) {
     var opt = { method: method, headers: { 'Content-Type': 'application/json' } };
+    try { var t = localStorage.getItem('sa_token'); if (t) opt.headers.Authorization = 'Bearer ' + t; } catch (e) { }
     if (body != null) opt.body = JSON.stringify(body);
     return fetch(url, opt).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); });
   }

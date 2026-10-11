@@ -5,7 +5,7 @@ _Phased rebuild of the existing repo. This is the honest state of each phase; de
 ## Phase 1 — Inspection ✅
 - Stack (unchanged — no technical reason to migrate): Node ≥20 + Express 4, CommonJS, **zero build step**; DB = built-in `node:sqlite`; frontend = vanilla-JS SPA at `/app` + static marketing page at `/`.
 - Market data facade `src/providers/index.js`: **Angel One → Fyers → Tapetide → Yahoo (always-on fallback)**. Options: Dhan (optional) with free NSE fallback.
-- Auth: email+password, optional email OTP; DB sessions; admin seeded from `owner.json`.
+- Auth: email+password (no OTP); DB sessions; admin seeded from `owner.json`.
 - Findings: `public/landing.css` is **dead** (landing carries its own styles — left as-is); landing hero already used real `/api/analysis/^NSEI` (kept); app shell had no command palette / global search / freshness chip / collapsible sidebar; no fabricated data found.
 - **Preserved:** all working features, all user records, provider facade, strategy/backtest/paper/options engines, honesty rules. `public/app/app.js` (87 KB) logic untouched by this work.
 
@@ -51,7 +51,7 @@ _Phased rebuild of the existing repo. This is the honest state of each phase; de
 - [x] Paper trading never calls Dhan (verified guard).
 
 ## Phase 13 — Test & repair ✅ (partial)
-- [x] `npm test` (live selftest) — **64/64 passed** (see Delivery report).
+- [x] `npm test` (live selftest) — **63/63 passed** (see Delivery report).
 - [x] In-browser audit: every app route + stock detail renders; **0 console errors**; palette/collapse/freshness verified.
 - [x] Dedicated deterministic unit tests for SMC/backtest/cost/alert maths — `npm run test:unit` (**29/29**).
 
@@ -76,7 +76,7 @@ _Phased rebuild of the existing repo. This is the honest state of each phase; de
 - [x] Paper history CSV export (`/api/paper/export.csv`).
 - [x] Live quote stream over SSE (`/api/stream/quotes`) — pushes only changed values, auto-reconnect.
 - [x] Resizable, persisted sidebar + chart/detail panes (saved layout; two-column stock detail on wide screens).
-- [x] `npm run test:unit` → 29/29; `npm test` → **64/64**; in-browser panels render, 0 console errors.
+- [x] `npm run test:unit` → 29/29; `npm test` → **63/63**; in-browser panels render, 0 console errors.
 - [x] Zero-dependency gzip (`src/compress.js`): app.js 88→22 KB, shell.js 69→18 KB, css 27→7 KB; SSE/range/HEAD untouched.
 - [ ] WebSocket streaming — **deferred** (no free NSE/Yahoo feed; needs paid broker licence). SSE stream covers live updates.
 - Full mapping of done vs deferred: see `UPGRADE_REPORT.md`.

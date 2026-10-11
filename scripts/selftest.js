@@ -85,45 +85,20 @@ async function main() {
 
     const email = `test.user${Date.now()}@example.com`;
     const signup = await call('POST', '/api/auth/signup', { email, password: 'test1234', displayName: 'Test User' });
-    check('Sign up + OTP sent', signup.status === 200 && signup.body.requiresVerification === true,
-      signup.body.message || signup.body.error);
-    const otpCode = signup.body.dev;
-    let verify;
-    if (otpCode) {
-      check('OTP generated', true, `code ${otpCode} (dev mode)`);
-      verify = await call('POST', '/api/auth/verify-otp', { email, code: otpCode });
-      check('Email verified', verify.status === 200 && !!verify.body.token, verify.body.error || 'session issued');
-    } else {
-      check('OTP generated', true, 'real email sent via Brevo (no dev code)');
-      // real email mode — verify via DB directly for test
-      const { DatabaseSync } = require('node:sqlite');
-      const db = new DatabaseSync('./data/app.db');
-      const row = db.prepare('SELECT code FROM email_otps WHERE email = ? AND purpose = ? AND consumed = 0 ORDER BY id DESC LIMIT 1').get(email, 'signup');
-      check('OTP in database', !!row, row ? `code ${row.code}` : 'not found');
-      verify = await call('POST', '/api/auth/verify-otp', { email, code: row.code });
-      check('Email verified', verify.status === 200 && !!verify.body.token, verify.body.error || 'session issued');
-    }
-    const token = verify.body.token;
+    check('Sign up issues a session (no OTP)', signup.status === 200 && !!signup.body.token, signup.body.error || 'token issued directly');
+    const token = signup.body.token;
     const authHeaders = { Authorization: 'Bearer ' + token };
 
     const login = await call('POST', '/api/auth/login', { email, password: 'test1234' });
-    if (login.body.token) {
-      // OTP disabled (LOGIN_OTP=off or per-account loginOtp:false) → password-only
-      check('Sign in (password-only, OTP off)', login.status === 200 && !!login.body.token, 'token issued directly');
-      const meNow = await call('GET', '/api/me', null, { Authorization: 'Bearer ' + login.body.token });
-      check('Password-only session works', meNow.status === 200 && meNow.body.user?.username === email, 'session valid');
-    } else {
-      check('Sign in requests OTP', login.status === 200 && login.body.requiresOtp === true, login.body.message || login.body.error);
-      let code = login.body.dev;
-      if (!code) {
-        const { DatabaseSync } = require('node:sqlite');
-        const db = new DatabaseSync('./data/app.db');
-        const row = db.prepare('SELECT code FROM email_otps WHERE email = ? AND purpose = ? AND consumed = 0 ORDER BY id DESC LIMIT 1').get(email, 'login');
-        code = row && row.code;
-      }
-      const login2 = await call('POST', '/api/auth/verify-login-otp', { email, code });
-      check('Sign in with OTP', login2.status === 200 && !!login2.body.token, login2.body.error);
-    }
+    check('Sign in (password-only)', login.status === 200 && !!login.body.token, login.body.error || 'token issued directly');
+    const meNow = await call('GET', '/api/me', null, { Authorization: 'Bearer ' + login.body.token });
+    check('Password-only session works', meNow.status === 200 && meNow.body.user?.username === email, 'session valid');
+
+    const badPw = await call('POST', '/api/auth/login', { email, password: 'wrong-pass' });
+    check('Wrong password rejected', badPw.status === 401, badPw.body.error || 'no error');
+
+    const dupe = await call('POST', '/api/auth/signup', { email, password: 'test1234' });
+    check('Duplicate email rejected', dupe.status === 400, dupe.body.error || 'no error');
 
     const me = await call('GET', '/api/me', null, authHeaders);
     check('Session works', me.status === 200 && me.body.user?.username === email, `mode ${me.body.user?.settings?.mode}`);

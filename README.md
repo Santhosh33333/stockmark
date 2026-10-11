@@ -71,34 +71,24 @@ Everything is optional — the defaults work out of the box with free endpoints.
 | `SCAN_CONCURRENCY` | `12` | Parallel Yahoo requests |
 | `SCAN_DAILY_RANGE` | `8mo` | Daily candle window for the scanner |
 | `SCAN_HOURLY_RANGE` | `45d` | Hourly window (resampled to 4H) |
-| `MAIL_PROVIDER` | auto | `brevo` \| `smtp` \| `dev` (see below) |
-| `BREVO_API_KEY` | — | Brevo HTTP API key (free 300 emails/day) |
-| `SMTP_HOST` / `SMTP_USER` / `SMTP_PASS` | — | Gmail app-password fallback |
-| `OTP_TTL_MINUTES` | `10` | OTP lifetime |
 | `ADMIN_EMAIL` / `ADMIN_PASSWORD` | — | Alternative to `owner.json` (see below) |
 
-### Email OTP
+### Authentication
 
-Sign-up and login are protected by a 6-digit email OTP. Pick whichever free sender you have:
+Sign-up and login use **email + password** only — no OTP and no email provider to configure. Passwords are hashed with scrypt; sessions last 30 days.
 
-1. **Brevo** (recommended) — https://brevo.com → *SMTP & API → API keys*, then set `BREVO_API_KEY`.
-2. **Gmail SMTP** — create an App Password at https://myaccount.google.com/apppasswords and set `SMTP_HOST=smtp.gmail.com`, `SMTP_USER`, `SMTP_PASS`.
-3. **Dev** — leave everything unset. No email is sent; the OTP is printed to the server log and shown in the UI.
+- `POST /auth/signup` creates the account and returns a session token immediately.
+- `POST /auth/login` returns a session token directly.
+- Sessions are stored server-side and sent as a `Bearer` token (or the `sa_token` cookie).
 
-**Turn OTP off (password-only sign-in).** Three equivalent ways, in precedence order:
-
-- `owner.json` → `{ "loginOtp": false }` (applies instantly on boot)
-- env `LOGIN_OTP=off`
-- In-app: Settings → **Sign-in email OTP** (per account)
-
-With OTP off, `/auth/login` returns a session token directly (no code step); sign-up still emails a one-time code to verify the address, and **LIVE** mode always keeps OTP on to protect real orders.
+> Email OTP was removed. `src/mailer.js` and the `email_otps` table are left in place, unused, so the flow could be restored later — but nothing in the app requires it now.
 
 ### Owner / admin account
 
 The owner account is seeded on boot from the private local file **`owner.json`** (git-ignored, never exposed by any API):
 
 ```json
-{ "email": "you@example.com", "password": "change-me", "loginOtp": false }
+{ "email": "you@example.com", "password": "change-me" }
 ```
 
 `ADMIN_EMAIL` / `ADMIN_PASSWORD` env vars work the same way. The owner sees the **Admin console** (`/app/#admin`) with the extra tabbed panel.
@@ -161,7 +151,7 @@ node scripts/backtest.js --limit=80                        # 80 largest F&O name
 
 ## API reference
 
-Base: `/api`. Auth via `Authorization: Bearer <token>` (issued by the OTP flows).
+Base: `/api`. Auth via `Authorization: Bearer <token>` (issued by the auth endpoints).
 
 ### Public
 
@@ -181,9 +171,8 @@ Base: `/api`. Auth via `Authorization: Bearer <token>` (issued by the OTP flows)
 
 | Method | Path | Description |
 | --- | --- | --- |
-| `POST` | `/auth/signup` \| `/auth/login` | Email + password (returns a session token directly when OTP is off, else issues an OTP) |
-| `POST` | `/auth/verify-otp` \| `/auth/verify-login-otp` | Verify OTP → session token |
-| `POST` | `/auth/resend-otp` \| `/auth/logout` | Resend / end session |
+| `POST` | `/auth/signup` \| `/auth/login` | Email + password → session token (no OTP) |
+| `POST` | `/auth/logout` | End session |
 | `GET` | `/me` · `PUT` `/me/settings` · `PATCH` `/me` | Profile (read / settings / display-name update) |
 | `GET`/`POST`/`DELETE` | `/watchlist[/:symbol]` | Watchlist |
 | `GET` | `/paper/stats` | Portfolio stats |

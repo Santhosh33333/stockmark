@@ -39,39 +39,9 @@
     setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 400); }, 2600);
   }
 
-  /* ── AUTH (email + OTP) ── */
+  /* ── AUTH (email + password) ── */
   let authMode = 'login';
-  let otpCtx = { email: null, purpose: 'signup', dev: null };
 
-  function otpValue() { return $$('#otp-inputs input').map((i) => i.value).join(''); }
-  function showOtpStep(email, purpose, devCode, message) {
-    otpCtx = { email, purpose, dev: devCode || null };
-    $('#auth-form').classList.add('hidden');
-    $('#otp-form').classList.remove('hidden');
-    $('#otp-info').textContent = message || `Enter the 6-digit code sent to ${email}`;
-    const dev = $('#otp-dev');
-    if (devCode) { dev.classList.remove('hidden'); dev.innerHTML = `<b>No email service connected.</b><br>Use this code: <span class="otp-code">${devCode}</span><br><small>Owner: connect a free sender in Settings → Email OTP</small>`; }
-    else dev.classList.add('hidden');
-    $$('#otp-inputs input').forEach((i, idx, all) => {
-      i.value = '';
-      i.oninput = () => { if (i.value && idx < 5) all[idx + 1].focus(); };
-      i.onkeydown = (e) => { if (e.key === 'Backspace' && !i.value && idx > 0) all[idx - 1].focus(); };
-    });
-    setTimeout(() => $('#otp-inputs input')?.focus(), 120);
-  }
-  function hideOtpStep() {
-    $('#auth-form').classList.remove('hidden');
-    $('#otp-form').classList.add('hidden');
-    $('#otp-error').textContent = '';
-  }
-
-  async function resendOtp() {
-    try {
-      const j = await api('/auth/resend-otp', { method: 'POST', body: { email: otpCtx.email, purpose: otpCtx.purpose } });
-      if (j.dev) $('#otp-dev').classList.remove('hidden'), ($('#otp-dev').innerHTML = `Use this code: <span class="otp-code">${j.dev}</span>`);
-      toast('Code re-sent', 'ok');
-    } catch (e) { $('#otp-error').textContent = e.message; }
-  }
   function showAuth(show) {
     $('#auth-screen').classList.toggle('hidden', !show);
     $('#app').classList.toggle('hidden', show);
@@ -84,7 +54,7 @@
     $('#auth-error').textContent = '';
   }
   function bindAuth() {
-    $$('.auth-tabs .tab').forEach((b) => (b.onclick = () => { setAuthMode(b.dataset.tab); hideOtpStep(); }));
+    $$('.auth-tabs .tab').forEach((b) => (b.onclick = () => setAuthMode(b.dataset.tab)));
     $('#auth-form').onsubmit = async (e) => {
       e.preventDefault();
       const f = e.target;
@@ -100,29 +70,13 @@
           localStorage.setItem('sa_token', j.token);
           showAuth(false); bootApp();
           toast('Welcome, ' + (state.user.displayName || 'trader'), 'ok');
-        } else if (j.requiresVerification || j.requiresOtp) {
-          showOtpStep(j.email, j.requiresOtp ? 'login' : 'signup', j.dev, j.message);
+        } else {
+          $('#auth-error').textContent = j.error || 'Sign-in failed';
         }
       } catch (err) {
         $('#auth-error').textContent = err.message;
       } finally { btn.disabled = false; }
     };
-    $('#otp-form').onsubmit = async (e) => {
-      e.preventDefault();
-      const btn = $('#otp-submit'); btn.disabled = true; $('#otp-error').textContent = '';
-      try {
-        const endpoint = otpCtx.purpose === 'login' ? '/auth/verify-login-otp' : '/auth/verify-otp';
-        const j = await api(endpoint, { method: 'POST', body: { email: otpCtx.email, code: otpValue() } });
-        state.token = j.token; state.user = j.user;
-        localStorage.setItem('sa_token', j.token);
-        showAuth(false); hideOtpStep();
-        bootApp();
-        toast('Verified — welcome, ' + (state.user.displayName || 'trader'), 'ok');
-      } catch (err) { $('#otp-error').textContent = err.message; }
-      finally { btn.disabled = false; }
-    };
-    $('#otp-resend').onclick = resendOtp;
-    $('#auth-resend').onclick = resendOtp;
     $('#btn-logout').onclick = async () => {
       try { await api('/auth/logout', { method: 'POST' }); } catch { }
       localStorage.removeItem('sa_token'); state.token = null; state.user = null;
@@ -738,31 +692,8 @@
       </select></div>
     </div>
 
-    ${u.isAdmin ? `
-    <div class="section-title"><h2>Email OTP sender</h2><span class="pill buy">owner only</span></div>
-    <div class="card" id="mail-card">
-      <div class="set-row"><span class="lbl">Status<small>Free senders: Brevo (300/day) or Gmail app password</small></span><b id="mail-status">…</b></div>
-      <div class="set-row"><span class="lbl">Provider</span><select id="mail-provider" onchange="window.__sa.mailProvider(this.value)">
-        <option value="dev">None (codes shown in app)</option><option value="gmail">Gmail — free App Password</option><option value="brevo">Brevo — free API</option><option value="smtp">Custom SMTP</option>
-      </select></div>
-      <div class="set-row"><span class="lbl">OTP type</span><select id="mail-otptype" onchange="window.__sa.mailOtpType(this.value)">
-        <option value="numeric">Numeric (6 digits)</option><option value="alphanumeric">Alphanumeric</option><option value="alphabet">Letters only</option>
-      </select></div>
-      <div class="set-row"><span class="lbl">Gmail address<small>your Gmail — sends the OTP emails</small></span><input type="email" id="mail-gmail" placeholder="you@gmail.com"></div>
-      <div class="set-row"><span class="lbl">Gmail App Password<small>myaccount.google.com/apppasswords</small></span><input type="password" id="mail-gpass" placeholder="16-digit app password"></div>
-      <div class="set-row"><span class="lbl">Brevo API key<small>brevo.com → SMTP &amp; API</small></span><input type="password" id="mail-brevo" placeholder="xkeysib-…"></div>
-      <div class="set-row"><span class="lbl">From email</span><input type="email" id="mail-from" placeholder="you@gmail.com"></div>
-      <div class="set-row"><span class="lbl">SMTP host / port</span><span class="row"><input id="mail-host" placeholder="smtp.gmail.com" style="width:90px"><input id="mail-port" placeholder="587" style="width:56px"></span></div>
-      <div class="set-row"><span class="lbl">SMTP user / password</span><span class="row"><input id="mail-user" placeholder="you@gmail.com" style="width:110px"><input id="mail-pass" type="password" placeholder="password" style="width:110px"></span></div>
-      <div class="row" style="gap:8px;margin-top:12px">
-        <button class="btn sm primary" onclick="window.__sa.mailSave()">Save sender</button>
-        <button class="btn sm" onclick="window.__sa.mailTest()">Send test code</button>
-      </div>
-    </div>` : ''}
-
     <div class="section-title"><h2>Alerts</h2></div>
     <div class="card">
-      <div class="set-row"><span class="lbl">Sign-in email OTP<small>Code emailed on every login</small></span><label class="switch"><input type="checkbox" ${s.loginOtp !== false ? 'checked' : ''} onchange="window.__sa.setSetting('loginOtp',this.checked)"><i></i></label></div>
       <div class="set-row"><span class="lbl">Telegram token<small>Free bot from @BotFather</small></span><input type="text" value="${esc(s.telegramToken)}" onchange="window.__sa.setSetting('telegramToken',this.value)"></div>
       <div class="set-row"><span class="lbl">Telegram chat id</span><input type="text" value="${esc(s.telegramChat)}" onchange="window.__sa.setSetting('telegramChat',this.value)"></div>
       <div class="set-row"><span class="lbl">Send test alert</span><button class="btn sm" onclick="window.__sa.tgTest()">Send</button></div>
@@ -935,11 +866,6 @@
         <button class="btn sm" onclick="window.__sa.adminScan('nse')">Scan NSE</button>
       </div>
     </div>
-    <div class="section-title"><h2>Email OTP sender</h2></div>
-    <div class="card">
-      <div class="set-row"><span class="lbl">Status</span><b id="mail-status">…</b></div>
-      <div class="tiny muted">Configure the free sender under Settings → Email OTP.</div>
-    </div>
     <div class="section-title"><h2>Scan jobs (this session)</h2></div>
     <div class="card" id="admin-jobs"><div class="tiny muted">Loading…</div></div>`;
   }
@@ -1056,8 +982,8 @@
     else if (route === 'stock') v.innerHTML = renderStock();
     else if (route === 'paper') v.innerHTML = await renderPaper();
     else if (route === 'alerts') v.innerHTML = await renderAlerts();
-    else if (route === 'settings') { v.innerHTML = renderSettings(); setTimeout(actions.mailStatus, 30); if (state.user.isAdmin) setTimeout(actions.provLoad, 30); }
-    else if (route === 'admin') { v.innerHTML = await renderAdmin(); setTimeout(actions.mailStatus, 30); actions.adminJobs(); }
+    else if (route === 'settings') { v.innerHTML = renderSettings(); if (state.user.isAdmin) setTimeout(actions.provLoad, 30); }
+    else if (route === 'admin') { v.innerHTML = await renderAdmin(); actions.adminJobs(); }
     applyAdminNav();
     // progress refs
     const bar = $('#scan-bar'); if (bar && state.scanProgress) bar.style.width = state.scanProgress + '%';
@@ -1171,41 +1097,6 @@
     async tgTest() {
       try { const j = await api('/alerts/telegram-test', { method: 'POST' }); toast(j.ok ? 'Telegram connected' : (j.error || 'Failed'), j.ok ? 'ok' : 'err'); }
       catch (e) { toast(e.message, 'err'); }
-    },
-    mailProvider(v) { state.mailProvider = v; },
-    async mailSave() {
-      try {
-        const j = await api('/admin/mail-config', {
-          method: 'POST',
-          body: {
-            provider: $('#mail-provider').value,
-            otpType: $('#mail-otptype').value,
-            from: $('#mail-from').value, fromName: 'TradeMind',
-            brevoKey: $('#mail-brevo').value,
-            smtp: {
-              host: $('#mail-host').value, port: Number($('#mail-port').value || 587), secure: false,
-              user: $('#mail-gmail').value || $('#mail-user').value,
-              pass: $('#mail-gpass').value || $('#mail-pass').value,
-            },
-          },
-        });
-        toast('Sender saved: ' + j.mail.provider, 'ok');
-        await actions.mailStatus();
-      } catch (e) { toast(e.message, 'err'); }
-    },
-    mailOtpType(v) { state.mailOtpType = v; },
-    async mailTest() {
-      try { const j = await api('/admin/mail-test', { method: 'POST' }); toast(j.ok ? 'Test code sent to your email' : ('Not sent: ' + (j.error || 'unknown')), j.ok ? 'ok' : 'err'); }
-      catch (e) { toast(e.message, 'err'); }
-    },
-    async mailStatus() {
-      try {
-        const j = await api('/mail/status');
-        const el = $('#mail-status');
-        if (el) el.innerHTML = j.mail.ready ? `<span style="color:var(--up)">${esc(j.mail.provider)} · connected</span>` : `<span style="color:var(--gold)">not connected (dev)</span>`;
-        const sel = $('#mail-provider');
-        if (sel) sel.value = j.mail.provider;
-      } catch { }
     },
     async dhanTest() {
       try { const j = await api('/dhan/test', { method: 'POST' }); toast(j.ok ? 'Dhan connected · funds loaded' : (j.error || 'Failed'), j.ok ? 'ok' : 'err'); }
