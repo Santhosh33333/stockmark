@@ -7,9 +7,10 @@
 # Prerequisites (one-time, all already done on the build machine):
 #   - JDK 17              (C:\Program Files\Java\jdk-17)
 #   - Android SDK         (D:\android\sdk) with platforms;android-34 + build-tools;34.0.0
-#   - Gradle 8.7          (D:\android\gradle-x\gradle-8.7)
+#                         (install with: sdkmanager "platforms;android-34" "build-tools;34.0.0")
 #   - Release keystore    (D:\android\trademind.keystore, alias "trademind")
 #   - TWA project         (D:\android\build\twa-app)
+#   - Gradle 8.7          (auto-downloaded to D:\android\gradle-x on first run)
 #
 # Usage:  powershell -ExecutionPolicy Bypass -File scripts\build-apk.ps1
 #
@@ -31,8 +32,19 @@ $repo       = Split-Path -Parent $PSScriptRoot
 $outDir     = Join-Path $repo 'public\download'
 $version    = '1.0.0'
 
-foreach ($p in @($jdk, $sdk, $gradleBin, $project)) {
+foreach ($p in @($jdk, $sdk, $project)) {
   if (-not (Test-Path $p)) { throw "Missing prerequisite: $p" }
+}
+
+# Gradle 8.7 is downloaded on demand (it is not kept in the repo).
+if (-not (Test-Path $gradleBin)) {
+  Write-Host "Gradle 8.7 not found - downloading..."
+  $zip = 'D:\android\gradle-8.7-bin.zip'
+  Invoke-WebRequest -Uri 'https://services.gradle.org/distributions/gradle-8.7-bin.zip' -OutFile $zip
+  Expand-Archive -Path $zip -DestinationPath 'D:\android\gradle-dl' -Force
+  New-Item -ItemType Directory -Force -Path 'D:\android\gradle-x' | Out-Null
+  Move-Item 'D:\android\gradle-dl\gradle-8.7' 'D:\android\gradle-x\gradle-8.7' -Force
+  Remove-Item $zip, 'D:\android\gradle-dl' -Recurse -Force -ErrorAction SilentlyContinue
 }
 
 $env:JAVA_HOME        = $jdk
