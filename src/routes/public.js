@@ -149,18 +149,35 @@ router.get('/stream/quotes', async (req, res) => {
   req.on('close', () => { closed = true; clearInterval(iv); });
 });
 
+// Insufficient-history refusal, shared by analysis/research/backtest: names the
+// symbol and the verified bar count so the UI can explain it (never faked).
+function shortHistory(raw, n, minBars = 60) {
+  return {
+    error: `${raw} has only ${n} verified daily bars (need ${minBars}). Newly-listed or thin-history stocks cannot be analysed yet — no figures have been generated.`,
+    symbol: raw, bars: n, minBars,
+  };
+}
+// Fetch daily+hourly, retrying once with a longer daily range when the first
+// attempt comes back short (provider truncation). Returns { data, short }.
+async function fetchWithRetry(yahooSym, { dailyRange, hourlyRange, intraday } = {}) {
+  const data = await market.fetchSymbolData(yahooSym, { dailyRange, hourlyRange, intraday });
+  if (data.daily.length >= 60 || dailyRange === '2y') return { data };
+  const retry = await market.fetchSymbolData(yahooSym, { dailyRange: '2y', hourlyRange, intraday });
+  return retry.daily.length > data.daily.length ? { data: retry, retried: true } : { data };
+}
+
 // Full analysis of one symbol (fresh network fetch) — used by the stock detail page
 router.get('/analysis/:symbol', async (req, res) => {
   const raw = String(req.params.symbol || '').toUpperCase();
   const yahooSym = raw.endsWith('.NS') || raw.endsWith('.BO') || raw.startsWith('^') ? raw : `${raw}.NS`;
   const wantIntraday = req.query.intraday === '1' || req.query.intraday === 'true';
   try {
-    const data = await market.fetchSymbolData(yahooSym, { intraday: wantIntraday });
+    const { data } = await fetchWithRetry(yahooSym, { intraday: wantIntraday });
     const mkt = marketStatus();
     const opts = { ...strategy.DEFAULTS, formingLastBar: mkt.state === 'OPEN' };
     if (data.intraday) opts.intraday = data.intraday;
     const a = strategy.analyze(data.daily, data.hourly, opts);
-    if (!a.ok) return res.status(422).json({ error: a.reason });
+    if (!a.ok) return res.status(422).json(shortHistory(raw, data.daily.length));
     const source = data.meta?.source || market.providerStatus().lastUsed.chart || 'yahoo';
     const last = data.daily[data.daily.length - 1];
     const quality = dq.classify({ source, asOf: last?.t, market: mkt });
@@ -182,12 +199,12 @@ router.get('/research/:symbol', async (req, res) => {
   const raw = String(req.params.symbol || '').toUpperCase();
   const yahooSym = raw.endsWith('.NS') || raw.endsWith('.BO') || raw.startsWith('^') ? raw : `${raw}.NS`;
   try {
-    const data = await market.fetchSymbolData(yahooSym, { intraday: true });
+    const { data } = await fetchWithRetry(yahooSym, { intraday: true });
     const mkt = marketStatus();
     const opts = { ...strategy.DEFAULTS, formingLastBar: mkt.state === 'OPEN' };
     if (data.intraday) opts.intraday = data.intraday;
     const a = strategy.analyze(data.daily, data.hourly, opts);
-    if (!a.ok) return res.status(422).json({ ok: false, error: a.reason });
+    if (!a.ok) return res.status(422).json({ ok: false, ...shortHistory(raw, data.daily.length) });
     const source = data.meta?.source || market.providerStatus().lastUsed.chart || 'yahoo';
     const brief = research.build(a, {
       symbol: raw, source,
@@ -251,7 +268,7 @@ router.get('/backtest/:symbol', async (req, res) => {
       hourlyRange: config.backtest.hourlyRange,
     });
     const a = strategy.analyze(data.daily, data.hourly, opts);
-    if (!a.ok) return res.status(422).json({ error: a.reason });
+    if (!a.ok) return res.status(422).json(shortHistory(raw, data.daily.length));
     const trades = (a.trades || []).filter((t) => !/^open/i.test(t.reason || ''));
     res.json({
       symbol: raw, yahoo: yahooSym, preset,
