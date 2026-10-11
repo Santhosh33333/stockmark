@@ -11,6 +11,7 @@ const express = require('express');
 const auth = require('../auth');
 const { getSymbolList } = require('../providers/symbols');
 const market = require('../providers');
+const paper = require('../paper');
 const { marketStatus, pMap } = require('../util');
 const parser = require('../lab/parser');
 const schema = require('../lab/schema');
@@ -286,6 +287,70 @@ const SCREEN_TF_DAYS = { '1d': 400, '4h': 400, '1h': 400, '30m': 55, '15m': 55 }
 const SCREEN_BUDGET_MS = 100000;
 const round2 = (v) => (v == null || !isFinite(v) ? null : +Number(v).toFixed(2));
 
+// Shared universe screen used by /lab/screen and /lab/autotrade.
+async function screenUniverse(spec, { universe = 'fno', maxSymbols = 300 } = {}) {
+  if (!['fno', 'nse', 'indices'].includes(universe)) {
+    return { ok: false, error: 'Screen universe must be fno, nse or indices (the full NSE+BSE list is too large for a live screen).' };
+  }
+  maxSymbols = Math.min(500, Math.max(1, Number(maxSymbols) || 300));
+  let list;
+  try { list = await getSymbolList(universe); }
+  catch (e) { return { ok: false, error: 'Universe list unavailable: ' + e.message }; }
+  list = (list || []).slice(0, maxSymbols);
+  if (!list.length) return { ok: false, error: 'Universe list is empty — try again shortly.' };
+
+  const days = SCREEN_TF_DAYS[spec.timeframe] || 400;
+  const fromTs = Date.now() - days * 86400000;
+  const needHtf = htfTfs(spec);
+  const open = marketStatus().state === 'OPEN';
+  const t0 = Date.now();
+  let stopped = false;
+
+  const screenOne = async (entry) => {
+    if (stopped || Date.now() - t0 > SCREEN_BUDGET_MS) { stopped = true; return { status: 'budget' }; }
+    const sym = entry.yahoo || entry.symbol;
+    try {
+      const series = await data.fetchSeries(sym, spec.timeframe, { fromTs });
+      if (!series || series.ok === false) return { status: 'error', symbol: entry.symbol, error: (series && series.error) || 'provider error' };
+      if (series.candles.length < 60) return { status: 'skipped', symbol: entry.symbol, reason: `only ${series.candles.length} verified bars (need 60)` };
+      // Latest COMPLETED bar: skip the forming bar while the market is open.
+      const sigIdx = series.candles.length - 1 - (open ? 1 : 0);
+      if (sigIdx < 30) return { status: 'skipped', symbol: entry.symbol, reason: 'not enough completed bars' };
+      const sliced = series.candles.slice(0, sigIdx + 1);
+      const htf = {};
+      for (const tf of needHtf) {
+        const r = await data.fetchHtf(sym, tf, { fromTs });
+        if (r.ok && r.candles && r.candles.length >= 20) htf[tf] = r.candles;
+      }
+      const r = engine.run({ candles: sliced, spec, htf });
+      if (!r.ok) return { status: 'skipped', symbol: entry.symbol, reason: r.error };
+      // A setup qualifies when it fired on the signal bar (fresh) or fired
+      // earlier and is still running into the signal bar (open at the end).
+      const hits = (r.trades || []).filter((t) => t.entryIdx === sigIdx || (t.exitIdx === sigIdx && t.reason === 'open_at_end'));
+      if (!hits.length) return { status: 'none' };
+      return {
+        status: 'match', symbol: entry.symbol, name: entry.name || entry.symbol, exchange: entry.exchange || 'NSE',
+        asOf: sliced[sigIdx].t, lastClose: sliced[sigIdx].c,
+        setups: hits.map((t) => ({
+          dir: t.dir, entry: t.entry, stop: t.stop, target: t.target,
+          planR: t.target != null && t.stop !== t.entry ? round2(Math.abs(t.target - t.entry) / Math.abs(t.entry - t.stop)) : null,
+          fresh: t.entryIdx === sigIdx, barsAgo: sigIdx - t.entryIdx,
+          reason: t.reason,
+        })),
+      };
+    } catch (e) { return { status: 'error', symbol: entry.symbol, error: e.message }; }
+  };
+
+  const wrapped = await pMap(list, 10, screenOne);
+  const results = wrapped.map((w) => (w && w.ok ? w.value : { status: 'error', error: (w && w.error && w.error.message) || 'worker failed' }));
+  const matches = results.filter((r) => r && r.status === 'match');
+  const skipped = results.filter((r) => r && r.status === 'skipped').length;
+  const errors = results.filter((r) => r && r.status === 'error').length;
+  const scanned = results.filter((r) => r && r.status !== 'budget').length;
+  const sigBarTs = (() => { for (const m of matches) return m.asOf; return null; })();
+  return { ok: true, matches, scanned, skipped, errors, stopped, universeSize: list.length, marketOpen: open, days, signalBarTs: sigBarTs };
+}
+
 router.post('/lab/screen', requireUser, async (req, res) => {
   try {
     const body = req.body || {};
@@ -293,65 +358,9 @@ router.post('/lab/screen', requireUser, async (req, res) => {
     if (!check.ok) return res.status(400).json({ ok: false, error: 'Strategy is invalid', errors: check.errors });
     const spec = check.spec;
     const universe = String(body.universe || 'fno').toLowerCase();
-    if (!['fno', 'nse', 'indices'].includes(universe)) {
-      return res.status(400).json({ ok: false, error: 'Screen universe must be fno, nse or indices (the full NSE+BSE list is too large for a live screen).' });
-    }
-    const maxSymbols = Math.min(500, Math.max(1, Number(body.maxSymbols) || 300));
-    let list;
-    try { list = await getSymbolList(universe); }
-    catch (e) { return res.status(502).json({ ok: false, error: 'Universe list unavailable: ' + e.message }); }
-    list = (list || []).slice(0, maxSymbols);
-    if (!list.length) return res.status(502).json({ ok: false, error: 'Universe list is empty — try again shortly.' });
-
-    const days = SCREEN_TF_DAYS[spec.timeframe] || 400;
-    const fromTs = Date.now() - days * 86400000;
-    const needHtf = htfTfs(spec);
-    const open = marketStatus().state === 'OPEN';
-    const t0 = Date.now();
-    let stopped = false;
-
-    const screenOne = async (entry) => {
-      if (stopped || Date.now() - t0 > SCREEN_BUDGET_MS) { stopped = true; return { status: 'budget' }; }
-      const sym = entry.yahoo || entry.symbol;
-      try {
-        const series = await data.fetchSeries(sym, spec.timeframe, { fromTs });
-        if (!series || series.ok === false) return { status: 'error', symbol: entry.symbol, error: (series && series.error) || 'provider error' };
-        if (series.candles.length < 60) return { status: 'skipped', symbol: entry.symbol, reason: `only ${series.candles.length} verified bars (need 60)` };
-        // Latest COMPLETED bar: skip the forming bar while the market is open.
-        const sigIdx = series.candles.length - 1 - (open ? 1 : 0);
-        if (sigIdx < 30) return { status: 'skipped', symbol: entry.symbol, reason: 'not enough completed bars' };
-        const sliced = series.candles.slice(0, sigIdx + 1);
-        const htf = {};
-        for (const tf of needHtf) {
-          const r = await data.fetchHtf(sym, tf, { fromTs });
-          if (r.ok && r.candles && r.candles.length >= 20) htf[tf] = r.candles;
-        }
-        const r = engine.run({ candles: sliced, spec, htf });
-        if (!r.ok) return { status: 'skipped', symbol: entry.symbol, reason: r.error };
-        // A setup qualifies when it fired on the signal bar (fresh) or fired
-        // earlier and is still running into the signal bar (open at the end).
-        const hits = (r.trades || []).filter((t) => t.entryIdx === sigIdx || (t.exitIdx === sigIdx && t.reason === 'open_at_end'));
-        if (!hits.length) return { status: 'none' };
-        return {
-          status: 'match', symbol: entry.symbol, name: entry.name || entry.symbol, exchange: entry.exchange || 'NSE',
-          asOf: sliced[sigIdx].t, lastClose: sliced[sigIdx].c,
-          setups: hits.map((t) => ({
-            dir: t.dir, entry: t.entry, stop: t.stop, target: t.target,
-            planR: t.target != null && t.stop !== t.entry ? round2(Math.abs(t.target - t.entry) / Math.abs(t.entry - t.stop)) : null,
-            fresh: t.entryIdx === sigIdx, barsAgo: sigIdx - t.entryIdx,
-            reason: t.reason,
-          })),
-        };
-      } catch (e) { return { status: 'error', symbol: entry.symbol, error: e.message }; }
-    };
-
-    const wrapped = await pMap(list, 10, screenOne);
-    const results = wrapped.map((w) => (w && w.ok ? w.value : { status: 'error', error: (w && w.error && w.error.message) || 'worker failed' }));
-    const matches = results.filter((r) => r && r.status === 'match');
-    const skipped = results.filter((r) => r && r.status === 'skipped').length;
-    const errors = results.filter((r) => r && r.status === 'error').length;
-    const scanned = results.filter((r) => r && r.status !== 'budget').length;
-    const sigBarTs = (() => { for (const m of matches) return m.asOf; return null; })();
+    const out = await screenUniverse(spec, { universe, maxSymbols: body.maxSymbols });
+    if (!out.ok) return res.status(out.error.startsWith('Screen universe') ? 400 : 502).json(out);
+    const { matches } = out;
 
     // Live last-traded prices for the matches only (cheap: a handful of quotes).
     // Lets the user compare live price vs the setup's entry level right now.
@@ -368,18 +377,90 @@ router.post('/lab/screen', requireUser, async (req, res) => {
 
     res.json({
       ok: true,
-      universe, timeframe: spec.timeframe, marketOpen: open, liveNote,
-      signalBarTs: sigBarTs,
-      scanned, universeSize: list.length, matches: matches.map((m) => ({ symbol: m.symbol, name: m.name, exchange: m.exchange, asOf: m.asOf, lastClose: m.lastClose, livePrice: m.livePrice ?? null, setups: m.setups })),
-      skipped, errors,
-      partial: stopped,
-      method: 'Each symbol: latest ~' + days + ' days of verified ' + String(spec.timeframe).toUpperCase() + ' candles, strategy evaluated on the latest completed bar only. No signal, no report.',
-      note: stopped
-        ? `Time budget reached — partial results over ${scanned}/${list.length} symbols. Re-run to cover the rest (results vary as bars complete).`
-        : `${matches.length} of ${scanned} symbols show a fresh setup on the latest completed bar. ${skipped} skipped (insufficient verified history), ${errors} provider errors.`,
+      universe, timeframe: spec.timeframe, marketOpen: out.marketOpen, liveNote,
+      signalBarTs: out.signalBarTs,
+      scanned: out.scanned, universeSize: out.universeSize, matches: matches.map((m) => ({ symbol: m.symbol, name: m.name, exchange: m.exchange, asOf: m.asOf, lastClose: m.lastClose, livePrice: m.livePrice ?? null, setups: m.setups })),
+      skipped: out.skipped, errors: out.errors,
+      partial: out.stopped,
+      method: 'Each symbol: latest ~' + out.days + ' days of verified ' + String(spec.timeframe).toUpperCase() + ' candles, strategy evaluated on the latest completed bar only. No signal, no report.',
+      note: out.stopped
+        ? `Time budget reached — partial results over ${out.scanned}/${out.universeSize} symbols. Re-run to cover the rest (results vary as bars complete).`
+        : `${matches.length} of ${out.scanned} symbols show a fresh setup on the latest completed bar. ${out.skipped} skipped (insufficient verified history), ${out.errors} provider errors.`,
       realData: true,
     });
   } catch (e) { res.status(500).json({ ok: false, error: 'Screen failed: ' + e.message }); }
+});
+
+// ── autotrade: screen the universe, then open PAPER positions for qualifying
+//    LONG setups — automatically find, run, report. Paper only (refused in LIVE
+//    mode), kill-switch aware, every guard in paper.openTrade still enforced
+//    (duplicates, max positions, sizing, daily-loss, drawdown, exposure).
+//    Paper SL/TP come from the user's Settings; the setup's own stop/target
+//    are reported alongside for comparison. ────────────────────────────────
+router.post('/lab/autotrade', requireUser, async (req, res) => {
+  try {
+    const body = req.body || {};
+    const check = schema.validate(body.spec || {});
+    if (!check.ok) return res.status(400).json({ ok: false, error: 'Strategy is invalid', errors: check.errors });
+    const spec = check.spec;
+    const settings = auth.getSettings(req.user);
+    if (settings.mode === 'LIVE') {
+      return res.status(403).json({ ok: false, error: 'Auto paper-trading is refused in LIVE mode. Switch to Paper mode first — this never places real orders.' });
+    }
+    if (settings.killSwitch) {
+      return res.status(403).json({ ok: false, error: 'Kill switch is ON — new positions are blocked. Turn it off in Settings to auto-trade.' });
+    }
+    const universe = String(body.universe || 'fno').toLowerCase();
+    const freshOnly = body.freshOnly !== false;
+    const maxTrades = Math.min(20, Math.max(1, Number(body.maxTrades) || 5));
+    const out = await screenUniverse(spec, { universe, maxSymbols: body.maxSymbols });
+    if (!out.ok) return res.status(out.error.startsWith('Screen universe') ? 400 : 502).json(out);
+
+    const cands = [];
+    for (const m of out.matches) {
+      for (const s of m.setups || []) {
+        if (s.dir !== 'long') continue;               // paper book is long-only
+        if (freshOnly && !s.fresh) continue;
+        cands.push({ m, s });
+      }
+    }
+    cands.sort((a, b) => (b.s.fresh - a.s.fresh) || (a.s.barsAgo - b.s.barsAgo));
+
+    const opened = [], skipped = [];
+    try {
+      const qs = await market.fetchQuotes(cands.slice(0, maxTrades).map((c) => `${c.m.symbol}.NS`), { concurrency: 6 });
+      for (const c of cands) {
+        const q = qs[c.m.symbol] || qs[`${c.m.symbol}.NS`];
+        if (q && q.price != null) c.live = +Number(q.price).toFixed(2);
+      }
+    } catch { /* fall back to setup entry levels */ }
+
+    for (const c of cands.slice(0, maxTrades)) {
+      const price = c.live ?? c.m.lastClose ?? c.s.entry;
+      if (!(price > 0)) { skipped.push({ symbol: c.m.symbol, reason: 'no tradable price right now' }); continue; }
+      const r = paper.openTrade(req.user.id, { symbol: c.m.symbol, name: c.m.name, price, settings });
+      if (r.ok) {
+        opened.push({
+          symbol: c.m.symbol, qty: r.trade.qty, entryPrice: price,
+          paperSL: +r.trade.sl.toFixed(2), paperTP: +r.trade.tp.toFixed(2),
+          setupStop: c.s.stop, setupTarget: c.s.target, setupRR: c.s.planR,
+          fresh: c.s.fresh, tradeId: r.trade.id,
+        });
+      } else {
+        skipped.push({ symbol: c.m.symbol, reason: (r.problems || [r.error || 'guard refused']).join('; ') });
+        if (/Max positions reached|Kill switch|Daily loss|drawdown|Exposure/i.test((r.problems || []).join(' '))) break;
+      }
+    }
+    for (const c of cands.slice(maxTrades)) skipped.push({ symbol: c.m.symbol, reason: `beyond the maxTrades cap (${maxTrades})` });
+
+    res.json({
+      ok: true, universe, timeframe: spec.timeframe, marketOpen: out.marketOpen,
+      scanned: out.scanned, candidates: cands.length,
+      opened, skipped,
+      settingsUsed: { mode: settings.mode, maxPositions: settings.maxPositions, qtyPct: settings.qtyPct, slPct: settings.slPct, tpPct: settings.tpPct },
+      note: 'Paper positions only — no real orders. Paper SL/TP come from your Settings; setup stop/target shown for comparison. Manage exits on the Paper tab.',
+    });
+  } catch (e) { res.status(500).json({ ok: false, error: 'Auto paper-trading failed: ' + e.message }); }
 });
 
 // ── saved strategies ─────────────────────────────────────────────────────

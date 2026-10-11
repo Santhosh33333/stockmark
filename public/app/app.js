@@ -24,6 +24,7 @@
       parsing: false, parsed: null, parseError: null,
       symbol: 'RELIANCE', running: false, result: null, runError: null,
       screening: false, screen: null, screenError: null,
+      trading: false, tradeReport: null, tradeError: null,
       optimizing: false, optimize: null,
       wf: null, mc: null, sens: null, risklv: null,
       saving: false, strategies: [], savedLoaded: false,
@@ -611,7 +612,7 @@
     <div class="section-title"><h2>Order blocks (newest)</h2></div>
     <div class="tbl-wrap"><table><thead><tr><th>Date</th><th>Zone</th><th>Status</th></tr></thead><tbody>
       ${zones.map((z) => `<tr><td>${dt(z.t)}</td><td>${inr(z.bottom, 2)} – ${inr(z.top, 2)}</td>
-        <td>${z.status === 'ACTIVE' ? (z.signal ? '<span class="pill buy">BUY</span>' : '<span class="pill watch">Active</span>') : '<span class="pill none">' + z.status + '</span>'}</td></tr>`).join('') || '<tr><td colspan="3" class="empty">No zones</td></tr>'}
+        <td>${z.status === 'ACTIVE' ? (z.signal ? '<span class="pill buy">BUY</span>' : '<span class="pill watch">Active</span>') : '<span class="pill none">' + esc(plainStatus(z.status)) + '</span>'}</td></tr>`).join('') || '<tr><td colspan="3" class="empty">No zones</td></tr>'}
     </tbody></table></div>
 
     <div class="section-title"><h2>Market structure</h2>
@@ -652,7 +653,7 @@
       ${[...(d.liquidity?.buyside || []), ...(d.liquidity?.sellside || [])].map((p) => `<tr>
         <td><span class="pill ${p.side === 'BUY' ? 'buy' : 'sell'}">${p.side === 'BUY' ? 'buy-side' : 'sell-side'}</span></td>
         <td>${inr(p.level, 2)}</td><td>${p.touches}</td>
-        <td>${p.swept ? '<span class="pill watch">swept</span>' : '<span class="pill none">intact</span>'}</td></tr>`).join('') || '<tr><td colspan="4" class="empty">No clusters</td></tr>'}
+        <td>${p.swept ? '<span class="pill watch">swept</span>' : '<span class="pill none">waiting</span>'}</td></tr>`).join('') || '<tr><td colspan="4" class="empty">No clusters</td></tr>'}
     </tbody></table></div>
 
     <div class="section-title"><h2>Signals on this symbol</h2></div>
@@ -1216,7 +1217,7 @@
     </tbody></table></div>
     <div class="section-title"><h2>Trade history</h2><span class="tiny muted">${trades.length} closed</span></div>
     <div class="tbl-wrap"><table><thead><tr><th>Entry</th><th>Exit</th><th>In</th><th>Out</th><th>Bars</th><th>Reason</th><th>P&amp;L</th></tr></thead><tbody>
-      ${trades.map((t) => `<tr><td>${dt(t.entryTs)}</td><td>${dt(t.exitTs)}</td><td>${inr(t.entry, 2)}</td><td>${inr(t.exit, 2)}</td><td>${t.bars}</td><td>${esc(t.reason)}</td><td class="${t.pct >= 0 ? 'u' : 'd'}">${pct(t.pct)}</td></tr>`).join('') || '<tr><td colspan="7" class="empty">No trades</td></tr>'}
+      ${trades.map((t) => `<tr><td>${dt(t.entryTs)}</td><td>${dt(t.exitTs)}</td><td>${inr(t.entry, 2)}</td><td>${inr(t.exit, 2)}</td><td>${t.bars}</td><td>${esc(plainReason(t.reason))}</td><td class="${t.pct >= 0 ? 'u' : 'd'}">${pct(t.pct)}</td></tr>`).join('') || '<tr><td colspan="7" class="empty">No trades</td></tr>'}
     </tbody></table></div>`;
   }
 
@@ -1284,6 +1285,12 @@
   const stopText = (s) => !s ? '—' : s.kind === 'pct' ? `${s.pct}%` : s.kind === 'atr' ? `${s.atrMult}×ATR(${s.atrPeriod})` : s.kind === 'swing' ? 'below/above invalidation swing' : s.kind === 'ob' ? 'beyond order block' : s.kind;
   const targetText = (t) => !t ? '—' : t.kind === 'rr' ? `1:${t.rr} R` : t.kind === 'pct' ? `${t.pct}%` : t.kind === 'atr' ? `${t.atrMult}×ATR` : 'no target (exit by stop/time)';
   const bullets = (items) => (items || []).map((x) => `<li>${esc(x)}</li>`).join('');
+  // Plain-English labels for engine codes (no jargon shown raw).
+  const plainReason = (r) => ({
+    stop: 'Stop-loss hit', target: 'Target hit', time: 'Time exit', open_at_end: 'Still open at latest bar',
+    'STOP LOSS': 'Stop-loss hit', TARGET: 'Target hit', 'TIME EXIT': 'Time exit', 'OPEN (latest bar)': 'Still open at latest bar',
+  }[String(r || '')] || String(r || '—'));
+  const plainStatus = (s) => ({ ACTIVE: 'Active', MITIGATED: 'Broken', BUY: 'Buy-side', SELL: 'Sell-side' }[String(s || '')] || String(s || '—'));
 
   function labSpecCard(p) {
     const s = p.spec || {};
@@ -1381,7 +1388,7 @@
       ${r.report.segments.map((seg) => `<div class="card"><div class="tiny muted">${esc(seg.q)}</div><div style="margin-top:4px">${esc(seg.a)}</div></div>`).join('')}` : ''}
     <div class="section-title"><h2>Trade history</h2><span class="tiny muted">${(r.trades || []).length} closed</span></div>
     <div class="tbl-wrap"><table><thead><tr><th>#</th><th>Dir</th><th>Entry</th><th>Exit</th><th>Entry Px</th><th>Exit Px</th><th>Stop</th><th>Target</th><th>Bars</th><th>Reason</th><th>P&amp;L</th><th>R</th></tr></thead><tbody>
-      ${(r.trades || []).map((t) => `<tr><td>${t.seq}</td><td>${t.dir === 'long' ? '▲' : '▼'}</td><td>${dt(t.entryTs)}</td><td>${dt(t.exitTs)}</td><td>${inr(t.entry, 2)}</td><td>${inr(t.exit, 2)}</td><td>${inr(t.stop, 2)}</td><td>${t.target == null ? '—' : inr(t.target, 2)}</td><td>${t.barsHeld}</td><td>${esc(t.reason)}</td><td class="${t.netPnl >= 0 ? 'u' : 'd'}">${inrC(t.netPnl)}</td><td class="${t.rMultiple >= 0 ? 'u' : 'd'}">${t.rMultiple == null ? '—' : t.rMultiple + 'R'}</td></tr>`).join('') || '<tr><td colspan="12" class="empty">No trades</td></tr>'}
+      ${(r.trades || []).map((t) => `<tr><td>${t.seq}</td><td>${t.dir === 'long' ? '▲' : '▼'}</td><td>${dt(t.entryTs)}</td><td>${dt(t.exitTs)}</td><td>${inr(t.entry, 2)}</td><td>${inr(t.exit, 2)}</td><td>${inr(t.stop, 2)}</td><td>${t.target == null ? '—' : inr(t.target, 2)}</td><td>${t.barsHeld}</td><td>${esc(plainReason(t.reason))}</td><td class="${t.netPnl >= 0 ? 'u' : 'd'}">${inrC(t.netPnl)}</td><td class="${t.rMultiple >= 0 ? 'u' : 'd'}">${t.rMultiple == null ? '—' : t.rMultiple + 'R'}</td></tr>`).join('') || '<tr><td colspan="12" class="empty">No trades</td></tr>'}
     </tbody></table></div>`;
   }
 
@@ -1436,7 +1443,10 @@
     <div class="card"><div class="tiny muted">${esc(sc.method)}</div>
       <div class="tiny muted" style="margin-top:4px">${sc.marketOpen ? 'Market is OPEN — signal bar excludes the forming bar; live prices below are real-time.' : 'Market is CLOSED — figures below use the last completed (last-traded) bar.'} ${esc(sc.liveNote || '')}</div>
       <div class="tiny muted" style="margin-top:4px">${esc(sc.note || '')}${sc.partial ? ' (partial — time budget reached)' : ''}</div></div>
-    ${ms.length ? `<div class="tbl-wrap"><table><thead><tr><th>Symbol</th><th>Dir</th><th>Signal</th><th>Entry</th><th>Stop</th><th>Target</th><th>R:R</th><th>Live</th><th></th></tr></thead><tbody>
+    ${ms.length ? `<div class="row wrap" style="gap:8px;margin:2px 0 10px">
+      <button class="btn gold" onclick="window.__sa.labAutotrade()" ${L.trading ? 'disabled' : ''}>${L.trading ? 'Paper-trading… (screening first)' : '📄 Auto paper-trade these (max 5)'}</button>
+    </div>
+    <div class="tbl-wrap"><table><thead><tr><th>Symbol</th><th>Dir</th><th>Signal</th><th>Entry</th><th>Stop</th><th>Target</th><th>R:R</th><th>Live</th><th></th></tr></thead><tbody>
       ${ms.map((m) => (m.setups || []).map((s) => `<tr>
         <td><b>${esc(m.symbol)}</b><div class="tiny muted">${esc(m.name || '')}</div></td>
         <td>${s.dir === 'long' ? '▲' : '▼'}</td>
@@ -1447,6 +1457,20 @@
       </tr>`).join('')).join('')}
     </tbody></table></div>`
       : `<div class="card empty"><div class="big">🔍</div>No ${esc(sc.universe).toUpperCase()} symbol shows a fresh setup on the latest completed bar. Try relaxing a condition or screening after the next close.</div>`}`;
+  }
+
+  function labTradeCard(t) {
+    if (!t || t.ok === false) return `<div class="card empty"><div class="big">📄</div>${esc((t && t.error) || 'Auto paper-trading unavailable.')}</div>`;
+    return `<div class="section-title"><h2>Auto paper-trade report</h2><span class="pill ${t.opened.length ? 'buy' : 'none'}">${t.opened.length} opened · ${t.skipped.length} skipped</span></div>
+    <div class="card"><div class="tiny muted">Scanned ${t.scanned} ${esc(t.universe).toUpperCase()} symbols, ${t.candidates} long setup${t.candidates === 1 ? '' : 's'} found. Mode ${esc(t.settingsUsed.mode)} · max ${t.settingsUsed.maxPositions} positions · ${t.settingsUsed.qtyPct}% per trade.</div>
+      <div class="tiny muted" style="margin-top:4px">${esc(t.note || '')}</div></div>
+    ${t.opened.length ? `<div class="tbl-wrap"><table><thead><tr><th>Stock</th><th>Qty</th><th>Bought at</th><th>Paper stop</th><th>Paper target</th><th>Setup stop/target</th></tr></thead><tbody>
+      ${t.opened.map((o) => `<tr><td><b>${esc(o.symbol)}</b>${o.fresh ? ' <span class="pill buy">fresh</span>' : ''}</td><td>${o.qty}</td><td>${inr(o.entryPrice, 2)}</td>
+        <td class="d">${inr(o.paperSL, 2)}</td><td class="u">${inr(o.paperTP, 2)}</td>
+        <td class="tiny muted">${inr(o.setupStop, 2)} / ${o.setupTarget == null ? '—' : inr(o.setupTarget, 2)}${o.setupRR != null ? ` (1:${o.setupRR})` : ''}</td></tr>`).join('')}
+    </tbody></table></div>
+    <div class="row wrap" style="gap:8px;margin:2px 0 10px"><button class="btn sm" onclick="window.__sa.go('paper')">Open Paper tab to manage</button></div>` : ''}
+    ${t.skipped.length ? `<div class="card"><div class="tiny muted">Skipped:</div><ul class="tiny" style="margin:6px 0 0 16px">${t.skipped.map((s) => `<li><b>${esc(s.symbol)}</b> — ${esc(s.reason)}</li>`).join('')}</ul></div>` : ''}`;
   }
 
   function labSavedCard() {
@@ -1491,6 +1515,8 @@
     ${L.screenError ? `<div class="card empty"><div class="big">⚠️</div>${esc(L.screenError)}</div>` : ''}
     ${L.screening ? `<div class="card empty"><div class="big">🔍</div>Analysing every F&O stock against your strategy… this takes about a minute. Leave this tab open.</div>` : ''}
     ${L.screen ? labScreenCard(L.screen) : ''}
+    ${L.tradeError ? `<div class="card empty"><div class="big">⚠️</div>${esc(L.tradeError)}</div>` : ''}
+    ${L.tradeReport ? labTradeCard(L.tradeReport) : ''}
     ${L.result ? labRunCard(L.result) : ''}
     ${L.optimize ? labOptimizeCard(L.optimize) : ''}
     ${L.wf ? labWfCard(L.wf) : ''}
@@ -1933,6 +1959,20 @@
       L.symbol = String(sym || '').toUpperCase();
       const inp = $('#lab-symbol'); if (inp) inp.value = L.symbol;
       actions.labRun();
+    },
+    async labAutotrade() {
+      const L = state.lab; actions.labSync();
+      if (!L.parsed || !L.parsed.spec) { toast('Interpret a strategy first', 'err'); return; }
+      if (L.trading) return;
+      if (!window.confirm('Auto paper-trade: screen F&O now and open PAPER positions (max 5) for fresh long setups? No real money is involved.')) return;
+      L.trading = true; L.tradeError = null; L.tradeReport = null;
+      render();
+      try {
+        const j = await api('/lab/autotrade', { method: 'POST', body: { spec: L.parsed.spec, universe: 'fno', freshOnly: true, maxTrades: 5 } });
+        if (j.ok === false) { L.tradeError = j.error || 'Auto paper-trading unavailable.'; toast('Auto-trade blocked', ''); }
+        else { L.tradeReport = j; toast(j.opened.length ? 'Opened ' + j.opened.length + ' paper position(s)' : 'No paper positions opened', j.opened.length ? 'ok' : ''); }
+      } catch (e) { L.tradeError = e.message; toast(e.message, 'err'); }
+      finally { L.trading = false; render(); }
     },
     async labOptimize() {
       const L = state.lab; actions.labSync();
