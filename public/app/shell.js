@@ -566,11 +566,52 @@
       body.appendChild(h('div', 'tm-sec', 'Near-ATM chain'));
       body.appendChild(strikeTable(j));
 
+      body.appendChild(h('div', 'tm-sec', 'Expiry comparison'));
+      var cmpBox = h('div');
+      cmpBox.appendChild(h('div', 'tm-mut', 'Compare ATM IV, PCR, max pain and OI across the nearest expiries.'));
+      var cmpBtn = h('button', 'tm-btn', '⇄ Compare nearest expiries'); cmpBtn.type = 'button'; cmpBtn.style.marginTop = '8px';
+      cmpBox.appendChild(cmpBtn);
+      cmpBtn.addEventListener('click', function () { loadExpiryCompare(cmpBox, sym); });
+      body.appendChild(cmpBox);
+
       var btns = h('div'); btns.style.marginTop = '14px';
       var b = h('button', 'tm-btn', 'Build a strategy from this chain'); b.type = 'button';
       b.addEventListener('click', function () { openPayoff(j); });
       btns.appendChild(b); body.appendChild(btns);
     }).catch(function (e) { body.appendChild(h('div', 'tm-bad', 'Failed: ' + e.message)); });
+  }
+
+  function loadExpiryCompare(box, sym) {
+    box.textContent = '';
+    box.appendChild(h('div', 'tm-mut', 'Loading nearest expiries… NSE rate-limits requests, so this can take a few seconds.'));
+    fetch('/api/options/' + encodeURIComponent(sym) + '/expiries/compare?count=3')
+      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+      .then(function (res) {
+        box.textContent = '';
+        var j = res.j;
+        if (!res.ok || !j.ok) { box.appendChild(h('div', 'tm-bad', 'Unavailable: ' + (j.error || 'no chain'))); return; }
+        var head = h('div'); head.style.display = 'flex'; head.style.gap = '10px'; head.style.alignItems = 'center'; head.style.flexWrap = 'wrap';
+        head.appendChild(pill(String(j.source || 'NSE').toUpperCase()));
+        head.appendChild(h('span', 'tm-mut', 'underlying ₹' + (j.underlyingValue != null ? j.underlyingValue : '—') + ' · nearest ' + (j.expiries || []).length));
+        box.appendChild(head);
+        var t = document.createElement('table'); t.className = 'tm-tbl';
+        t.innerHTML = '<thead><tr><th>Expiry</th><th>Days</th><th>ATM</th><th>ATM IV</th><th>Skew</th><th>PCR</th><th>Max pain</th><th>CE OI</th><th>PE OI</th></tr></thead>';
+        var tb = document.createElement('tbody');
+        (j.expiries || []).forEach(function (r2) {
+          var tr = document.createElement('tr');
+          if (r2.error) {
+            var td = document.createElement('td'); td.colSpan = 9; td.className = 'tm-bad';
+            td.textContent = r2.expiry + ' — ' + r2.error; tr.appendChild(td); tb.appendChild(tr); return;
+          }
+          [r2.expiry, r2.daysToExpiry, r2.atmStrike, r2.atmIV != null ? r2.atmIV + '%' : '—', r2.ivSkew, r2.pcr, r2.maxPain, fmtN(r2.ceOi), fmtN(r2.peOi)].forEach(function (v) {
+            var td = document.createElement('td'); td.textContent = v == null ? '—' : String(v); tr.appendChild(td);
+          });
+          tb.appendChild(tr);
+        });
+        t.appendChild(tb);
+        var wrap = h('div', 'tm-scroll'); wrap.appendChild(t); box.appendChild(wrap);
+        if (j.note) box.appendChild(h('div', 'tm-mut', j.note));
+      }).catch(function (e) { box.textContent = ''; box.appendChild(h('div', 'tm-bad', 'Failed: ' + e.message)); });
   }
 
   function payoffChart(grid) {

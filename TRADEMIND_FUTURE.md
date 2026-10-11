@@ -50,9 +50,9 @@ _Phased rebuild of the existing repo. This is the honest state of each phase; de
 - [x] Paper trading never calls Dhan (verified guard).
 
 ## Phase 13 — Test & repair ✅ (partial)
-- [x] `npm test` (live selftest) — **42/42 passed** (see Delivery report).
+- [x] `npm test` (live selftest) — **57/57 passed** (see Delivery report).
 - [x] In-browser audit: every app route + stock detail renders; **0 console errors**; palette/collapse/freshness verified.
-- [ ] Dedicated unit fixtures for SMC/backtest math — **deferred**.
+- [x] Dedicated deterministic unit tests for SMC/backtest/cost maths — `npm run test:unit` (**25/25**).
 
 ## Verification log
 - selftest: **42/42** live checks passed (run clean; test user removed afterward → 1 owner account, 0 sessions).
@@ -67,12 +67,14 @@ _Phased rebuild of the existing repo. This is the honest state of each phase; de
 - [x] Multi-timeframe now includes 5m/15m/1h/4h/D/W (`?intraday=1`).
 - [x] Deterministic research assistant `/api/research/:symbol` (no invented probability).
 - [x] Options analytics: Black-Scholes Greeks, max pain, OI, IV rank (real history), payoff builder.
+- [x] Options **expiry comparison** (nearest expiries: atm IV term structure, PCR, max pain, OI) + NSE request throttle.
 - [x] Options analytics + strategy builder surfaced in the UI (Ctrl/Cmd-K palette → live chain table, OI, Greeks, payoff chart).
 - [x] Risk management: per-trade/daily/drawdown limits, kill switch, `/api/risk/state`, audit logging.
-- [x] Backtest realism: Indian cost model (brokerage/STT/GST/stamp/slippage) + train/test split + trades CSV.
+- [x] Backtest realism: Indian cost model (brokerage/STT/GST/stamp/slippage) + train/test split + trades CSV — also over HTTP (`?costs=1&train=0.7`) with an *Advanced backtest* panel.
 - [x] Paper history CSV export (`/api/paper/export.csv`).
 - [x] Live quote stream over SSE (`/api/stream/quotes`) — pushes only changed values, auto-reconnect.
-- [x] `npm run test:unit` → 25/25; `npm test` → **54/54**; in-browser panels render, 0 console errors.
+- [x] Resizable, persisted sidebar (saved layout).
+- [x] `npm run test:unit` → 25/25; `npm test` → **57/57**; in-browser panels render, 0 console errors.
 - [ ] WebSocket streaming — **deferred** (no free NSE/Yahoo feed; needs paid broker licence). SSE stream covers live updates.
 - Full mapping of done vs deferred: see `UPGRADE_REPORT.md`.
 

@@ -247,6 +247,19 @@ async function main() {
       check('Option analytics endpoint reachable', ocA.status === 200 || ocA.status === 502, `chain blocked upstream (${oc.status}) → analytics ${ocA.status}`);
     }
 
+    // Expiry comparison (spec E) — mirrors the chain status so an upstream block
+    // doesn't fail the suite. Needs ≥1 expiry row (or a per-expiry error row).
+    const ocX = await call('GET', '/api/options/NIFTY/expiries/compare?count=2', null, authHeaders);
+    if (oc.status === 200) {
+      const rowsX = (ocX.body && ocX.body.expiries) || [];
+      const good = rowsX.filter((r) => r && !r.error && typeof r.pcr !== 'undefined').length;
+      check('Expiry comparison (nearest expiries)',
+        ocX.status === 200 && ocX.body.ok === true && rowsX.length >= 1 && (good >= 1 || rowsX.every((r) => r.error)),
+        `rows ${rowsX.length} · ok ${good} · ${rowsX.map((r) => r.expiry + (r.error ? `(err)` : ` IV ${r.atmIV} PCR ${r.pcr}`)).join(', ')}`);
+    } else {
+      check('Expiry comparison endpoint reachable', ocX.status === 200 || ocX.status === 502, `chain blocked upstream (${oc.status}) → compare ${ocX.status}`);
+    }
+
     // ── user profile (editable display name) ──
     const prof = await call('PATCH', '/api/me', { displayName: 'Selftest User' }, authHeaders);
     check('Update profile (display name)', prof.status === 200 && prof.body.user?.displayName === 'Selftest User',

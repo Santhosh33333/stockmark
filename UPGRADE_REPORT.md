@@ -77,6 +77,16 @@ Exposed in the app via the command palette → **Research brief**.
   breakevens, SVG payoff chart). Verified in-browser: NIFTY max pain ₹22500,
   ATM IV 12.03%, PCR 1.278, 11-row chain, 0 console errors; long CE 25000 @150 →
   breakeven 25150, max loss ₹-150.
+- **Expiry comparison** (spec E): `GET /api/options/:symbol/expiries/compare?count=3`
+  returns the nearest expiries side by side — days-to-expiry, ATM strike, ATM IV,
+  IV skew, PCR, max pain, CE/PE OI and volume — surfaced in the analytics panel via
+  the *Compare nearest expiries* button. Verified live (NSE NIFTY, 7.4s for 3
+  expiries): a clean **IV term structure** — 12.03% (2d) → 12.96% (8d) → 13.13%
+  (16d), PCR 1.278/0.928/0.974, max pain 22500/22500/23000.
+- **NSE rate-limit respect** (spec B): option-chain requests are serialised through
+  a single queue with a minimum gap (`NSE_MIN_GAP_MS`, default 3000ms), and the NSE
+  session cookie + contract info are memoised (~5 min). A single panel load still
+  pays no delay; multi-expiry work is spaced so bursts can't trip NSE's IP block.
 - ⛔ Historical expired-option backtesting deferred (no free source of historical
   contract data).
 
@@ -167,7 +177,7 @@ migrations are performed on existing data.
 ## Verified in this pass
 
 - `npm run test:unit` → **25/25**.
-- `npm test` (live) → **56/56**.
+- `npm test` (live) → **57/57**.
 - Live endpoints confirmed: `/api/metrics`, `/api/research/RELIANCE`,
   `/api/analysis/RELIANCE?intraday=1` (premium/discount, VWAP, swing labels,
   displacement, equal H/L, 5m/15m MTF), `/api/options/NIFTY/analytics`
@@ -175,8 +185,8 @@ migrations are performed on existing data.
   `/api/risk/kill`, `/api/paper/export.csv`, `/api/stream/quotes` (SSE).
 - Backtest verified with costs + train/test + CSV (`--costs --train=0.7 --csv`).
 - In-browser: app shell loads with **0 console errors**; Risk-controls,
-  Research, Options-analytics, Strategy-builder and Advanced-backtest panels
-  render live data; sidebar resize persists.
+  Research, Options-analytics, Strategy-builder, Advanced-backtest and
+  Expiry-comparison panels render live data; sidebar resize persists.
 - Owner account intact; test accounts removed (DB: 1 owner, 0 test sessions).
 
 ## Known limitations (honest)

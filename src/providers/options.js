@@ -119,6 +119,23 @@ async function nseJson(url, cookie) {
   catch { throw new Error('NSE returned a non-JSON response (likely blocked)'); }
 }
 
+// NSE intermittently aborts/hangs a request. Retry only transient failures
+// (abort/timeout/5xx/empty) so one blip doesn't blank the chain; never spin on
+// an explicit block (non-JSON / 401 / 403) which retrying would only worsen.
+async function nseJsonRetry(url, cookie, attempts = 2, delayMs = 900) {
+  let last;
+  for (let i = 0; i < attempts; i++) {
+    try { return await nseJson(url, cookie); }
+    catch (e) {
+      last = e;
+      const transient = /abort|fetch failed|ECONN|ETIMEDOUT|socket|empty response|HTTP 5\d\d/i.test(String((e && e.message) || ''));
+      if (i < attempts - 1 && transient) await sleep(delayMs);
+      else break;
+    }
+  }
+  throw last;
+}
+
 function nseLeg(v) {
   if (!v) return null;
   return {
@@ -133,33 +150,78 @@ function nseLeg(v) {
   };
 }
 
+// NSE session reuse: bootstrapping a cookie + fetching contract info are the
+// same for every expiry, so memoise them (~5 min) and only pay for the chain
+// request itself. Fewer requests = far less chance of an NSE block, and expiry
+// comparison becomes practical. Any error clears the memo to force a re-auth.
+const NSE_MEMO_MS = 5 * 60 * 1000;
+let nseSession = { at: 0, cookie: '' };
+const nseInfoMemo = new Map();
+function clearNseMemo() { nseSession = { at: 0, cookie: '' }; nseInfoMemo.clear(); }
+
+// NSE allows ~1 option-chain request every few seconds and blocks bursts by IP.
+// Serialise chain fetches through a single queue with a minimum gap so
+// multi-expiry work (and multiple browser tabs) can never trip the block.
+// A single, spaced-out call pays no delay. Tune with NSE_MIN_GAP_MS.
+const NSE_MIN_GAP_MS = Math.max(0, Number(process.env.NSE_MIN_GAP_MS != null ? process.env.NSE_MIN_GAP_MS : 3000));
+let nseQueue = Promise.resolve();
+let nseLastAt = 0;
+function nseThrottle(fn) {
+  const run = nseQueue.then(async () => {
+    const wait = NSE_MIN_GAP_MS - (Date.now() - nseLastAt);
+    if (wait > 0) await sleep(wait);
+    try { return await fn(); }
+    finally { nseLastAt = Date.now(); }
+  });
+  nseQueue = run.then(() => { }, () => { });
+  return run;
+}
+
+async function nseSessionCookie() {
+  if (nseSession.cookie && Date.now() - nseSession.at < NSE_MEMO_MS) return nseSession.cookie;
+  const cookie = await nseCookie();
+  nseSession = { at: Date.now(), cookie };
+  return cookie;
+}
+async function nseContractInfo(symbol, cookie) {
+  const hit = nseInfoMemo.get(symbol);
+  if (hit && Date.now() - hit.at < NSE_MEMO_MS) return hit.value;
+  const value = await nseJsonRetry(`${config.nseOptionChain.contractInfo}?symbol=${encodeURIComponent(symbol)}`, cookie);
+  nseInfoMemo.set(symbol, { at: Date.now(), value });
+  return value;
+}
+
 async function nseChain(symbol, expiry) {
   const u = resolveUnderlying(symbol);
-  const cookie = await nseCookie();
+  try {
+    const cookie = await nseSessionCookie();
+    const info = await nseContractInfo(u.symbol, cookie);
+    const expiries = (info && (info.expiryDates || info.expiry_dates)) || [];
+    if (!expiries.length) throw new Error(`No option expiries published for ${u.symbol} (not an F&O underlying?)`);
 
-  const info = await nseJson(`${config.nseOptionChain.contractInfo}?symbol=${encodeURIComponent(u.symbol)}`, cookie);
-  const expiries = (info && (info.expiryDates || info.expiry_dates)) || [];
-  if (!expiries.length) throw new Error(`No option expiries published for ${u.symbol} (not an F&O underlying?)`);
+    const chosen = expiry && expiries.includes(expiry) ? expiry : expiries[0];
+    const url = `${config.nseOptionChain.chain}?type=${u.type}&symbol=${encodeURIComponent(u.symbol)}&expiry=${encodeURIComponent(chosen)}`;
+    const json = await nseThrottle(() => nseJsonRetry(url, cookie));
 
-  const chosen = expiry && expiries.includes(expiry) ? expiry : expiries[0];
-  const url = `${config.nseOptionChain.chain}?type=${u.type}&symbol=${encodeURIComponent(u.symbol)}&expiry=${encodeURIComponent(chosen)}`;
-  const json = await nseJson(url, cookie);
+    const rec = json && (json.records || json.filtered);
+    const rows = (rec && rec.data) || [];
+    if (!rows.length) throw new Error(`NSE returned no strikes for ${u.symbol} ${chosen}`);
 
-  const rec = json && (json.records || json.filtered);
-  const rows = (rec && rec.data) || [];
-  if (!rows.length) throw new Error(`NSE returned no strikes for ${u.symbol} ${chosen}`);
-
-  const underlyingValue = num(rec.underlyingValue);
-  const strikes = new Map();
-  for (const r of rows) {
-    const k = num(r.strikePrice);
-    if (k == null) continue;
-    if (!strikes.has(k)) strikes.set(k, { strike: k, ce: null, pe: null });
-    const cell = strikes.get(k);
-    if (r.CE) cell.ce = nseLeg(r.CE);
-    if (r.PE) cell.pe = nseLeg(r.PE);
+    const underlyingValue = num(rec.underlyingValue);
+    const strikes = new Map();
+    for (const r of rows) {
+      const k = num(r.strikePrice);
+      if (k == null) continue;
+      if (!strikes.has(k)) strikes.set(k, { strike: k, ce: null, pe: null });
+      const cell = strikes.get(k);
+      if (r.CE) cell.ce = nseLeg(r.CE);
+      if (r.PE) cell.pe = nseLeg(r.PE);
+    }
+    return normalize({ source: 'NSE', symbol: u.symbol, type: u.type, expiry: chosen, expiries, underlyingValue, strikes });
+  } catch (e) {
+    clearNseMemo();
+    throw e;
   }
-  return normalize({ source: 'NSE', symbol: u.symbol, type: u.type, expiry: chosen, expiries, underlyingValue, strikes });
 }
 
 // ══════════════════════════ Dhan (user's key) ════════════════════════════

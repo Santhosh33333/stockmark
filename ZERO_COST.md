@@ -27,6 +27,10 @@ requires **no API keys** to run. Every data path has a free, key-less default.
 - Yahoo/NSE are polled politely: short-TTL quote cache (4s) + in-flight
   de-duplication + exponential backoff + `Retry-After` handling + a single SSE
   poll loop instead of per-client polling.
+- The NSE option chain (limit ~1 request / 3s) is serialised through one queue
+  with a configurable gap (`NSE_MIN_GAP_MS`, default 3000ms), and the session
+  cookie + contract info are memoised (~5 min). Multi-expiry comparison is
+  spaced accordingly instead of bursting (which NSE blocks by IP).
 - If a free source rate-limits, the resilience layer backs off and the UI shows
   `DELAYED`/`STALE` rather than failing or silently switching to a paid source.
 - Brevo free tier (if ever enabled) is 300 emails/day; the app never exceeds it

@@ -349,6 +349,56 @@ router.get('/options/:symbol/analytics', requireUser, async (req, res) => {
   }
 });
 
+// Expiry comparison (spec E): nearest expiries side by side — ATM IV, IV skew,
+// PCR, max pain, OI and volume. NSE publishes one chain per expiry and
+// rate-limits, so this fetches the nearest `count` expiries sequentially and
+// relies on the provider cache (25s) + NSE session memo. Per-expiry failures
+// degrade to an error row rather than failing the whole response.
+router.get('/options/:symbol/expiries/compare', requireUser, async (req, res) => {
+  try {
+    const settings = auth.getSettings(req.user);
+    const count = Math.max(2, Math.min(5, Number(req.query.count) || 3));
+    const first = await options.getOptionChain({ settings, symbol: req.params.symbol });
+    const avail = first.expiries || [];
+    const list = avail.slice(0, count);
+    const under = first.underlyingValue ?? null;
+    const rows = [];
+    for (let i = 0; i < list.length; i++) {
+      const exp = list[i];
+      try {
+        const chain = exp === first.expiry
+          ? first
+          : await options.getOptionChain({ settings, symbol: req.params.symbol, expiry: exp });
+        const e = optionsAnalytics.enrichChain(chain);
+        const sum = (leg, k) => (e.strikes || []).reduce((a, s) => a + (s[leg] && s[leg][k] != null ? s[leg][k] : 0), 0);
+        const ts = optionsAnalytics.expiryTs(exp);
+        rows.push({
+          expiry: exp,
+          daysToExpiry: ts ? Math.round((ts - Date.now()) / 86400000) : null,
+          atmStrike: e.atm ?? null,
+          atmIV: e.atmIV ?? null,
+          ivSkew: e.ivSkew ?? null,
+          pcr: e.pcr ?? null,
+          maxPain: e.maxPain ? e.maxPain.strike : null,
+          ceOi: sum('ce', 'oi'), peOi: sum('pe', 'oi'),
+          ceOiChange: sum('ce', 'oiChange'), peOiChange: sum('pe', 'oiChange'),
+          ceVolume: sum('ce', 'volume'), peVolume: sum('pe', 'volume'),
+          strikes: (e.strikes || []).length,
+        });
+      } catch (err) {
+        rows.push({ expiry: exp, error: err.message });
+      }
+    }
+    res.json({
+      ok: true, symbol: first.symbol, source: first.source, underlyingValue: under,
+      expiries: rows, availableExpiries: avail, generatedAt: now(),
+      note: 'Nearest expiries only — NSE publishes one chain per expiry and rate-limits requests; each chain is cached ~25s.',
+    });
+  } catch (e) {
+    res.status(502).json({ ok: false, error: `Expiry comparison failed: ${e.message}` });
+  }
+});
+
 // Options strategy builder: expiry payoff, max profit/loss, breakevens.
 // Body: { legs:[{type,strike,qty,premium}], underlying, lotSize }
 router.post('/options/strategy/payoff', requireUser, (req, res) => {
