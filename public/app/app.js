@@ -118,7 +118,7 @@
         const j = await api('/auth/forgot-password', { method: 'POST', body: { email } });
         if (j.dev) note.innerHTML = `Mail isn't set up here — use this code: <code>${esc(j.dev)}</code>`;
         else if (j.sent) note.textContent = 'Reset code sent — check your inbox (and spam).';
-        else if (!j.mailReady) note.textContent = "Email isn't configured on this deployment — ask the owner to set it up (Settings → Email).";
+        else if (!j.mailReady) note.textContent = "Email reset isn't switched on for this deployment. Ask the owner to reset your password from Admin → Users, or to add a free mail key (see DEPLOY.md).";
         else note.textContent = 'If that email has an account, a reset code is on its way.';
       } catch (e2) { err.textContent = e2.message; }
       finally { btn.disabled = false; btn.textContent = 'Send reset code'; }

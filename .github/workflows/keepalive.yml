@@ -1,0 +1,31 @@
+# Keeps the free Render web service warm so visitors don't hit the ~50s cold start
+# (which can look like a hang or a sign-out). Render's free plan spins a service
+# down after ~15 minutes idle; this pings /healthz every 10 minutes.
+#
+# Notes (be honest about the trade-offs):
+#   • Always-on uses ~720 of the 750 free instance-hours/month — it fits, but it
+#     leaves little room for a second free service in the same workspace.
+#   • GitHub scheduled workflows are best-effort: runs can be delayed by a few
+#     minutes, and GitHub disables the schedule after ~60 days of repo inactivity.
+#     Pushing any commit re-enables it.
+#   • Delete this file if you'd rather let the service sleep between visits.
+name: keepalive
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: keepalive
+  cancel-in-progress: false
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping the healthcheck
+        run: |
+          code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 120 https://trademind-7xcs.onrender.com/healthz || echo 000)
+          echo "healthz -> $code"
+          [ "$code" = "200" ] || echo "::warning::healthz returned $code (service may be cold or down)"
