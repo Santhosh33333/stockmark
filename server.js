@@ -116,16 +116,16 @@ app.get('/healthz', (_req, res) => res.status(200).send('ok'));
 // the landing page / QR codes can point at it. Served as an attachment so
 // Android hands it to the package installer instead of rendering it.
 app.get('/app.apk', (_req, res) => {
-  const apk = path.join(__dirname, 'public', 'download', 'TradeMind-v1.0.0.apk');
+  const apk = path.join(__dirname, 'public', 'download', 'TradeMind-v1.0.1.apk');
   if (!fs.existsSync(apk)) return res.status(404).send('APK not built yet');
   res.setHeader('Content-Type', 'application/vnd.android.package-archive');
-  res.setHeader('Content-Disposition', 'attachment; filename="TradeMind-v1.0.0.apk"');
+  res.setHeader('Content-Disposition', 'attachment; filename="TradeMind-v1.0.1.apk"');
   res.sendFile(apk);
 });
 
-// Digital Asset Links for the Play Store (TWA) build. express.static ignores
-// dotfiles, so this is served explicitly. Replace the placeholder fingerprint
-// with the Play App Signing SHA-256 (see PLAYSTORE.md) before publishing.
+// Digital Asset Links. The native WebView build does not need this, but it is
+// kept so the listing is ready if you ever switch back to a Trusted Web
+// Activity. express.static ignores dotfiles, so it is served explicitly.
 app.get('/.well-known/assetlinks.json', (_req, res) => {
   res.type('application/json');
   res.sendFile(path.join(__dirname, 'public', '.well-known', 'assetlinks.json'));

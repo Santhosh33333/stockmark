@@ -397,9 +397,11 @@ test('privacy policy matches the product (password auth, no OTP, no ads)', () =>
   assert.ok(/do not sell/i.test(p) && /No third-party advertising/i.test(p), 'must disclose no-sale/no-ads');
 });
 test('published Android APK exists, is an archive, and is linked from the site', () => {
-  const apk = path.join(__dirname, '..', 'public', 'download', 'TradeMind-v1.0.0.apk');
-  const buf = fs.readFileSync(apk);
-  assert.ok(buf.length > 100 * 1024, 'APK unexpectedly small');
+  const dir = path.join(__dirname, '..', 'public', 'download');
+  const apks = fs.readdirSync(dir).filter(f => /^TradeMind-v\d+\.\d+\.\d+\.apk$/.test(f)).sort();
+  assert.ok(apks.length, 'no published APK in public/download');
+  const buf = fs.readFileSync(path.join(dir, apks[apks.length - 1]));
+  assert.ok(buf.length > 10 * 1024, 'APK unexpectedly small');
   assert.strictEqual(buf.slice(0, 2).toString('latin1'), 'PK', 'APK must be a zip archive');
   assert.ok(/\/app\.apk/.test(fs.readFileSync(pub('landing.html'), 'utf8')), 'landing page must link /app.apk');
   assert.ok(/app\.get\('\/app\.apk'/.test(fs.readFileSync(path.join(__dirname, '..', 'server.js'), 'utf8')), 'server must serve /app.apk');

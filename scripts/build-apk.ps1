@@ -1,8 +1,14 @@
 # Build the TradeMind Android app (Play Store AAB + sideload APK)
 #
-# This wraps the live PWA (https://trademind-7xcs.onrender.com/app/) as a
-# Trusted Web Activity. No Android Studio needed. Everything lives outside the
-# repo so no keys or binaries are ever committed except the published APK.
+# This wraps the live PWA (https://trademind-7xcs.onrender.com/app/) in a
+# single-activity native WebView. No Android Studio needed. Everything lives
+# outside the repo so no keys or binaries are ever committed except the
+# published APK.
+#
+# A native WebView is used on purpose instead of a Trusted Web Activity: a TWA
+# needs Chrome plus a successful Digital Asset Links check, and on devices
+# without them the launcher finishes immediately and the app looks like it
+# "closes on open". A plain WebView opens the same URL on every Android device.
 #
 # Prerequisites (one-time, all already done on the build machine):
 #   - JDK 17              (C:\Program Files\Java\jdk-17)
@@ -15,11 +21,11 @@
 # Usage:  powershell -ExecutionPolicy Bypass -File scripts\build-apk.ps1
 #
 # After it finishes:
-#   APK -> public\download\TradeMind-v1.0.0.apk   (served at /app.apk)
-#   AAB -> public\download\TradeMind-v1.0.0.aab   (upload to Play Console)
+#   APK -> public\download\TradeMind-v1.0.1.apk   (served at /app.apk)
+#   AAB -> public\download\TradeMind-v1.0.1.aab   (upload to Play Console)
 #
-# IMPORTANT: the keystore fingerprint must stay in sync with
-# public/.well-known/assetlinks.json or the installed app shows a URL bar.
+# IMPORTANT: keep versionCode/versionName in app\build.gradle in step with
+# $version so the Play Console accepts the AAB as an update.
 
 $ErrorActionPreference = 'Stop'
 
@@ -30,7 +36,7 @@ $gradleBin  = 'D:\android\gradle-x\gradle-8.7\bin\gradle.bat'
 $project    = 'D:\android\build\twa-app'
 $repo       = Split-Path -Parent $PSScriptRoot
 $outDir     = Join-Path $repo 'public\download'
-$version    = '1.0.0'
+$version    = '1.0.1'
 
 foreach ($p in @($jdk, $sdk, $project)) {
   if (-not (Test-Path $p)) { throw "Missing prerequisite: $p" }

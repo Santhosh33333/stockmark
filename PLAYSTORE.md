@@ -1,9 +1,13 @@
-# TradeMind on the Play Store — APK via PWA (TWA) + listing guide
+# TradeMind on the Play Store — installable PWA wrapped in a native WebView + listing guide
 
 The app is a fully installable PWA (`public/app/manifest.webmanifest`,
 `public/app/sw.js`, maskable icons). The Play Store path below wraps that PWA
-as a native **Trusted Web Activity** — no rewrite, no separate codebase, ₹0
-build tools. What costs money: the **Google Play developer account (US $25
+in a single-activity **native WebView** — no rewrite, no separate codebase, ₹0
+build tools. A native WebView is used on purpose rather than a Trusted Web
+Activity: a TWA needs Chrome plus a passing Digital Asset Links check, and on
+devices without them the launcher finishes immediately and the app looks like
+it "closes on open". A plain WebView opens the same URL on every Android
+device. What costs money: the **Google Play developer account (US $25
 one-time)**. Everything else here is free.
 
 ## 0. What is already done
@@ -20,14 +24,16 @@ one-time)**. Everything else here is free.
 - [x] Privacy policy at `/privacy` (password auth, no OTP, no ads/trackers)
       and Terms at `/terms`
 - [x] **Signed release APK built here** (not PWABuilder) — package
-      `app.trademind.twa`, versionName `1.0.0`, minSdk 24, targetSdk 34:
-      - Download: **`/app.apk`** → `public/download/TradeMind-v1.0.0.apk`
+      `app.trademind.twa`, versionName `1.0.1` (versionCode 2), minSdk 24,
+      targetSdk 34. The launcher is a native `MainActivity` WebView that loads
+      the live URL — no Chrome / Play-Services / asset-links dependency:
+      - Download: **`/app.apk`** → `public/download/TradeMind-v1.0.1.apk`
       - Rebuild: `powershell -File scripts\build-apk.ps1`
-- [x] **Asset-links carries the real fingerprint** —
-      `69:22:05:39:8F:8D:8D:DB:D7:38:67:46:65:FE:72:7E:BD:3F:00:00:7E:D1:D6:5A:91:49:3C:E0:FB:63:A1:70`
-      (matches the keystore at `D:\android\trademind.keystore`, alias
-      `trademind`). Served with `application/json` at
-      `/.well-known/assetlinks.json`.
+- [x] `public/.well-known/assetlinks.json` still carries the real fingerprint
+      (`69:22:05:39:8F:8D:8D:DB:D7:38:67:46:65:FE:72:7E:BD:3F:00:00:7E:D1:D6:5A:91:49:3C:E0:FB:63:A1:70`,
+      matching `D:\android\trademind.keystore`, alias `trademind`). It is not
+      required by the native WebView build, but keeping it means the listing is
+      still ready if you ever switch back to a TWA.
 
 ## 1. One-time Google setup (~30 min, $25)
 
@@ -61,16 +67,11 @@ Play Store steps:
 ### Play App Signing note (important)
 
 If you let Google manage the signing key (the default), Google re-signs your
-bundle with **its** key. The installed app then has a *different* SHA-256
-than our keystore, and the address bar will show unless you update
-asset-links. Two ways to avoid that:
-
-- **Simplest:** keep our uploaded key as the app-signing key — in Play
-  Console → *Release → Setup → App signing*, choose to use the upload key
-  (our `trademind.keystore`) as the signing key, or
-- Add **both** fingerprints to `sha256_cert_fingerprints` in
-  `public/.well-known/assetlinks.json`: ours plus the one Play Console shows
-  under *App signing key certificate*.
+bundle with **its** key, so the installed app has a *different* SHA-256 than
+our keystore. That does not affect the native WebView build (it never checks
+asset-links), but if you ever switch back to a TWA the address bar would show
+until you add Google's fingerprint to `sha256_cert_fingerprints` in
+`public/.well-known/assetlinks.json`.
 
 ## 3. Store listing assets
 
@@ -154,7 +155,7 @@ account.
 
 ## 5. Pre-launch checklist
 
-- [x] Release APK + AAB built, signed, and the fingerprint is in asset-links
+- [x] Release APK + AAB built and signed (native WebView, no asset-links check)
 - [ ] Production origin is stable (custom domain recommended; Render free
       URLs sleep and show a cold-start delay — disclose nothing, but test it)
 - [ ] Upload the AAB to **Internal testing** and install on your own phone:
@@ -162,7 +163,7 @@ account.
 - [ ] Freshness pills show honest states on mobile data (delayed/stale)
 - [ ] No `console.log` secrets; API keys only server-side (already true)
 - [ ] Bump `versionCode`/`versionName` in `D:\android\build\twa-app\app\build.gradle`
-      and the version below for each new Play release
+      and `$version` in `scripts\build-apk.ps1` for each new Play release
 
 `APP_VERSION` for this guide: v24 — app shell `app.js?v=24`.
-Android app version: `1.0.0` (versionCode 1).
+Android app version: `1.0.1` (versionCode 2).
