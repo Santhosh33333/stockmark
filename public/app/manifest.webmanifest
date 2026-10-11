@@ -20,6 +20,8 @@
   ],
   "shortcuts": [
     { "name": "Scanner", "url": "/app/#scanner" },
+    { "name": "Strategy Lab", "url": "/app/#lab" },
+    { "name": "Options", "url": "/app/#options" },
     { "name": "Paper trading", "url": "/app/#paper" }
   ]
 }

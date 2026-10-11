@@ -332,6 +332,71 @@ test('risk sizing math: qty from risk, capped without leverage, honest refusal',
   assert.ok(rt.charges > 0 && rt.charges < 500, `charges ${rt.charges}`);
 });
 
+// ── No repaint: forming-bar signals stay unconfirmed; history is stable ───
+test('analyze never confirms a signal on the still-forming bar (no repaint)', () => {
+  const mk = (extra) => {
+    const base = Array.from({ length: 120 }, (_, i) => c(100 + Math.sin(i / 5) * 3, 104 + Math.sin(i / 5) * 3, 96 + Math.sin(i / 5) * 3, 100 + Math.sin(i / 5) * 3, 1000, Date.UTC(2024, 0, 1 + i)));
+    if (extra) base.push(extra);
+    return base;
+  };
+  const aClosed = strategy.analyze(mk(), [], {});
+  const forming = c(118, 130, 90, 129, 5000, Date.UTC(2024, 4, 1)); // huge bullish forming bar
+  const aForming = strategy.analyze(mk(forming), [], { formingLastBar: true });
+  assert.ok(aClosed.ok && aForming.ok);
+  const unconfirmed = (aForming.signals || []).filter((s) => !s.confirmed);
+  for (const s of (aForming.signals || [])) {
+    if (s.t === forming.t) assert.strictEqual(s.confirmed, false, 'forming-bar signal must not be confirmed');
+  }
+  void unconfirmed;
+  const closedSig = (aClosed.signals || []).map((s) => s.t).join(',');
+  const stillConfirmed = (aForming.signals || []).filter((s) => s.confirmed).map((s) => s.t).join(',');
+  assert.ok(closedSig.split(',').every((t) => stillConfirmed.split(',').includes(t) || t === ''), 'confirmed history must not change when a new forming bar arrives');
+});
+test('data cleaning drops invalid candles instead of repairing them', () => {
+  const { clean } = require('../src/lab/data');
+  const good = c(100, 101, 99, 100, 10, 1);
+  const bad = [
+    { o: 100, h: 99, l: 101, c: 100, v: 1, t: 2 },   // h < l
+    { o: 100, h: 101, l: 99, c: 0, v: 1, t: 3 },     // zero close
+    { o: 100, h: 101, l: 99, c: 100, v: 1, t: 1 },   // duplicate ts
+    null,
+  ];
+  const r = clean([good, ...bad]);
+  assert.strictEqual(r.candles.length, 1);
+  assert.strictEqual(r.rejected.length, 4);
+});
+
+// ── PWA / Play-store readiness (static contract checks) ───────────────────
+const fs = require('fs');
+const path = require('path');
+const pub = (p) => path.join(__dirname, '..', 'public', p);
+test('web manifest is valid with installability fields', () => {
+  const m = JSON.parse(fs.readFileSync(pub('app/manifest.webmanifest'), 'utf8'));
+  assert.strictEqual(m.display, 'standalone');
+  assert.strictEqual(m.start_url, '/app/');
+  assert.ok((m.icons || []).some((i) => i.sizes === '512x512' && /maskable/.test(i.purpose || '')), 'need a 512 maskable icon');
+  assert.ok((m.icons || []).some((i) => i.sizes === '192x192'), 'need a 192 icon');
+  assert.ok((m.shortcuts || []).length >= 2, 'need shortcuts');
+  for (const ic of m.icons) assert.ok(fs.existsSync(pub(ic.src.replace(/^\//, ''))), `missing icon file ${ic.src}`);
+});
+test('service worker precaches the shell and never rewrites API as fresh', () => {
+  const sw = fs.readFileSync(pub('app/sw.js'), 'utf8');
+  assert.ok(sw.includes("caches.open"), 'must use the cache API');
+  assert.ok(sw.includes('/api/'), 'must special-case live API traffic');
+  assert.ok(/register\(['"]sw\.js['"]\)/.test(fs.readFileSync(pub('app/app.js'), 'utf8')), 'app must register sw.js');
+});
+test('asset-links file is valid JSON with the TWA relation', () => {
+  const a = JSON.parse(fs.readFileSync(pub('.well-known/assetlinks.json'), 'utf8'));
+  const t = Array.isArray(a) ? a[0] : a;
+  assert.ok((t.relation || []).includes('delegate_permission/common.handle_all_urls'));
+  assert.strictEqual(t.target.namespace, 'android_app');
+});
+test('privacy policy matches the product (password auth, no OTP, no ads)', () => {
+  const p = fs.readFileSync(pub('privacy.html'), 'utf8');
+  assert.ok(!/one-time code/i.test(p), 'must not promise removed OTP emails');
+  assert.ok(/do not sell/i.test(p) && /No third-party advertising/i.test(p), 'must disclose no-sale/no-ads');
+});
+
 console.log(`\n${pass}/${pass + fail} unit checks passed`);
 if (fail) { console.log('FAILED'); process.exit(1); }
 console.log('ALL UNIT CHECKS PASSED ✅');

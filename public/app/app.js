@@ -16,7 +16,7 @@
     scanRows: [], scanJob: null, scanPreset: 'fno', scanOpts: {},
     scanTimer: null, es: null, alerts: [], universe: null, watchlist: [],
     symbols: [], selected: null, detail: null, chart: null, paper: null, alertCount: 0,
-    options: { symbol: 'NIFTY', expiry: null, data: null, analytics: null, analyticsError: null, loading: false, error: null, source: null, nextRefresh: 0 },
+    options: { symbol: 'NIFTY', expiry: null, data: null, analytics: null, analyticsError: null, loading: false, error: null, source: null, nextRefresh: 0, compare: null, compareLoading: false, compareError: null },
     optSyms: null, optSymsLoading: false, optFilter: '',
     backtest: { symbol: 'RELIANCE', preset: 'improved', slPct: 1.5, tpPct: 3, maxBars: 25, data: null, loading: false, error: null },
     lab: {
@@ -111,12 +111,25 @@
   }
 
   /* ── ROUTER ── */
+  const HASH_ROUTES = ['dashboard', 'scanner', 'backtest', 'lab', 'options', 'paper', 'alerts', 'settings', 'admin'];
   function go(route, param) {
     state.route = route;
     state.detail = route === 'stock' ? param : null;
     $$('.navbtn').forEach((b) => b.classList.toggle('active', b.dataset.route === route || (route === 'stock' && b.dataset.route === 'scanner')));
+    // Deep-link hash so PWA shortcuts, share links and the back button work.
+    try {
+      const h = route === 'stock' && param ? '#stock/' + encodeURIComponent(param) : '#' + route;
+      if (location.hash !== h) history.replaceState(null, '', h);
+    } catch { }
     render();
     window.scrollTo({ top: 0 });
+  }
+  function routeFromHash() {
+    const h = String(location.hash || '').replace(/^#/, '');
+    if (!h) return null;
+    if (h.startsWith('stock/')) { const s = decodeURIComponent(h.slice(6)).toUpperCase(); return s ? { route: 'stock', param: s } : null; }
+    if (HASH_ROUTES.includes(h)) return { route: h, param: null };
+    return null;
   }
   function bindNav() {
     $$('.navbtn').forEach((b) => (b.onclick = () => go(b.dataset.route)));
@@ -513,7 +526,18 @@
         ${stat('Profit at target', R.potentialProfitAtTarget != null ? inr(R.potentialProfitAtTarget) : '—', 'u')}
         ${stat('Est. costs', inr(R.estCosts))}
       </div>
-      <div class="tiny muted" style="margin-top:4px">${esc(R.method)}</div>`) : ''}
+      <div class="tiny muted" style="margin-top:4px">${esc(R.method)}</div>
+      ${R.target != null ? (() => {
+        const lo = Math.min(R.stop, R.target), hi = Math.max(R.stop, R.target);
+        const span = hi - lo || 1;
+        const px = (v) => Math.max(0, Math.min(100, ((v - lo) / span) * 100));
+        return `<svg viewBox="0 0 100 14" style="width:100%;height:22px;margin-top:8px" role="img" aria-label="Entry stop target scale">
+          <line x1="0" y1="7" x2="100" y2="7" stroke="rgba(148,163,184,.35)" stroke-width="1.5"/>
+          <circle cx="${px(R.stop)}" cy="7" r="3" fill="#f43f5e"/><circle cx="${px(R.entry)}" cy="7" r="3" fill="#38bdf8"/><circle cx="${px(R.target)}" cy="7" r="3" fill="#22c55e"/>
+          <text x="${px(R.stop)}" y="13.5" font-size="4" fill="#93a1bd" text-anchor="middle">SL</text>
+          <text x="${px(R.entry)}" y="4" font-size="4" fill="#93a1bd" text-anchor="middle">Entry</text>
+          <text x="${px(R.target)}" y="13.5" font-size="4" fill="#93a1bd" text-anchor="middle">TGT</text></svg>`;
+      })() : ''}`) : ''}
     </div>`;
   }
 
@@ -585,11 +609,11 @@
     </div>
 
     <div class="stats-grid">
-      ${stat('4H RSI', d.rsi4h ?? '—', d.rsi4h != null && d.rsi4h < 50 ? 'a' : '')}
-      ${stat('Daily RSI', d.rsiDaily ?? '—', d.rsiDaily != null && d.rsiDaily > 55 ? 'a' : '')}
+      ${stat('RSI(14) 4H', d.rsi4h ?? '—', d.rsi4h != null && d.rsi4h < 50 ? 'a' : '')}
+      ${stat('RSI(14) daily', d.rsiDaily ?? '—', d.rsiDaily != null && d.rsiDaily > 55 ? 'a' : '')}
       ${stat('ADX(14)', d.adx ?? '—', d.adx != null && d.adx >= 25 ? 'u' : '')}
-      ${stat('ATR %', d.atrPct != null ? d.atrPct + '%' : '—')}
-      ${stat('BB width %', d.bollinger ? d.bollinger.widthPct + '%' : '—')}
+      ${stat('ATR(14) %', d.atrPct != null ? d.atrPct + '%' : '—')}
+      ${stat('BB(20,2) width %', d.bollinger ? d.bollinger.widthPct + '%' : '—')}
       ${stat('Regime', d.regime ? d.regime.state.replace(/_/g, ' ') : '—', d.regime && /TRENDING/.test(d.regime.state) ? 'u' : d.regime && d.regime.state === 'BREAKOUT_WATCH' ? 'a' : '')}
       ${stat('Vol × 20MA', d.volRatio ?? '—', d.volRatio && d.volRatio > 1.3 ? 'u' : '')}
       ${stat('Confluence', (d.confluence?.score ?? 0) + '%', (d.confluence?.score ?? 0) >= 50 ? 'u' : (d.confluence?.score ?? 0) > 0 ? 'a' : '')}
@@ -821,8 +845,11 @@
           ${(o.data.expiries || []).map((e) => `<option ${o.data.expiry === e ? 'selected' : ''}>${e}</option>`).join('')}
         </select>
         <span class="tiny muted">· ${o.data.strikes.length} strikes</span>
+        <button class="btn sm" onclick="window.__sa.loadOptCompare()" ${o.compareLoading ? 'disabled' : ''}>${o.compareLoading ? 'Comparing…' : '⇄ Compare expiries'}</button>
       </div>` : ''}
     </div>
+    ${o.compareError ? `<div class="card empty"><div class="big">⚠️</div>${esc(o.compareError)}</div>` : ''}
+    ${o.compare ? optCompareHtml(o.compare) : ''}
     <div id="opt-body">${o.loading ? `<div class="card empty"><div class="big">🧾</div>Loading live option chain…</div>` : o.error ? `<div class="card empty"><div class="big">⚠️</div>${esc(o.error)}</div>` : o.data ? optAnalyticsHtml(o.analytics) + optChainHtml(o.data) : `<div class="card empty"><div class="big">🧾</div>Pick an underlying and tap Load.</div>`}</div>
     <div style="height:20px"></div>`;
   }
@@ -878,6 +905,19 @@
       </div></div>` : `<div class="card"><div class="tiny muted">Greeks unavailable for this expiry (need spot + IV from the provider).</div></div>`}
     <div class="card">${ctx.map((t) => `<div class="tiny" style="margin:3px 0">· ${esc(t)}</div>`).join('')}
       <div class="tiny muted" style="margin-top:6px">Expected move = ATM straddle (CE+PE premium) — the market-priced ± range to expiry, not a forecast. Analysis, not advice.</div></div>`;
+  }
+
+  function optCompareHtml(cmp) {
+    const rows = cmp.expiries || [];
+    return `<div class="section-title"><h2>Expiry comparison</h2><span class="tiny muted">${esc(cmp.symbol || '')} · nearest ${rows.length}</span></div>
+    <div class="tbl-wrap"><table><thead><tr><th>Expiry</th><th>Days</th><th>ATM</th><th>ATM IV</th><th>Skew</th><th>PCR</th><th>Max pain</th><th>CE OI</th><th>PE OI</th><th>Strikes</th></tr></thead><tbody>
+      ${rows.map((r) => r.error ? `<tr><td>${esc(r.expiry)}</td><td colspan="9" class="empty">${esc(r.error)}</td></tr>` : `<tr>
+        <td><b>${esc(r.expiry)}</b></td><td>${r.daysToExpiry ?? '—'}</td><td>${r.atmStrike != null ? r.atmStrike.toLocaleString('en-IN') : '—'}</td>
+        <td>${r.atmIV ?? '—'}</td><td>${r.ivSkew ?? '—'}</td><td>${r.pcr ?? '—'}</td>
+        <td>${r.maxPain != null ? r.maxPain.toLocaleString('en-IN') : '—'}</td>
+        <td>${oiFmt(r.ceOi)}</td><td>${oiFmt(r.peOi)}</td><td>${r.strikes ?? '—'}</td></tr>`).join('') || '<tr><td colspan="10" class="empty">No expiries.</td></tr>'}
+    </tbody></table></div>
+    <div class="card"><div class="tiny muted">${esc(cmp.note || 'One chain per expiry; per-expiry failures degrade to an error row, never fabricated.')}</div></div>`;
   }
 
   function optChainHtml(d) {
@@ -1557,6 +1597,7 @@
   }
 
   async function render() {
+    if (!state.user) return;   // pre-login: auth screen owns the DOM
     const v = $('#view');
     const route = state.route;
     if (route === 'dashboard') v.innerHTML = renderDashboard();
@@ -1622,7 +1663,18 @@
       const c = $('#opt-count');
       if (c) c.textContent = (optMatches().indices.length + optMatches().stocks.length) + ' shown';
     },
-    setOptExpiry(e) { state.options.expiry = e; actions.loadOptions(); },
+    setOptExpiry(e) { state.options.expiry = e; state.options.compare = null; actions.loadOptions(); },
+    async loadOptCompare() {
+      const o = state.options;
+      if (o.compareLoading || !o.symbol) return;
+      o.compareLoading = true; o.compareError = null; render();
+      try {
+        const j = await api('/options/' + encodeURIComponent(o.symbol) + '/expiries/compare?count=3');
+        if (j && j.ok !== false) { o.compare = j; toast('Compared ' + (j.expiries || []).length + ' expiries', 'ok'); }
+        else { o.compare = null; o.compareError = (j && j.error) || 'Comparison unavailable'; }
+      } catch (e) { o.compare = null; o.compareError = e.message; toast(e.message, 'err'); }
+      finally { o.compareLoading = false; render(); }
+    },
     async loadOptions(quiet) {
       if (state.options.loading) return;
       const el = $('#opt-sym');
@@ -2072,7 +2124,15 @@
   /* ══════════════ BOOT ══════════════ */
   async function bootApp() {
     applyAdminNav();
+    registerSW();
     await Promise.all([loadMarket(), loadUniverse(), loadLatest(), loadWatchlist()]);
+    // Deep link: open the route from the URL hash (PWA shortcuts, shared links).
+    const deep = routeFromHash();
+    if (deep) {
+      state.route = deep.route;
+      state.detail = deep.param;
+      if (deep.route === 'stock' && deep.param) { render(); openStock(deep.param); return; }
+    }
     render();
     connectSSE();
     // live refresh loop
@@ -2120,6 +2180,15 @@
     $('#app').classList.add('hidden');
     const bs = $('#boot-screen'); if (bs) bs.classList.remove('hidden');
     const m = $('#boot-msg'); if (m) m.textContent = 'Server not reachable — it may be waking up. Your session is safe; tap Retry.';
+  }
+
+  // Offline shell + installability: cache the app shell, network-first for API.
+  function registerSW() {
+    try {
+      if (!('serviceWorker' in navigator)) return;
+      if (!/^https:$/.test(location.protocol) && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') return;
+      navigator.serviceWorker.register('sw.js').catch(() => { });
+    } catch { }
   }
 
   async function init() {

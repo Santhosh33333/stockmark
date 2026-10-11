@@ -112,6 +112,14 @@ app.use(express.static(path.join(__dirname, 'public'), {
 // Health probe for hosting platforms
 app.get('/healthz', (_req, res) => res.status(200).send('ok'));
 
+// Digital Asset Links for the Play Store (TWA) build. express.static ignores
+// dotfiles, so this is served explicitly. Replace the placeholder fingerprint
+// with the Play App Signing SHA-256 (see PLAYSTORE.md) before publishing.
+app.get('/.well-known/assetlinks.json', (_req, res) => {
+  res.type('application/json');
+  res.sendFile(path.join(__dirname, 'public', '.well-known', 'assetlinks.json'));
+});
+
 // SPA fallback inside /app (hash routing used, so rarely hit)
 app.use('/app/*', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'app', 'index.html')));
 

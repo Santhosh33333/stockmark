@@ -1,5 +1,5 @@
 /* TradeMind app service worker — offline shell + Play Store (TWA) readiness */
-const CACHE = 'trademind-v1';
+const CACHE = 'trademind-v2';
 const SHELL = [
   '/app/',
   '/app/index.html',
