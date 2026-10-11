@@ -315,6 +315,7 @@
     });
     // actions
     var ACTS = [
+      { label: 'Price alerts (create / manage)…', sub: 'Notify me when a price crosses', ic: '🔔', run: openPriceAlerts },
       { label: 'Toggle light / dark theme', sub: 'Appearance', ic: '◐', run: toggleTheme },
       { label: 'Toggle sidebar', sub: 'Layout', ic: '▤', run: function () { setCollapsed(!(shellEl && shellEl.classList.contains('collapsed'))); } },
       { label: 'Collapse sidebar', sub: 'Layout', ic: '▤', run: function () { setCollapsed(true); } },
@@ -891,6 +892,116 @@
     setTimeout(function () { if (!sym) symIn.focus(); }, 20);
   }
 
+  /* ── price alerts: user-defined rules, real quotes, browser + Telegram ── */
+  var ALERT_POLL_MS = 30000, alertTimer = null;
+  function notifyPerm() { return (typeof Notification !== 'undefined') ? Notification.permission : 'unsupported'; }
+  function authJson(method, url, body) {
+    var opt = { method: method, headers: { 'Content-Type': 'application/json' } };
+    if (body != null) opt.body = JSON.stringify(body);
+    return fetch(url, opt).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); });
+  }
+  function showAlertNotif(f) {
+    var title = '🔔 ' + f.symbol + ' ' + (f.condition === 'above' ? '≥' : '≤') + ' ₹' + fmtN(f.target);
+    var text = 'Price ₹' + fmtN(f.price) + (f.note ? ' · ' + f.note : '');
+    try { if (window.__sa && window.__sa.toast) window.__sa.toast(title + ' — ' + text, 'ok'); } catch (e) { }
+    try { if (notifyPerm() === 'granted') new Notification(title, { body: text, tag: 'tm-alert-' + f.id }); } catch (e) { }
+  }
+  // Ask the server to evaluate this user's armed rules (real quotes). Fired
+  // rules are auto-disarmed server-side, so each is announced exactly once.
+  function evalAlerts() {
+    try { if (!localStorage.getItem('sa_token')) return; } catch (e) { return; }
+    authJson('POST', '/api/alerts/rules/eval', {})
+      .then(function (res) { if (res.ok && res.j && res.j.fired) res.j.fired.forEach(showAlertNotif); })
+      .catch(function () { });
+  }
+  function startAlertWatch() {
+    if (alertTimer) return;
+    alertTimer = setInterval(function () { if (!document.hidden) evalAlerts(); }, ALERT_POLL_MS);
+    setTimeout(evalAlerts, 4000);
+  }
+  startAlertWatch();
+
+  function openPriceAlerts() {
+    var body = openPanel('Price alerts');
+    body.appendChild(h('div', 'tm-mut', 'Get notified when a symbol trades at or through a price. Rules use real quotes (free), fire once and then disarm (re-arm any time). Browser notifications appear while this tab is open; Telegram (if configured in Settings) works anytime — the server also checks every ~60s.'));
+
+    var perm = notifyPerm();
+    var bar = h('div'); bar.style.cssText = 'display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:10px 0 4px';
+    var permTxt = h('span', 'tm-mut', 'Browser notifications: ' + perm);
+    bar.appendChild(permTxt);
+    if (perm !== 'granted' && perm !== 'unsupported') {
+      var nb = h('button', 'tm-btn', 'Enable'); nb.type = 'button';
+      nb.addEventListener('click', function () {
+        try { Notification.requestPermission().then(function (p) { permTxt.textContent = 'Browser notifications: ' + p; if (p === 'granted') nb.remove(); }); }
+        catch (e) { }
+      });
+      bar.appendChild(nb);
+    }
+    body.appendChild(bar);
+
+    var form = h('form'); form.style.cssText = 'display:grid;grid-template-columns:1.4fr .9fr .9fr;gap:8px;align-items:end;margin:10px 0 2px';
+    var sym = h('input', 'tm-in'); sym.placeholder = 'Symbol (RELIANCE, NIFTY, ^NSEI)'; sym.setAttribute('aria-label', 'Symbol');
+    var cond = document.createElement('select'); cond.className = 'tm-in'; cond.setAttribute('aria-label', 'Condition');
+    [['above', 'Crosses ≥ (above)'], ['below', 'Crosses ≤ (below)']].forEach(function (c) { var o = document.createElement('option'); o.value = c[0]; o.textContent = c[1]; cond.appendChild(o); });
+    var tgt = h('input', 'tm-in'); tgt.type = 'number'; tgt.step = '0.05'; tgt.min = '0.01'; tgt.placeholder = 'Target ₹'; tgt.setAttribute('aria-label', 'Target price');
+    form.appendChild(sym); form.appendChild(cond); form.appendChild(tgt);
+    var note = h('input', 'tm-in'); note.placeholder = 'Note (optional)'; note.style.gridColumn = '1/-1'; note.setAttribute('aria-label', 'Note');
+    form.appendChild(note);
+    var addBtn = h('button', 'tm-btn', 'Create alert'); addBtn.type = 'submit'; addBtn.style.marginTop = '8px'; addBtn.style.gridColumn = '1/-1'; addBtn.style.justifySelf = 'start';
+    form.appendChild(addBtn);
+    var msg = h('div', 'tm-mut', ''); body.appendChild(form); body.appendChild(msg);
+
+    var wrap = h('div', 'tm-scroll'); wrap.style.marginTop = '12px'; body.appendChild(wrap);
+    var foot = h('div', 'tm-mut', ''); foot.style.marginTop = '8px'; body.appendChild(foot);
+
+    function load() {
+      wrap.textContent = '';
+      authJson('GET', '/api/alerts/rules').then(function (res) {
+        var rules = (res.j && res.j.rules) || [];
+        if (!rules.length) { wrap.appendChild(h('div', 'tm-mut', 'No price alerts yet — create one above.')); foot.textContent = ''; return; }
+        var tbl = h('table', 'tm-tbl');
+        var thead = document.createElement('thead'); var htr = document.createElement('tr');
+        ['Symbol', 'Cond.', 'Target', 'Status', 'Last price', ''].forEach(function (t) { htr.appendChild(h('th', null, t)); });
+        thead.appendChild(htr); tbl.appendChild(thead);
+        var tb = document.createElement('tbody');
+        rules.forEach(function (r) {
+          var tr = document.createElement('tr');
+          tr.appendChild(h('td', null, r.symbol));
+          tr.appendChild(h('td', null, r.condition === 'above' ? '≥' : '≤'));
+          tr.appendChild(h('td', null, '₹' + fmtN(r.target)));
+          var tdS = document.createElement('td');
+          tdS.appendChild(r.enabled ? h('span', 'tm-good', 'armed') : h('span', 'tm-mut', r.triggeredAt ? 'triggered' : 'off'));
+          tr.appendChild(tdS);
+          tr.appendChild(h('td', null, r.lastPrice != null ? '₹' + fmtN(r.lastPrice) : '—'));
+          var act = document.createElement('td');
+          var tog = h('button', 'tm-btn', r.enabled ? 'Disarm' : 'Re-arm'); tog.style.padding = '2px 8px'; tog.type = 'button';
+          tog.addEventListener('click', function () { tog.disabled = true; authJson('POST', '/api/alerts/rules/' + r.id + '/toggle', { enabled: !r.enabled }).then(load); });
+          var del = h('button', 'tm-btn', 'Delete'); del.type = 'button'; del.style.cssText = 'padding:2px 8px;margin-left:6px';
+          del.addEventListener('click', function () { del.disabled = true; authJson('DELETE', '/api/alerts/rules/' + r.id).then(load); });
+          act.appendChild(tog); act.appendChild(del); tr.appendChild(act);
+          tb.appendChild(tr);
+        });
+        tbl.appendChild(tb); wrap.appendChild(tbl);
+        foot.textContent = rules.filter(function (r) { return r.enabled; }).length + ' armed · ' + rules.length + ' total';
+      }).catch(function (e) { wrap.appendChild(h('div', 'tm-bad', 'Failed: ' + e.message)); });
+    }
+
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var payload = { symbol: sym.value.trim(), condition: cond.value, target: Number(tgt.value), note: note.value.trim() };
+      if (!payload.symbol || !(payload.target > 0)) { msg.textContent = 'Enter a symbol and a positive target price.'; msg.className = 'tm-bad'; return; }
+      addBtn.disabled = true; msg.className = 'tm-mut'; msg.textContent = 'Creating…';
+      authJson('POST', '/api/alerts/rules', payload).then(function (res) {
+        addBtn.disabled = false;
+        if (!res.ok || !res.j.ok) { msg.className = 'tm-bad'; msg.textContent = (res.j && res.j.error) || 'Failed'; return; }
+        msg.textContent = ''; sym.value = ''; tgt.value = ''; note.value = '';
+        load();
+      }).catch(function (err) { addBtn.disabled = false; msg.className = 'tm-bad'; msg.textContent = 'Failed: ' + err.message; });
+    });
+    load();
+    setTimeout(function () { sym.focus(); }, 30);
+  }
+
   function openRiskPanel() {
     var body = openPanel('Risk controls');
     function load() {
@@ -936,5 +1047,5 @@
   }
 
   /* ── expose for debugging / tests ──────────────────────────────────── */
-  window.__shell = { open: open, close: close, toggleTheme: toggleTheme, setCollapsed: setCollapsed, openResearch: openResearch, openRiskPanel: openRiskPanel, openOptions: openOptions, openPayoff: openPayoff, openBacktest: openBacktest, resetSideWidth: resetSideWidth, resetSplitRatio: resetSplitRatio };
+  window.__shell = { open: open, close: close, toggleTheme: toggleTheme, setCollapsed: setCollapsed, openResearch: openResearch, openRiskPanel: openRiskPanel, openOptions: openOptions, openPayoff: openPayoff, openBacktest: openBacktest, openPriceAlerts: openPriceAlerts, resetSideWidth: resetSideWidth, resetSplitRatio: resetSplitRatio, evalAlerts: evalAlerts };
 })();

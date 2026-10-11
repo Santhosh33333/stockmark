@@ -124,7 +124,18 @@ Exposed in the app via the command palette → **Research brief**.
   by default and requires explicit Dhan authorisation.
 - **Kill switch** (`POST /api/risk/kill`) blocks every new position (paper + live);
   `GET /api/risk/state` shows limits vs live usage. UI: palette → **Risk controls**.
+- **User-defined price alerts** (zero-cost): `GET/POST /api/alerts/rules`,
+  `POST /api/alerts/rules/:id/toggle`, `DELETE /api/alerts/rules/:id`,
+  `POST /api/alerts/rules/eval`. Rules are `{symbol, condition: above|below, target}`,
+  evaluated against real quotes only, **fire once then auto-disarm** (no spam), and
+  are recorded in the existing alert feed. UI: palette → **Price alerts**; browser
+  notifications while the tab is open, optional Telegram anytime, plus a gentle
+  server poller (`ALERT_POLL_MS`, default 60s; 0 disables) so alerts fire with no
+  tab open. Verified: fires at the real cross, disarms, never re-fires, validates
+  input (400s), client-price-map eval; 6 deterministic live checks + 4 unit tests.
 - Audit log records blocks, kill-switch changes and live orders.
+- Inbound TradingView webhook (`/api/webhook/tradingview`) and Telegram channel
+  already cover external signals; price alerts add first-class in-app automation.
 
 ## H. Product experience — *done (existing shell)*
 
@@ -167,9 +178,9 @@ Exposed in the app via the command palette → **Research brief**.
 
 ```bash
 npm install
-npm run test:unit     # 25 deterministic checks (no network)
+npm run test:unit     # 29 deterministic checks (no network)
 npm start             # http://localhost:5124/app   (landing at /)
-npm test              # 57 live end-to-end checks against the running server
+npm test              # 63 live end-to-end checks against the running server
 ```
 
 Migrations run automatically on boot (idempotent `CREATE TABLE IF NOT EXISTS` +
@@ -178,17 +189,21 @@ migrations are performed on existing data.
 
 ## Verified in this pass
 
-- `npm run test:unit` → **25/25**.
-- `npm test` (live) → **57/57**.
+- `npm run test:unit` → **29/29**.
+- `npm test` (live) → **63/63**.
 - Live endpoints confirmed: `/api/metrics`, `/api/research/RELIANCE`,
   `/api/analysis/RELIANCE?intraday=1` (premium/discount, VWAP, swing labels,
   displacement, equal H/L, 5m/15m MTF), `/api/options/NIFTY/analytics`
   (Greeks + max pain + IV), `/api/options/strategy/payoff`, `/api/risk/state`,
-  `/api/risk/kill`, `/api/paper/export.csv`, `/api/stream/quotes` (SSE).
+  `/api/risk/kill`, `/api/alerts/rules` (create/eval/toggle/delete, auto-disarm),
+  `/api/paper/export.csv`, `/api/stream/quotes` (SSE).
 - Backtest verified with costs + train/test + CSV (`--costs --train=0.7 --csv`).
 - In-browser: app shell loads with **0 console errors**; Risk-controls,
-  Research, Options-analytics, Strategy-builder, Advanced-backtest and
-  Expiry-comparison panels render live data; sidebar resize persists.
+  Research, Options-analytics, Strategy-builder, Advanced-backtest,
+  Expiry-comparison and Price-alerts panels render live data; sidebar resize persists.
+- Price alerts verified end-to-end: created INFY `below ₹1` via the UI form → armed
+  row rendered → deleted → empty list; the fired RELIANCE rule auto-disarmed and
+  never re-fired; 2 test signal rows + 1 test user removed afterward.
 - Layout: resizable sidebar + detail panes verified in-browser — wide-screen
   two-column split honours `--tm-split-left` (58%→422px, 70%→509px), drag
   persists to `localStorage`, double-click resets, narrow screens collapse to one

@@ -7,6 +7,7 @@ const dhan = require('../dhan');
 const options = require('../providers/options');
 const optionsAnalytics = require('../optionsAnalytics');
 const market = require('../providers');
+const priceAlerts = require('../priceAlerts');
 const notify = require('../notify');
 const scanner = require('../scanner');
 const { inr, marketStatus } = require('../util');
@@ -296,6 +297,51 @@ router.post('/alerts/telegram-test', requireUser, async (req, res) => {
   const settings = auth.getSettings(req.user);
   const out = await notify.sendTelegram(settings, '✅ <b>TradeMind</b> connected — alerts will arrive here.');
   res.json(out);
+});
+
+// ── user-defined price alerts (free; real quotes only) ──────────────────
+router.get('/alerts/rules', requireUser, (req, res) => {
+  res.json({ rules: stmt.priceAlerts.all(req.user.id).map(priceAlerts.shape) });
+});
+
+router.post('/alerts/rules', requireUser, (req, res) => {
+  const b = req.body || {};
+  const symbol = priceAlerts.normalizeSymbol(b.symbol);
+  const condition = String(b.condition || '').toLowerCase();
+  const target = Number(b.target);
+  if (!symbol) return res.status(400).json({ error: 'Symbol is required' });
+  if (!priceAlerts.CONDITIONS.has(condition)) return res.status(400).json({ error: "Condition must be 'above' or 'below'" });
+  if (!isFinite(target) || target <= 0) return res.status(400).json({ error: 'Target must be a positive number' });
+  const info = stmt.addPriceAlert.run(req.user.id, symbol, String(b.name || '').slice(0, 80), condition, target, String(b.note || '').slice(0, 200), now());
+  const rule = priceAlerts.shape(stmt.priceAlertById.get(info.lastInsertRowid));
+  res.json({ ok: true, id: rule.id, rule });
+});
+
+router.post('/alerts/rules/:id/toggle', requireUser, (req, res) => {
+  const r = stmt.priceAlertById.get(Number(req.params.id));
+  if (!r || r.user_id !== req.user.id) return res.status(404).json({ error: 'Alert not found' });
+  const enabled = req.body && req.body.enabled != null ? (req.body.enabled ? 1 : 0) : (r.enabled ? 0 : 1);
+  stmt.setAlertEnabled.run(enabled, r.id, req.user.id);
+  res.json({ ok: true, enabled: !!enabled });
+});
+
+router.delete('/alerts/rules/:id', requireUser, (req, res) => {
+  stmt.deletePriceAlert.run(Number(req.params.id), req.user.id);
+  res.json({ ok: true });
+});
+
+// Evaluate this user's armed rules. The client may pass { prices } it already
+// holds (e.g. from the SSE stream); otherwise the server fetches real quotes.
+router.post('/alerts/rules/eval', requireUser, async (req, res) => {
+  try {
+    const prices = req.body && req.body.prices;
+    const fired = prices && typeof prices === 'object'
+      ? priceAlerts.evaluateWithPrices(req.user.id, prices)
+      : await priceAlerts.evaluateUser(req.user.id);
+    res.json({ ok: true, fired });
+  } catch (e) {
+    res.status(502).json({ ok: false, error: e.message, fired: [] });
+  }
 });
 
 // TradingView webhook (free): paste this URL into a TradingView alert

@@ -25,6 +25,12 @@ app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.set('trust proxy', true);
 
+// Free price alerts: a gentle background poller lets armed rules fire even when
+// no browser tab is open. 0 disables it; only runs when alerts exist.
+const priceAlerts = require('./src/priceAlerts');
+const alertPollMs = Number(process.env.ALERT_POLL_MS == null ? 60000 : process.env.ALERT_POLL_MS);
+if (alertPollMs > 0) priceAlerts.start(alertPollMs);
+
 // ── API ────────────────────────────────────────────────────────────────
 app.use('/api', publicRoutes.router);
 app.use('/api', accountRoutes.router);

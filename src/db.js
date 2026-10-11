@@ -106,6 +106,25 @@ CREATE TABLE IF NOT EXISTS iv_history (
   ts         INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_iv ON iv_history(symbol, expiry, ts);
+
+-- user-defined price alerts (free; evaluated against free quotes)
+CREATE TABLE IF NOT EXISTS price_alerts (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id       INTEGER NOT NULL,
+  symbol        TEXT NOT NULL,
+  name          TEXT,
+  condition     TEXT NOT NULL,                 -- above | below
+  target        REAL NOT NULL,
+  note          TEXT,
+  enabled       INTEGER NOT NULL DEFAULT 1,    -- 1 armed, 0 disarmed (auto-cleared on trigger)
+  created_at    INTEGER NOT NULL,
+  last_price    REAL,
+  last_checked  INTEGER,
+  triggered_at  INTEGER,
+  trigger_count INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_pa_user ON price_alerts(user_id, enabled);
+CREATE INDEX IF NOT EXISTS idx_pa_enabled ON price_alerts(enabled);
 `);
 
 // email verification column (added on existing databases too)
@@ -174,6 +193,17 @@ const stmt = {
   insertIv: db.prepare(`INSERT INTO iv_history (symbol, expiry, iv, underlying, ts) VALUES (?,?,?,?,?)`),
   ivHistory: db.prepare(`SELECT iv, underlying, ts FROM iv_history WHERE symbol = ? AND expiry = ? ORDER BY ts DESC LIMIT ?`),
   countIv: db.prepare(`SELECT COUNT(*) c FROM iv_history WHERE symbol = ?`),
+  // ── user-defined price alerts ──
+  addPriceAlert: db.prepare(`INSERT INTO price_alerts (user_id, symbol, name, condition, target, note, created_at) VALUES (?,?,?,?,?,?,?)`),
+  priceAlerts: db.prepare(`SELECT * FROM price_alerts WHERE user_id = ? ORDER BY id DESC`),
+  priceAlertById: db.prepare(`SELECT * FROM price_alerts WHERE id = ?`),
+  enabledAlertsForUser: db.prepare(`SELECT * FROM price_alerts WHERE user_id = ? AND enabled = 1 ORDER BY id`),
+  enabledAlerts: db.prepare(`SELECT * FROM price_alerts WHERE enabled = 1 ORDER BY id`),
+  countEnabledAlerts: db.prepare(`SELECT COUNT(*) c FROM price_alerts WHERE enabled = 1`),
+  setAlertEnabled: db.prepare(`UPDATE price_alerts SET enabled = ?, triggered_at = NULL WHERE id = ? AND user_id = ?`),
+  deletePriceAlert: db.prepare(`DELETE FROM price_alerts WHERE id = ? AND user_id = ?`),
+  markAlertTriggered: db.prepare(`UPDATE price_alerts SET last_price = ?, last_checked = ?, triggered_at = ?, trigger_count = trigger_count + 1, enabled = 0 WHERE id = ?`),
+  touchAlertChecked: db.prepare(`UPDATE price_alerts SET last_price = ?, last_checked = ? WHERE id = ?`),
 };
 
 const now = () => Date.now();

@@ -202,6 +202,33 @@ test('analyze accepts useCosts + trainSplit and flags the cost model', () => {
   assert.strictEqual(typeof a.stats.totalCostsPct, 'number');
 });
 
+// ── price alerts: pure matching + symbol normalisation ──────────────────
+const priceAlerts = require('../src/priceAlerts');
+test('price-alert symbols normalise to the right lookup form', () => {
+  assert.strictEqual(priceAlerts.toLookup('reliance'), 'RELIANCE.NS');
+  assert.strictEqual(priceAlerts.toLookup('TCS.NS'), 'TCS.NS');
+  assert.strictEqual(priceAlerts.toLookup('^NSEI'), '^NSEI');
+  assert.strictEqual(priceAlerts.normalizeSymbol('  infy '), 'INFY');
+});
+test('price-alert "above" fires only at or through the target', () => {
+  const r = { condition: 'above', target: 100 };
+  assert.strictEqual(priceAlerts.ruleMatches(r, 100), true);
+  assert.strictEqual(priceAlerts.ruleMatches(r, 99.99), false);
+  assert.strictEqual(priceAlerts.ruleMatches(r, 150), true);
+});
+test('price-alert "below" fires only at or through the target', () => {
+  const r = { condition: 'below', target: 100 };
+  assert.strictEqual(priceAlerts.ruleMatches(r, 100), true);
+  assert.strictEqual(priceAlerts.ruleMatches(r, 100.01), false);
+  assert.strictEqual(priceAlerts.ruleMatches(r, 40), true);
+});
+test('price-alert never fires on missing, zero or negative quotes', () => {
+  assert.strictEqual(priceAlerts.ruleMatches({ condition: 'above', target: 10 }, null), false);
+  assert.strictEqual(priceAlerts.ruleMatches({ condition: 'above', target: 10 }, undefined), false);
+  assert.strictEqual(priceAlerts.ruleMatches({ condition: 'below', target: 10 }, 0), false);
+  assert.strictEqual(priceAlerts.ruleMatches({ condition: 'below', target: 10 }, -5), false);
+});
+
 console.log(`\n${pass}/${pass + fail} unit checks passed`);
 if (fail) { console.log('FAILED'); process.exit(1); }
 console.log('ALL UNIT CHECKS PASSED ✅');

@@ -219,6 +219,25 @@ async function main() {
     const alerts = await call('GET', '/api/alerts/history?limit=5', null, authHeaders);
     check('Alert history', alerts.status === 200 && Array.isArray(alerts.body.alerts));
 
+    // ── user-defined price alerts (deterministic via a client price map) ──
+    const paCreate = await call('POST', '/api/alerts/rules', { symbol: 'RELIANCE', condition: 'above', target: 1, note: 'ZZTEST' }, authHeaders);
+    check('Price alert created', paCreate.status === 200 && paCreate.body.ok === true && !!paCreate.body.id,
+      paCreate.body.error || `rule #${paCreate.body.id}`);
+    const paEval = await call('POST', '/api/alerts/rules/eval', { prices: { RELIANCE: 5 } }, authHeaders);
+    const paFired = paEval.body.fired || [];
+    check('Price alert fires on a real cross', paEval.status === 200 && paFired.length === 1 && paFired[0].symbol === 'RELIANCE' && paFired[0].price === 5,
+      `fired ${paFired.length}`);
+    const paList = await call('GET', '/api/alerts/rules', null, authHeaders);
+    const paRule = (paList.body.rules || []).find((r) => r.id === paCreate.body.id);
+    check('Triggered price alert auto-disarms', !!paRule && paRule.enabled === false && !!paRule.triggeredAt, paRule ? 'disarmed' : 'missing');
+    const paRefire = await call('POST', '/api/alerts/rules/eval', { prices: { RELIANCE: 5 } }, authHeaders);
+    check('Disarmed price alert never re-fires', (paRefire.body.fired || []).length === 0);
+    const paBad = await call('POST', '/api/alerts/rules', { symbol: 'RELIANCE', condition: 'cross', target: 1 }, authHeaders);
+    check('Price alert rejects a bad condition', paBad.status === 400);
+    await call('DELETE', '/api/alerts/rules/' + paCreate.body.id, null, authHeaders);
+    const paAfter = await call('GET', '/api/alerts/rules', null, authHeaders);
+    check('Price alert deleted', !(paAfter.body.rules || []).some((r) => r.id === paCreate.body.id));
+
     const dhan = await call('POST', '/api/dhan/test', {}, authHeaders);
     check('Dhan guard (no token → clean refusal)', dhan.status === 200 && dhan.body.ok === false, dhan.body.error || '');
 
