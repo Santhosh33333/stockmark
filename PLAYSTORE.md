@@ -24,10 +24,10 @@ one-time)**. Everything else here is free.
 - [x] Privacy policy at `/privacy` (password auth, no OTP, no ads/trackers)
       and Terms at `/terms`
 - [x] **Signed release APK built here** (not PWABuilder) — package
-      `app.trademind.twa`, versionName `1.0.1` (versionCode 2), minSdk 24,
+      `app.trademind.twa`, versionName `1.0.2` (versionCode 3), minSdk 24,
       targetSdk 34. The launcher is a native `MainActivity` WebView that loads
       the live URL — no Chrome / Play-Services / asset-links dependency:
-      - Download: **`/app.apk`** → `public/download/TradeMind-v1.0.1.apk`
+      - Download: **`/app.apk`** → `public/download/TradeMind-v1.0.2.apk`
       - Rebuild: `powershell -File scripts\build-apk.ps1`
 - [x] `public/.well-known/assetlinks.json` still carries the real fingerprint
       (`69:22:05:39:8F:8D:8D:DB:D7:38:67:46:65:FE:72:7E:BD:3F:00:00:7E:D1:D6:5A:91:49:3C:E0:FB:63:A1:70`,
@@ -166,4 +166,4 @@ account.
       and `$version` in `scripts\build-apk.ps1` for each new Play release
 
 `APP_VERSION` for this guide: v24 — app shell `app.js?v=24`.
-Android app version: `1.0.1` (versionCode 2).
+Android app version: `1.0.2` (versionCode 3).

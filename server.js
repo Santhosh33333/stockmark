@@ -116,10 +116,10 @@ app.get('/healthz', (_req, res) => res.status(200).send('ok'));
 // the landing page / QR codes can point at it. Served as an attachment so
 // Android hands it to the package installer instead of rendering it.
 app.get('/app.apk', (_req, res) => {
-  const apk = path.join(__dirname, 'public', 'download', 'TradeMind-v1.0.1.apk');
+  const apk = path.join(__dirname, 'public', 'download', 'TradeMind-v1.0.2.apk');
   if (!fs.existsSync(apk)) return res.status(404).send('APK not built yet');
   res.setHeader('Content-Type', 'application/vnd.android.package-archive');
-  res.setHeader('Content-Disposition', 'attachment; filename="TradeMind-v1.0.1.apk"');
+  res.setHeader('Content-Disposition', 'attachment; filename="TradeMind-v1.0.2.apk"');
   res.sendFile(apk);
 });
 

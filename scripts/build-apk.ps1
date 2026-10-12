@@ -21,8 +21,8 @@
 # Usage:  powershell -ExecutionPolicy Bypass -File scripts\build-apk.ps1
 #
 # After it finishes:
-#   APK -> public\download\TradeMind-v1.0.1.apk   (served at /app.apk)
-#   AAB -> public\download\TradeMind-v1.0.1.aab   (upload to Play Console)
+#   APK -> public\download\TradeMind-v1.0.2.apk   (served at /app.apk)
+#   AAB -> public\download\TradeMind-v1.0.2.aab   (upload to Play Console)
 #
 # IMPORTANT: keep versionCode/versionName in app\build.gradle in step with
 # $version so the Play Console accepts the AAB as an update.
@@ -36,7 +36,7 @@ $gradleBin  = 'D:\android\gradle-x\gradle-8.7\bin\gradle.bat'
 $project    = 'D:\android\build\twa-app'
 $repo       = Split-Path -Parent $PSScriptRoot
 $outDir     = Join-Path $repo 'public\download'
-$version    = '1.0.1'
+$version    = '1.0.2'
 
 foreach ($p in @($jdk, $sdk, $project)) {
   if (-not (Test-Path $p)) { throw "Missing prerequisite: $p" }

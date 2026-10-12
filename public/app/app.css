@@ -198,7 +198,7 @@ td.u{color:var(--up)}td.d{color:var(--down)}td.a{color:var(--accent);font-weight
 .chart-box{margin:12px 14px;border-radius:18px;border:1px solid var(--line);background:linear-gradient(180deg,rgba(6,12,26,.94),rgba(4,8,18,.95));overflow:hidden}
 .chart-head{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;padding:11px 13px;border-bottom:1px solid var(--line)}
 .chart-head .seg-tab{padding:5px 11px;font-size:12px}
-canvas#chart{width:100%;height:380px;display:block}
+canvas#chart{width:100%;height:380px;display:block;touch-action:none}
 .chart-tools{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:9px 13px 2px}
 .chip{display:inline-block;padding:4px 10px;border-radius:20px;font-size:11px;font-weight:650;cursor:pointer;border:1px solid var(--line);color:var(--dim);background:rgba(148,163,184,.06);user-select:none;transition:.15s}
 .chip:hover{background:rgba(148,163,184,.13)}

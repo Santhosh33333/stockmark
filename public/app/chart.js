@@ -92,6 +92,18 @@
     zoomIn() { this.zoom(0.7); }
     zoomOut() { this.zoom(1.4); }
 
+    _pinchDist(e) {
+      const a = e.touches[0], b = e.touches[1];
+      return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+    }
+    _pinchFrac(e) {
+      const rect = this.c.getBoundingClientRect();
+      const a = e.touches[0], b = e.touches[1];
+      const P = this.opts.padding;
+      const cx = (a.clientX + b.clientX) / 2 - rect.left;
+      return clamp((cx - P.left) / Math.max(1, this.w - P.left - P.right), 0, 1);
+    }
+
     _animate() {
       const step = () => {
         this.animT -= 0.06;
@@ -146,9 +158,45 @@
         this.c.style.cursor = 'grabbing';
       });
       this._on(window, 'mouseup', () => { if (this.drag) { this.drag = null; this.c.style.cursor = 'crosshair'; } });
-      this._on(this.c, 'touchstart', (e) => { this.hover = local(e); this.render(); }, { passive: true });
-      this._on(this.c, 'touchmove', (e) => { this.hover = local(e); this.render(); }, { passive: true });
-      this._on(this.c, 'touchend', () => { this.hover = null; this.render(); });
+      // Touch: one finger pans (like mouse-drag), two fingers pinch-zoom.
+      this._on(this.c, 'touchstart', (e) => {
+        if (e.touches.length === 1) {
+          const { x } = local(e);
+          this.drag = { x, from: this.view.from, to: this.view.to };
+          this.pinch = null;
+        } else if (e.touches.length === 2) {
+          this.pinch = { d: this._pinchDist(e), frac: this._pinchFrac(e) };
+          this.drag = null;
+        }
+        this.hover = local(e); this.render();
+      }, { passive: true });
+      this._on(this.c, 'touchmove', (e) => {
+        if (e.touches.length === 2 && this.pinch) {
+          const d = this._pinchDist(e);
+          if (d > 0 && this.pinch.d > 0) this.zoom(d / this.pinch.d, this.pinch.frac);
+          this.pinch = { d, frac: this._pinchFrac(e) };
+          e.preventDefault();
+          return;
+        }
+        if (this.drag) {
+          const { x } = local(e);
+          const n = this.drag.to - this.drag.from;
+          const P = this.opts.padding;
+          const per = (this.w - P.left - P.right) / Math.max(1, n) || 1;
+          const shift = Math.round((this.drag.x - x) / per);
+          const from = clamp(this.drag.from + shift, 0, Math.max(0, this.candles.length - n));
+          this.view.from = from; this.view.to = from + n;
+          this.render();
+          e.preventDefault();
+          return;
+        }
+        this.hover = local(e); this.render();
+      }, { passive: false });
+      this._on(this.c, 'touchend', (e) => {
+        if (e.touches.length < 2) this.pinch = null;
+        if (e.touches.length === 0) { this.drag = null; this.hover = null; }
+        this.render();
+      });
       this._on(this.c, 'dblclick', () => this.resetView());
       this._on(this.c, 'wheel', (e) => {
         e.preventDefault();
